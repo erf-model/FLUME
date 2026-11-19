@@ -64,4 +64,5 @@ git commit -m "Move ERF to <tag-or-commit>"
 
 ## License
 
-No license file has been added yet.
+FLUME is released under ERF's license. `LICENSE.md` and `copyright.txt` are the
+same files as in ERF, GALE and FLARE.
