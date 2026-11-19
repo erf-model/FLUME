@@ -1,0 +1,22 @@
+# A level water surface over a plane bed that rises above it: 50 x 30 cells
+# of 2 m in 8 boxes of uneven size. The bed is at 100 m at the lower corner
+# and slopes by -1/32 in x and 1/64 in y; the surface is at 98.921875 m.
+# Cells with 4 i - 2 j <= 68 are dry (the bed of cell (17, 0) is exactly at the
+# surface); the deepest cell, (49, 0), has 2 m of water. With g = 8 m/s2 and a
+# velocity of (6, -2) m/s the largest rate is (6 + 4) / 2 + (2 + 4) / 2 = 8 1/s,
+# in that one cell, and the CFL step is 0.5 / 8 = 0.0625 s. Three steps end at
+# 0.1875 s.
+# Every number is exact in single and double precision.
+flume.n_cell        = 50 30
+flume.prob_lo       = 1000.0 -60.0
+flume.prob_hi       = 1100.0 0.0
+flume.max_grid_size = 16
+flume.plot_file     = slope
+flume.max_step      = 3
+flume.cfl           = 0.5
+flume.gravity       = 8.0
+
+flume.bed.elevation          = 100.0
+flume.bed.slope              = -0.03125 0.015625
+flume.init.surface_elevation = 98.921875
+flume.init.velocity          = 6.0 -2.0

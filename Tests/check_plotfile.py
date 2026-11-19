@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
-"""Check a FLUME plotfile against the numbers a test pins.
+"""Check the plotfiles of a FLUME run against the numbers a test pins.
 
-    check_plotfile.py <plotfile> --n-cell NX NY --prob-lo X Y --prob-hi X Y
-        --dx DX DY --max-grid-size N --n-boxes N --n-files N --var NAME --value V
-        [--rtol R]
+    check_plotfile.py <prefix> --steps N... --times T... --n-cell NX NY
+        --prob-lo X Y --prob-hi X Y --dx DX DY --max-grid-size N --n-boxes N
+        --n-files N [--bed-elevation E] [--bed-slope SX SY] [--surface ETA]
+        [--velocity U V] [--rtol R] [--time-rtol R]
 
-Reads the plotfile's Header and Level_0/Cell_H (text files; no AMReX or numpy
-needed) and checks:
+The run directory must hold exactly the plotfiles <prefix><step, 5 digits> of
+the steps listed, and no other of that prefix. Each is read (text headers and
+binary cell data; no AMReX or numpy needed) and checked:
 
-  * one variable with the given name, one level, three dimensions;
+  * the five variables, one level, three dimensions, the step and its time
+    (within R times the time; exactly for time 0);
   * the domain is NX x NY x 1 cells and spans prob_lo to prob_hi in x and y,
     within R times the extent prob_hi - prob_lo (not R times the coordinate, so
     a shifted corner is seen at large coordinates), and exactly 0 to 1 in z;
@@ -18,10 +21,18 @@ needed) and checks:
     hold exactly NX * NY cells without overlap;
   * the number of data files the boxes are written to, which is the number of
     MPI ranks that own a box;
-  * the minimum and the maximum of the variable in every box equal V.
+  * every cell of every variable against the closed form
+        bed_elevation     = E + SX (i + 1/2) DX + SY (j + 1/2) DY
+        depth             = max(ETA - bed_elevation, 0)   (0 without --surface)
+        discharge_x, _y   = depth U, depth V
+        surface_elevation = bed_elevation + depth
+    within 4 machine epsilons (of the precision the data are written in) times
+    the larger of |bed_elevation| and |ETA|, times max(1, |U|, |V|) for the
+    discharges. The check also prints the largest difference found.
 """
 import argparse
 import re
+import struct
 import sys
 from pathlib import Path
 
@@ -65,10 +76,8 @@ def read_header(path):
 
 
 def read_cell_h(path):
-    """Boxes and per-box minimum and maximum of each component."""
-    text = path.read_text()
-    lines = text.splitlines()
-    ncomp = int(lines[2])
+    """Boxes, and for each box the data file and the offset of its data in it."""
+    lines = path.read_text().splitlines()
     start = next(k for k, s in enumerate(lines) if re.match(r"^\(\d+ \d+$", s))
     nbox = int(lines[start][1:].split()[0])
     boxes = []
@@ -78,50 +87,67 @@ def read_cell_h(path):
             sys.exit(f"{path}: cannot read a box from {s!r}")
         v = [int(x) for x in m.groups()]
         boxes.append((v[0:3], v[3:6]))
-    # Two blocks follow the FabOnDisk lines, each headed "<nbox>,<ncomp>":
-    # the minima, then the maxima, one line per box.
-    files = set()
+    fab_on_disk = []
     for s in lines[start + 1 + nbox:]:
-        m = re.match(r"^FabOnDisk: (\S+) \d+$", s)
+        m = re.match(r"^FabOnDisk: (\S+) (\d+)$", s)
         if m:
-            files.add(m.group(1))
-    heads = [k for k, s in enumerate(lines) if s.strip() == f"{nbox},{ncomp}"]
-    if len(heads) != 2:
-        sys.exit(f"{path}: expected a minimum and a maximum block, found {len(heads)}")
-    blocks = []
-    for k in heads:
-        rows = [[float(x) for x in s.strip().rstrip(",").split(",")] for s in lines[k + 1:k + 1 + nbox]]
-        blocks.append(rows)
-    return boxes, files, blocks[0], blocks[1]
+            fab_on_disk.append((m.group(1), int(m.group(2))))
+    if len(fab_on_disk) != nbox:
+        sys.exit(f"{path}: {nbox} boxes but {len(fab_on_disk)} FabOnDisk lines")
+    return boxes, fab_on_disk
 
 
-def main():
-    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("plotfile", type=Path)
-    p.add_argument("--n-cell", type=int, nargs=2, required=True)
-    p.add_argument("--prob-lo", type=float, nargs=2, required=True)
-    p.add_argument("--prob-hi", type=float, nargs=2, required=True)
-    p.add_argument("--dx", type=float, nargs=2, required=True)
-    p.add_argument("--max-grid-size", type=int, required=True)
-    p.add_argument("--n-boxes", type=int, required=True)
-    p.add_argument("--n-files", type=int, required=True)
-    p.add_argument("--rtol", type=float, default=1e-12)
-    p.add_argument("--var", required=True)
-    p.add_argument("--value", type=float, required=True)
-    a = p.parse_args()
+FAB_HEAD = re.compile(rb"FAB \(\((\d+), \(([\d ]+)\)\),\((\d+), \(([\d ]+)\)\)\)"
+                      rb"\(\((-?\d+),(-?\d+),(-?\d+)\) \((-?\d+),(-?\d+),(-?\d+)\) \((-?\d+),(-?\d+),(-?\d+)\)\) (\d+)\n")
+VARS = ["depth", "discharge_x", "discharge_y", "bed_elevation", "surface_elevation"]
 
-    for f in (a.plotfile / "Header", a.plotfile / "Level_0" / "Cell_H"):
+
+def read_cell_data(level_dir, fab_on_disk):
+    """Cell values {(i, j): [one value per component]} and the size of a real, in bytes."""
+    cells = {}
+    real_size = None
+    for name, offset in fab_on_disk:
+        with open(level_dir / name, "rb") as f:
+            f.seek(offset)
+            head = f.readline()
+            m = FAB_HEAD.fullmatch(head)
+            if not m:
+                sys.exit(f"{level_dir / name}: cannot read the FAB header {head!r}")
+            size = int(m.group(3))
+            order = [int(x) for x in m.group(4).split()]
+            if size not in (4, 8) or order not in (list(range(size, 0, -1)), list(range(1, size + 1))):
+                sys.exit(f"{level_dir / name}: unknown real format in {head!r}")
+            real_size = size
+            lo = [int(m.group(k)) for k in (5, 6, 7)]
+            hi = [int(m.group(k)) for k in (8, 9, 10)]
+            ncomp = int(m.group(14))
+            ni, nj, nk = (hi[d] - lo[d] + 1 for d in range(3))
+            n = ni * nj * nk
+            raw = f.read(n * ncomp * size)
+            if len(raw) != n * ncomp * size:
+                sys.exit(f"{level_dir / name}: the data of box {lo} {hi} are cut short")
+            endian = "<" if order[0] == size else ">"
+            v = struct.unpack(f"{endian}{n * ncomp}{'d' if size == 8 else 'f'}", raw)
+            for j in range(nj):
+                for i in range(ni):
+                    # x runs fastest; one cell in z
+                    cells[(lo[0] + i, lo[1] + j)] = [v[c * n + j * ni + i] for c in range(ncomp)]
+    return cells, real_size
+
+
+def check_one(a, c, plotfile, step, time):
+    for f in (plotfile / "Header", plotfile / "Level_0" / "Cell_H"):
         if not f.is_file():
-            sys.exit(f"FAIL: {f} does not exist")
-
-    c = Checker()
-    h = read_header(a.plotfile / "Header")
+            c.errors.append(f"{f} does not exist")
+            return 0.0
+    h = read_header(plotfile / "Header")
     nx, ny = a.n_cell
-    c.eq("variables", h["vars"], [a.var])
+    c.eq("variables", h["vars"], VARS)
     c.eq("dimensions", h["dim"], 3)
     c.eq("finest level", h["finest_level"], 0)
-    c.eq("time", h["time"], 0.0)
-    c.eq("step", h["step"], 0)
+    time_rtol = a.rtol if a.time_rtol is None else a.time_rtol
+    c.near("time", [h["time"]], [time], [time_rtol * abs(time)])
+    c.eq("step", h["step"], step)
     c.eq("domain lower corner", h["domain_lo"], [0, 0, 0])
     c.eq("domain upper corner", h["domain_hi"], [nx - 1, ny - 1, 0])
     extent_tol = [a.rtol * abs(hi - lo) for lo, hi in zip(a.prob_lo, a.prob_hi)]
@@ -131,12 +157,14 @@ def main():
     c.eq("z extent and cell size", [h["prob_lo"][2:], h["prob_hi"][2:], h["dx"][2:]],
          [[0.0], [1.0], [1.0]])
 
-    boxes, files, mins, maxs = read_cell_h(a.plotfile / "Level_0" / "Cell_H")
+    boxes, fab_on_disk = read_cell_h(plotfile / "Level_0" / "Cell_H")
+    files = {name for name, _ in fab_on_disk}
     c.eq("number of boxes", len(boxes), a.n_boxes)
     c.eq("number of data files (ranks that own a box)", len(files), a.n_files)
     for f in sorted(files):
-        if not (a.plotfile / "Level_0" / f).is_file():
+        if not (plotfile / "Level_0" / f).is_file():
             c.errors.append(f"data file Level_0/{f} does not exist")
+            return 0.0
     covered = set()
     for lo, hi in boxes:
         size = [hi[d] - lo[d] + 1 for d in range(3)]
@@ -152,18 +180,80 @@ def main():
                     c.errors.append(f"cell ({i}, {j}) is in two boxes")
                 covered.add((i, j))
     c.eq("cells covered by the boxes", len(covered), nx * ny)
+    if c.errors:
+        return 0.0
 
-    for name, rows in (("minimum", mins), ("maximum", maxs)):
-        for k, row in enumerate(rows):
-            if row != [a.value]:
-                c.errors.append(f"{name} of {a.var} in box {k}: got {row}, expected {[a.value]}")
+    cells, real_size = read_cell_data(plotfile / "Level_0", fab_on_disk)
+    c.eq("cells in the data files", len(cells), nx * ny)
+    eps = 2.0 ** -52 if real_size == 8 else 2.0 ** -23
+    eta = a.surface
+    u, v = a.velocity
+    vscale = max(1.0, abs(u), abs(v))
+    worst = 0.0
+    n_bad = 0
+    for (i, j), got in sorted(cells.items()):
+        zb = a.bed_elevation + a.bed_slope[0] * (i + 0.5) * a.dx[0] + a.bed_slope[1] * (j + 0.5) * a.dx[1]
+        depth = 0.0 if eta is None else max(eta - zb, 0.0)
+        want = [depth, depth * u, depth * v, zb, zb + depth]
+        scale = max(abs(zb), 0.0 if eta is None else abs(eta))
+        tol = [4 * eps * scale * s for s in (1.0, vscale, vscale, 1.0, 1.0)]
+        for name, g, w, t in zip(VARS, got, want, tol):
+            # "not <=" also catches a NaN
+            if not abs(g - w) <= t:
+                n_bad += 1
+                if n_bad <= 5:
+                    c.errors.append(f"{name} in cell ({i}, {j}): got {g!r}, expected {w!r} (tolerance {t:.3g})")
+            else:
+                worst = max(worst, abs(g - w))
+    if n_bad > 5:
+        c.errors.append(f"... and {n_bad - 5} more cell values")
+    return worst
+
+
+def main():
+    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    p.add_argument("prefix")
+    p.add_argument("--steps", type=int, nargs="+", required=True)
+    p.add_argument("--times", type=float, nargs="+", required=True)
+    p.add_argument("--n-cell", type=int, nargs=2, required=True)
+    p.add_argument("--prob-lo", type=float, nargs=2, required=True)
+    p.add_argument("--prob-hi", type=float, nargs=2, required=True)
+    p.add_argument("--dx", type=float, nargs=2, required=True)
+    p.add_argument("--max-grid-size", type=int, required=True)
+    p.add_argument("--n-boxes", type=int, required=True)
+    p.add_argument("--n-files", type=int, required=True)
+    p.add_argument("--bed-elevation", type=float, default=0.0)
+    p.add_argument("--bed-slope", type=float, nargs=2, default=[0.0, 0.0])
+    p.add_argument("--surface", type=float, default=None)
+    p.add_argument("--velocity", type=float, nargs=2, default=[0.0, 0.0])
+    p.add_argument("--rtol", type=float, default=1e-12)
+    p.add_argument("--time-rtol", type=float, default=None,
+                   help="tolerance of the time only (default: --rtol)")
+    a = p.parse_args()
+    if len(a.steps) != len(a.times):
+        sys.exit("check_plotfile.py: --steps and --times need the same number of values")
+
+    c = Checker()
+    want = sorted(f"{a.prefix}{n:05d}" for n in a.steps)
+    found = sorted(d.name for d in Path(".").iterdir()
+                   if d.is_dir() and re.fullmatch(re.escape(a.prefix) + r"\d{5,}", d.name))
+    c.eq("plotfiles written", found, want)
+    worst = 0.0
+    for step, time in zip(a.steps, a.times):
+        name = f"{a.prefix}{step:05d}"
+        if name not in found:
+            continue
+        one = Checker()
+        worst = max(worst, check_one(a, one, Path(name), step, time))
+        c.errors += [f"{name}: {e}" for e in one.errors]
 
     if c.errors:
-        print(f"FAIL: {a.plotfile}")
+        print(f"FAIL: {a.prefix}")
         for e in c.errors:
             print("  " + e)
         sys.exit(1)
-    print(f"PASS: {a.plotfile}: {nx} x {ny} cells in {len(boxes)} box(es), {a.var} = {a.value}")
+    print(f"PASS: {', '.join(want)}: {a.n_cell[0]} x {a.n_cell[1]} cells, every cell matches the"
+          f" closed form (largest difference {worst:.3g})")
 
 
 if __name__ == "__main__":
