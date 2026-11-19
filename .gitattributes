@@ -1,0 +1,6 @@
+# Identical to ERF's files; whitespace checks do not apply to them.
+LICENSE.md -whitespace
+copyright.txt -whitespace
+# A seven-character RST title has a ======= underline, which git diff --check
+# would read as a conflict marker.
+*.rst conflict-marker-size=40

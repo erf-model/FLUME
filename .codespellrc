@@ -1,0 +1,3 @@
+[codespell]
+skip = ./.git,./Submodules,./build-*,./Docs/sphinx_doc/_build,./LICENSE.md,./copyright.txt
+check-hidden = true

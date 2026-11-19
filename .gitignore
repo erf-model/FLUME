@@ -1,0 +1,26 @@
+# Build directories (one per worktree, named build-<something>)
+build/
+build-*/
+cmake-build*/
+
+# CMake generated files
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+compile_commands.json
+
+# Run output in the top-level folder
+/plt*/
+/chk*/
+Backtrace.*
+
+# Sphinx output
+Docs/sphinx_doc/_build/
+
+# Tools
+.worktrees/
+.ccache/
+__pycache__/
+.DS_Store
+.idea
+.vscode

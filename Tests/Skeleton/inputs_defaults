@@ -1,0 +1,4 @@
+# Only the required keys: 128 x 65 cells of 2.5 m on [0, 320] x [0, 162.5] m.
+# The default max_grid_size, 64, splits this into 4 boxes.
+flume.n_cell  = 128 65
+flume.prob_hi = 320.0 162.5
