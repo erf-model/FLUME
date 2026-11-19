@@ -1,0 +1,48 @@
+name: Docs
+
+# The documentation is part of each pull request: a change that breaks it
+# fails the PR. Warnings are errors.
+on:
+  push:
+    branches: [development]
+  pull_request:
+    branches: [development]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docs-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build documentation
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.x'
+
+      - name: Install Sphinx
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r Docs/sphinx_doc/requirements.txt
+
+      - name: Build the docs, treating warnings as errors
+        run: sphinx-build -W --keep-going -b html Docs/sphinx_doc Docs/sphinx_doc/_build/html
+
+      # The HTML is kept with the run, so a PR's docs can be read without
+      # publishing anything.
+      - name: Upload the HTML
+        uses: actions/upload-artifact@v7
+        with:
+          name: docs-html
+          path: Docs/sphinx_doc/_build/html

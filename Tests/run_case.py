@@ -1,0 +1,75 @@
+#!/usr/bin/env python3
+"""Run one test case in its own directory, then check it.
+
+    run_case.py --dir <dir> --run <command...> --check <command...>
+    run_case.py --dir <dir> --expect-abort <regex> --run <command...>
+
+The directory is removed and made again, so a test never reads the output of an
+earlier run. With --check, the run must exit with 0 and the check command, run
+in the same directory, must exit with 0. With --expect-abort, the run must exit
+with a non-zero code and its output must match the regular expression.
+"""
+import re
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+
+def split_args(argv):
+    """Split argv at the --dir, --expect-abort, --run and --check markers."""
+    out = {"--dir": [], "--expect-abort": [], "--run": [], "--check": []}
+    key = None
+    for a in argv:
+        if a in out and not (key == "--check" and a != "--run"):
+            # Once --check starts, everything after it belongs to the check
+            # command, which has options of its own.
+            key = a
+            continue
+        if key is None:
+            sys.exit(f"run_case.py: unexpected argument {a!r}")
+        out[key].append(a)
+    return out
+
+
+def main():
+    # The run's output is printed again below; a byte the console cannot show
+    # must not fail the test.
+    sys.stdout.reconfigure(errors="backslashreplace")
+    args = split_args(sys.argv[1:])
+    if len(args["--dir"]) != 1 or not args["--run"]:
+        sys.exit("run_case.py: --dir <dir> and --run <command...> are required")
+    expect = args["--expect-abort"]
+    if len(expect) > 1 or (bool(expect) == bool(args["--check"])):
+        sys.exit("run_case.py: give exactly one of --check <command...> and --expect-abort <regex>")
+    if expect and not expect[0].strip():
+        sys.exit("run_case.py: the --expect-abort expression is empty and would match any output")
+
+    run_dir = Path(args["--dir"][0])
+    if run_dir.exists():
+        shutil.rmtree(run_dir)
+    run_dir.mkdir(parents=True)
+
+    print("run:", " ".join(args["--run"]), flush=True)
+    run = subprocess.run(args["--run"], cwd=run_dir, stdout=subprocess.PIPE,
+                         stderr=subprocess.STDOUT, encoding="utf-8", errors="backslashreplace")
+    print(run.stdout, flush=True)
+
+    if expect:
+        if run.returncode == 0:
+            sys.exit("FAIL: the run was expected to abort but exited with 0")
+        if not re.search(expect[0], run.stdout):
+            sys.exit(f"FAIL: the run aborted without the expected message /{expect[0]}/")
+        print(f"PASS: aborted (exit code {run.returncode}) with the expected message")
+        return
+
+    if run.returncode != 0:
+        sys.exit(f"FAIL: the run exited with {run.returncode}")
+    print("check:", " ".join(args["--check"]), flush=True)
+    check = subprocess.run(args["--check"], cwd=run_dir)
+    if check.returncode != 0:
+        sys.exit(f"FAIL: the check exited with {check.returncode}")
+
+
+if __name__ == "__main__":
+    main()

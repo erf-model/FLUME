@@ -12,8 +12,10 @@ The expansion of the name is a draft.
 
 ## Status
 
-This repository is a skeleton. It holds this README and ERF as a git submodule.
-There is no solver code, build system, test or documentation yet.
+The repository holds the build system, a test harness, the continuous
+integration and a documentation shell. The executable, `flume`, reads an inputs
+file, builds the grid and writes one plotfile in which the water depth is zero.
+There is no solver yet.
 
 ## Planned scope
 
@@ -31,35 +33,40 @@ None of these exist yet.
 
 ## Layout
 
-| Path             | Contents                                                        |
-| ---------------- | --------------------------------------------------------------- |
-| `Submodules/ERF` | ERF, pinned to the tagged release 26.11. AMReX comes through ERF. |
+| Path                | Contents                                                          |
+| ------------------- | ----------------------------------------------------------------- |
+| `Source`            | FLUME's sources.                                                  |
+| `Tests`             | Test decks, the test runner and the check scripts.                |
+| `Docs/sphinx_doc`   | The documentation (Sphinx): building, inputs, testing.            |
+| `.github/workflows` | Continuous integration: builds and tests, style, documentation.   |
+| `Submodules/ERF`    | ERF, pinned to the tagged release 26.11. AMReX comes through ERF. |
 
 FLUME uses ERF the way [GALE](https://github.com/erf-model/GALE) and FLARE do:
 ERF is a submodule, FLUME holds only its own files, and every change FLUME needs
 in ERF goes to ERF as a pull request.
 
-## Getting the code
+## Building and testing
 
-Clone with the submodules, which brings ERF and, through ERF, AMReX:
+FLUME needs CMake 3.25 or newer, a C++20 compiler and, for the tests, Python 3.
+MPI is optional and on by default. Two submodules are needed: ERF, and the AMReX
+that ERF pins.
 
 ```bash
-git clone --recursive https://github.com/erf-model/FLUME.git
+git clone https://github.com/erf-model/FLUME.git
+cd FLUME
+git submodule update --init Submodules/ERF
+git -C Submodules/ERF submodule update --init --depth 1 Submodules/AMReX
+cmake -S . -B build-rel -DCMAKE_BUILD_TYPE=Release
+cmake --build build-rel -j 8
+ctest --test-dir build-rel --output-on-failure
 ```
 
-In an existing clone:
+The stand-alone build compiles no ERF code. The CMake options, the inputs, the
+tests and how to move the ERF submodule are in `Docs/sphinx_doc`:
 
 ```bash
-git submodule update --init --recursive
-```
-
-To move the submodule to another ERF tag or commit:
-
-```bash
-git -C Submodules/ERF fetch --tags
-git -C Submodules/ERF checkout <tag-or-commit>
-git add Submodules/ERF
-git commit -m "Move ERF to <tag-or-commit>"
+python -m pip install -r Docs/sphinx_doc/requirements.txt
+sphinx-build -W --keep-going -b html Docs/sphinx_doc Docs/sphinx_doc/_build/html
 ```
 
 ## License
