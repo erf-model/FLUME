@@ -4,6 +4,7 @@
 #include <AMReX_Array.H>
 #include <AMReX_REAL.H>
 
+#include <optional>
 #include <string>
 
 namespace flume {
@@ -37,6 +38,40 @@ struct Inputs
 
     //! Plotfile name prefix (flume.plot_file; default "plt"; not empty)
     std::string plot_file = "plt";
+
+    //! Steps between plotfiles (flume.plot_int; default 0; >= 0). The first
+    //! and the last state are always written; 0 writes only those.
+    int plot_int = 0;
+
+    //! Time at which the run stops, s (flume.stop_time; no default; finite, >= 0).
+    //! In double precision in every build, as the time is.
+    std::optional<double> stop_time;
+
+    //! Largest number of steps (flume.max_step; no default; >= 0). With neither
+    //! stop_time nor max_step the run takes no step.
+    std::optional<int> max_step;
+
+    //! CFL number of the time step, with the rates of the two directions
+    //! added (flume.cfl; default 0.5; > 0 and <= 1)
+    amrex::Real cfl = amrex::Real(0.5);
+
+    //! Acceleration of gravity, m/s2 (flume.gravity; default 9.81; finite, > 0)
+    amrex::Real gravity = amrex::Real(9.81);
+
+    //! Bed elevation at the lower corner of the domain, m, on the absolute
+    //! vertical datum (flume.bed.elevation; default 0; finite)
+    amrex::Real bed_elevation = amrex::Real(0.0);
+
+    //! Bed slope dz_b/dx and dz_b/dy (flume.bed.slope; default 0 0; finite)
+    amrex::Array<amrex::Real, 2> bed_slope{{amrex::Real(0.0), amrex::Real(0.0)}};
+
+    //! Elevation of the initial, level water surface, m, on the same datum
+    //! (flume.init.surface_elevation; no default: the domain starts dry; finite)
+    std::optional<amrex::Real> init_surface_elevation;
+
+    //! Initial velocity in x and y where there is water, m/s (flume.init.velocity;
+    //! default 0 0; finite; needs flume.init.surface_elevation)
+    amrex::Array<amrex::Real, 2> init_velocity{{amrex::Real(0.0), amrex::Real(0.0)}};
 };
 
 //! Read and check the "flume" namespace. Aborts on a bad value or an unknown key.

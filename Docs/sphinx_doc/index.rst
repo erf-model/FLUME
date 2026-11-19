@@ -7,9 +7,10 @@ atmospheric code, built on `AMReX <https://github.com/AMReX-Codes/amrex>`__.
 The expansion of the name, FLood and Urban inundation ModulE, is a draft.
 
 **Status.** The repository holds the build system, the test harness, the
-continuous integration and this documentation shell. The executable reads an
-inputs file, builds the grid and writes one plotfile in which the water depth
-is zero. There is no solver yet.
+continuous integration and this documentation. The executable reads an inputs
+file, builds the grid, the bed and the initial state, and runs a time loop with
+a CFL time step that writes plotfiles. The loop does not change the state yet:
+the flux kernel is not written.
 
 The plan is a stand-alone code first, which uses AMReX only: the solver,
 prescribed rainfall, losses, restart and benchmarks. A build with ERF, with
@@ -23,4 +24,5 @@ AMReX from the commit ERF pins.
 
    Building
    Inputs
+   Model
    Testing

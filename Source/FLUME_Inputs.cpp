@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <iomanip>
 #include <limits>
 #include <sstream>
 #include <string>
@@ -49,6 +50,71 @@ checked_int (long long v, long long lo, long long hi, const std::string& key,
         amrex::Abort(msg);
     }
     return static_cast<int>(v);
+}
+
+//! A real as text with every digit, so that a value just outside a limit
+//! does not print as the limit.
+template <typename T>
+std::string
+all_digits (T v)
+{
+    std::ostringstream s;
+    s << std::setprecision(std::numeric_limits<T>::max_digits10) << v;
+    return s.str();
+}
+
+//! Read one finite real (float or double) if the key is given. Returns
+//! whether it was.
+template <typename T>
+bool
+query_finite (const amrex::ParmParse& pp, const std::string& key, T& value)
+{
+    if (!pp.contains(key)) { return false; }
+    require_count(pp, key, 1);
+    T v = T(0.0);
+    pp.get(key, v);
+    if (!std::isfinite(v)) {
+        std::string msg = "flume.";
+        msg += key;
+        msg += " must be finite";
+        amrex::Abort(msg);
+    }
+    value = v;
+    return true;
+}
+
+//! Read two finite reals (x and y) if the key is given. Returns whether it was.
+bool
+query_finite_pair (const amrex::ParmParse& pp, const std::string& key,
+                   amrex::Array<amrex::Real, 2>& value)
+{
+    if (!pp.contains(key)) { return false; }
+    require_count(pp, key, 2);
+    amrex::Vector<amrex::Real> v;
+    pp.getarr(key, v);
+    for (int d = 0; d < 2; ++d) {
+        if (!std::isfinite(v[d])) {
+            std::string msg = "flume.";
+            msg += key;
+            msg += " must be finite in x and y";
+            amrex::Abort(msg);
+        }
+        value[d] = v[d];
+    }
+    return true;
+}
+
+//! Read one integer in [lo, hi] if the key is given. Returns whether it was.
+bool
+query_int (const amrex::ParmParse& pp, const std::string& key, long long lo, long long hi,
+           int& value)
+{
+    if (!pp.contains(key)) { return false; }
+    require_count(pp, key, 1);
+    long long v = 0;
+    pp.get(key, v);
+    value = checked_int(v, lo, hi, key, "");
+    return true;
 }
 
 } // namespace
@@ -133,13 +199,10 @@ read_inputs ()
         }
     }
 
+    const long long int_max = std::numeric_limits<int>::max();
+
     // max_grid_size: optional, one integer in [1, INT_MAX]
-    if (pp.contains("max_grid_size")) {
-        require_count(pp, "max_grid_size", 1);
-        long long v = 0;
-        pp.get("max_grid_size", v);
-        in.max_grid_size = checked_int(v, 1, std::numeric_limits<int>::max(), "max_grid_size", "");
-    }
+    query_int(pp, "max_grid_size", 1, int_max, in.max_grid_size);
 
     // plot_file: optional, one string, not empty
     if (pp.contains("plot_file")) {
@@ -148,6 +211,54 @@ read_inputs ()
         if (in.plot_file.empty()) {
             amrex::Abort("flume.plot_file must not be empty");
         }
+    }
+
+    // plot_int: optional, one integer in [0, INT_MAX]
+    query_int(pp, "plot_int", 0, int_max, in.plot_int);
+
+    // stop_time: optional, one finite real >= 0
+    {
+        double v = 0.0;
+        if (query_finite(pp, "stop_time", v)) {
+            if (v < 0.0) {
+                amrex::Abort("flume.stop_time must be >= 0; it is " + all_digits(v));
+            }
+            in.stop_time = v;
+        }
+    }
+
+    // max_step: optional, one integer in [0, INT_MAX]
+    {
+        int v = 0;
+        if (query_int(pp, "max_step", 0, int_max, v)) { in.max_step = v; }
+    }
+
+    // cfl: optional, one real in (0, 1]
+    query_finite(pp, "cfl", in.cfl);
+    if (!(in.cfl > amrex::Real(0.0) && in.cfl <= amrex::Real(1.0))) {
+        amrex::Abort("flume.cfl must be > 0 and <= 1; it is " + all_digits(in.cfl));
+    }
+
+    // gravity: optional, one finite real > 0
+    query_finite(pp, "gravity", in.gravity);
+    if (!(in.gravity > amrex::Real(0.0))) {
+        amrex::Abort("flume.gravity must be > 0; it is " + all_digits(in.gravity));
+    }
+
+    // bed.elevation, bed.slope: optional, finite
+    query_finite(pp, "bed.elevation", in.bed_elevation);
+    query_finite_pair(pp, "bed.slope", in.bed_slope);
+
+    // init.surface_elevation: optional, finite. Without it the domain is dry,
+    // and a velocity would have nothing to move.
+    {
+        amrex::Real v = amrex::Real(0.0);
+        if (query_finite(pp, "init.surface_elevation", v)) { in.init_surface_elevation = v; }
+    }
+    if (query_finite_pair(pp, "init.velocity", in.init_velocity)
+        && !in.init_surface_elevation.has_value()) {
+        amrex::Abort("flume.init.velocity needs flume.init.surface_elevation: without a water"
+                     " surface the domain starts dry");
     }
 
     // A key in the flume namespace that nothing above read is an error.

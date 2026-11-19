@@ -13,9 +13,10 @@ The expansion of the name is a draft.
 ## Status
 
 The repository holds the build system, a test harness, the continuous
-integration and a documentation shell. The executable, `flume`, reads an inputs
-file, builds the grid and writes one plotfile in which the water depth is zero.
-There is no solver yet.
+integration and the documentation. The executable, `flume`, reads an inputs
+file, builds the grid, the bed and the initial state, and runs a time loop with
+a CFL time step that writes plotfiles. The loop does not change the state yet:
+the flux kernel is not written.
 
 ## Planned scope
 
@@ -37,7 +38,7 @@ None of these exist yet.
 | ------------------- | ----------------------------------------------------------------- |
 | `Source`            | FLUME's sources.                                                  |
 | `Tests`             | Test decks, the test runner and the check scripts.                |
-| `Docs/sphinx_doc`   | The documentation (Sphinx): building, inputs, testing.            |
+| `Docs/sphinx_doc`   | The documentation (Sphinx): building, model, inputs, testing.     |
 | `.github/workflows` | Continuous integration: builds and tests, style, documentation.   |
 | `Submodules/ERF`    | ERF, pinned to the tagged release 26.11. AMReX comes through ERF. |
 

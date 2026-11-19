@@ -1,5 +1,6 @@
 # Skeleton run: 48 x 32 cells of 2 m on [-10, 86] x [5, 69] m, in 6 boxes.
-# Every optional key has a value that is not its default.
+# Every grid and output key has a value that is not its default. The bed is
+# at 0, there is no water and no stop: the run takes no step.
 flume.n_cell        = 48 32
 flume.prob_lo       = -10.0 5.0
 flume.prob_hi       = 86.0 69.0

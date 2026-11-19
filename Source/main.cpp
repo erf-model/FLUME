@@ -1,5 +1,5 @@
 #include "FLUME_Inputs.H"
-#include "FLUME_Run.H"
+#include "FLUME_Flood.H"
 
 #include <AMReX.H>
 #include <AMReX_ParmParse.H>
@@ -27,7 +27,8 @@ main (int argc, char* argv[])
     amrex::Initialize(argc, argv, set_amrex_defaults);
     {
         const flume::Inputs in = flume::read_inputs();
-        flume::run(in);
+        flume::Flood flood(in);
+        flood.evolve();
     }
     amrex::Finalize();
     return 0;

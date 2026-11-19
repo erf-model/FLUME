@@ -56,6 +56,52 @@ a valid number.
      - ``plt``
      - Plotfile name prefix. Must not be empty. The plotfile of step 0 is
        ``<prefix>00000``.
+   * - ``flume.plot_int``
+     - integer
+     - ``0``
+     - Steps between plotfiles. Must be from 0 to 2147483647. The first and
+       the last state are always written; ``0`` writes only those.
+   * - ``flume.stop_time``
+     - real
+     - none
+     - Time at which the run stops, in seconds. Must be finite and at least 0.
+       The last step ends at this time. Read in double precision in every
+       build.
+   * - ``flume.max_step``
+     - integer
+     - none
+     - Largest number of steps. Must be from 0 to 2147483647.
+   * - ``flume.cfl``
+     - real
+     - ``0.5``
+     - CFL number of the time step, with the wave rates of the two directions
+       added (:doc:`Model`). Must be greater than 0 and at most 1.
+   * - ``flume.gravity``
+     - real
+     - ``9.81``
+     - Acceleration of gravity, in m/s\ :sup:`2`. Must be finite and greater
+       than 0.
+   * - ``flume.bed.elevation``
+     - real
+     - ``0``
+     - Bed elevation at the lower corner of the domain, in metres on the
+       vertical datum. Must be finite.
+   * - ``flume.bed.slope``
+     - 2 reals
+     - ``0 0``
+     - Slope of the bed in x and y (rise over run). Must be finite. The bed is
+       a plane: see :doc:`Model`.
+   * - ``flume.init.surface_elevation``
+     - real
+     - none
+     - Elevation of the initial, level water surface, in metres on the same
+       datum as the bed. Must be finite. Cells whose bed is at or above it
+       start dry. Without this key the whole domain starts dry.
+   * - ``flume.init.velocity``
+     - 2 reals
+     - ``0 0``
+     - Initial velocity in x and y where there is water, in m/s. Must be
+       finite. Needs ``flume.init.surface_elevation``.
 
 The keys that take two values stop the run when given any other number of
 values, and so do the keys that take one.
@@ -70,6 +116,28 @@ together, in each direction:
   in magnitude. Below that, neighbouring cell edges are the same number. In
   double precision the limit is about 1e-9 m at coordinates of 4.4e6 m. In
   single precision it is about 0.5 m there.
+
+The run stops at ``flume.stop_time`` or after ``flume.max_step`` steps,
+whichever comes first. With neither key the run takes no step and writes the
+initial state only.
+
+Three checks are made on the fields, after the inputs are read, because finite
+inputs can give a number that is not finite:
+
+* The bed elevation must be finite in every cell (``flume.bed.slope`` times
+  the size of the domain can pass the largest floating-point number).
+* The initial depth and discharges must be finite in every cell.
+* At every step the depth must be finite and not negative, and the wave speed
+  finite, in every cell.
+* At every step the time step must be finite, above zero and large enough to
+  change the time.
+
+A domain with no water has no wave to set the time step. The run then takes
+one step to ``flume.stop_time``; with ``flume.max_step`` alone it stops with a
+message asking for ``flume.stop_time``, after the initial plotfile is written.
+
+A key with no value (``flume.cfl =``) is stopped by AMReX's parser, with its
+own message.
 
 The integer keys have no joint limit on the number of boxes. A very large
 ``flume.n_cell`` with a small ``flume.max_grid_size`` can ask for more boxes
@@ -87,9 +155,11 @@ the origin, when this matters.
 Output
 ------
 
-The run writes one AMReX plotfile, ``<prefix>00000``, with one variable. If a
-plotfile of that name exists, AMReX first renames it to
-``<prefix>00000.old.<number>``.
+The run writes AMReX plotfiles named ``<prefix><step>``, with the step in at
+least five digits: the initial state, every ``flume.plot_int`` steps, and the
+last state. If a plotfile of that name exists, AMReX first renames it to
+``<prefix><step>.old.<number>``. Plotfiles of other steps from an earlier run
+in the same directory are left as they are.
 
 .. list-table::
    :header-rows: 1
@@ -100,7 +170,20 @@ plotfile of that name exists, AMReX first renames it to
      - Meaning
    * - ``depth``
      - m
-     - Water depth. Zero everywhere until the solver exists.
+     - Water depth, :math:`h`.
+   * - ``discharge_x``
+     - m\ :sup:`2`/s
+     - Discharge per unit width in x, :math:`hu`.
+   * - ``discharge_y``
+     - m\ :sup:`2`/s
+     - Discharge per unit width in y, :math:`hv`.
+   * - ``bed_elevation``
+     - m
+     - Bed elevation on the vertical datum, :math:`z_b`.
+   * - ``surface_elevation``
+     - m
+     - Water-surface elevation on the same datum, :math:`z_b + h`. In a dry
+       cell it is the bed elevation.
 
 The plotfile is three-dimensional with one cell in z. Its z extent, 0 to 1 m,
 carries no meaning.

@@ -1,8 +1,11 @@
 # The solver is a library so the executable and later unit tests link the
 # same compiled code.
 add_library(flume_lib STATIC
+    FLUME_Flood.cpp
+    FLUME_IO.cpp
+    FLUME_Init.cpp
     FLUME_Inputs.cpp
-    FLUME_Run.cpp)
+    FLUME_TimeStep.cpp)
 
 target_include_directories(flume_lib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(flume_lib PUBLIC AMReX::amrex)

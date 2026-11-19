@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 """Run one test case in its own directory, then check it.
 
-    run_case.py --dir <dir> --run <command...> --check <command...>
+    run_case.py --dir <dir> [--expect-output <regex>] --run <command...> --check <command...>
     run_case.py --dir <dir> --expect-abort <regex> --run <command...>
 
 The directory is removed and made again, so a test never reads the output of an
 earlier run. With --check, the run must exit with 0 and the check command, run
 in the same directory, must exit with 0. With --expect-abort, the run must exit
-with a non-zero code and its output must match the regular expression.
+with a non-zero code and its output must match the regular expression. With
+--expect-output, the output of a run that is checked must also match that
+regular expression.
 """
 import re
 import shutil
@@ -17,8 +19,8 @@ from pathlib import Path
 
 
 def split_args(argv):
-    """Split argv at the --dir, --expect-abort, --run and --check markers."""
-    out = {"--dir": [], "--expect-abort": [], "--run": [], "--check": []}
+    """Split argv at the --dir, --expect-abort, --expect-output, --run and --check markers."""
+    out = {"--dir": [], "--expect-abort": [], "--expect-output": [], "--run": [], "--check": []}
     key = None
     for a in argv:
         if a in out and not (key == "--check" and a != "--run"):
@@ -44,6 +46,9 @@ def main():
         sys.exit("run_case.py: give exactly one of --check <command...> and --expect-abort <regex>")
     if expect and not expect[0].strip():
         sys.exit("run_case.py: the --expect-abort expression is empty and would match any output")
+    output = args["--expect-output"]
+    if len(output) > 1 or (output and (expect or not output[0].strip())):
+        sys.exit("run_case.py: --expect-output takes one expression that is not empty, and goes with --check")
 
     run_dir = Path(args["--dir"][0])
     if run_dir.exists():
@@ -65,6 +70,8 @@ def main():
 
     if run.returncode != 0:
         sys.exit(f"FAIL: the run exited with {run.returncode}")
+    if output and not re.search(output[0], run.stdout):
+        sys.exit(f"FAIL: the output of the run does not match /{output[0]}/")
     print("check:", " ".join(args["--check"]), flush=True)
     check = subprocess.run(args["--check"], cwd=run_dir)
     if check.returncode != 0:
