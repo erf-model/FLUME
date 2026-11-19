@@ -47,6 +47,11 @@ a valid number.
      - Upper corner of the domain in x and y, in metres. Must be finite and
        greater than ``flume.prob_lo`` in both directions. See the two checks
        below the table.
+   * - ``flume.periodic``
+     - 2 integers
+     - ``0 0``
+     - Whether the domain is periodic in x and in y. Each must be 0 or 1. A
+       direction with 0 has a wall on both of its sides.
    * - ``flume.max_grid_size``
      - integer
      - ``64``
@@ -75,7 +80,9 @@ a valid number.
      - real
      - ``0.5``
      - CFL number of the time step, with the wave rates of the two directions
-       added (:doc:`Model`). Must be greater than 0 and at most 1.
+       added (:doc:`Model`). Must be greater than 0 and at most 1. Above 0.5
+       a wet cell next to dry ones can lose more water in a step than it
+       holds, and the run then stops (:doc:`Model`).
    * - ``flume.gravity``
      - real
      - ``9.81``
@@ -91,17 +98,52 @@ a valid number.
      - ``0 0``
      - Slope of the bed in x and y (rise over run). Must be finite. The bed is
        a plane: see :doc:`Model`.
+   * - ``flume.bed.noise``
+     - real
+     - ``0``
+     - Amplitude of a rough bed, in metres. Must be finite and at least 0.
+       Each cell's bed moves by a fixed pseudo-random amount between minus
+       and plus this value (:doc:`Model`). For tests.
    * - ``flume.init.surface_elevation``
      - real
      - none
      - Elevation of the initial, level water surface, in metres on the same
        datum as the bed. Must be finite. Cells whose bed is at or above it
-       start dry. Without this key the whole domain starts dry.
+       start dry. Without this key the whole domain starts dry. With a dam it
+       is the surface on the low-coordinate side.
    * - ``flume.init.velocity``
      - 2 reals
      - ``0 0``
      - Initial velocity in x and y where there is water, in m/s. Must be
-       finite. Needs ``flume.init.surface_elevation``.
+       finite. Needs ``flume.init.surface_elevation``. With a dam it is the
+       velocity on the low-coordinate side.
+   * - ``flume.init.dam_position``
+     - real
+     - none
+     - Coordinate of a dam, in metres, along the direction
+       ``flume.init.dam_direction``. Must be finite and leave a cell centre
+       on each side: greater than the first cell centre and at most the last
+       one in that direction. Along a periodic direction the two sides also
+       meet at the side of the domain, which makes a second dam there.
+       Needs ``flume.init.surface_elevation`` and
+       ``flume.init.dam_surface_elevation``. Without this key there is no dam.
+   * - ``flume.init.dam_surface_elevation``
+     - real
+     - none
+     - Elevation of the initial water surface in the cells whose centre is at
+       or above the dam position, in metres on the same datum. Must be
+       finite. Required with ``flume.init.dam_position``, and needs it.
+   * - ``flume.init.dam_velocity``
+     - 2 reals
+     - ``flume.init.velocity``
+     - Initial velocity in x and y in the cells whose centre is at or above
+       the dam position, in m/s. Must be finite. Needs
+       ``flume.init.dam_position``.
+   * - ``flume.init.dam_direction``
+     - ``x`` or ``y``
+     - ``x``
+     - Direction along which the dam position is measured: the dam lies
+       across it. Needs ``flume.init.dam_position``.
 
 The keys that take two values stop the run when given any other number of
 values, and so do the keys that take one.
@@ -121,14 +163,17 @@ The run stops at ``flume.stop_time`` or after ``flume.max_step`` steps,
 whichever comes first. With neither key the run takes no step and writes the
 initial state only.
 
-Three checks are made on the fields, after the inputs are read, because finite
+Four checks are made on the fields, after the inputs are read, because finite
 inputs can give a number that is not finite:
 
 * The bed elevation must be finite in every cell (``flume.bed.slope`` times
-  the size of the domain can pass the largest floating-point number).
+  the size of the domain, or ``flume.bed.noise`` added to the bed, can pass
+  the largest floating-point number).
 * The initial depth and discharges must be finite in every cell.
-* At every step the depth must be finite and not negative, and the wave speed
-  finite, in every cell.
+* Before every step and before every plotfile the depth must be finite and
+  not negative, and the wave speed finite, in every cell. A negative depth
+  after the first step means the time step was too long for the flow: lower
+  ``flume.cfl``.
 * At every step the time step must be finite, above zero and large enough to
   change the time.
 

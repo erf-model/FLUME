@@ -33,7 +33,11 @@ max_wave_rate (const amrex::MultiFab& state, const amrex::Geometry& geom, amrex:
                 return {amrex::Real(0.0), amrex::Long(1)};
             }
             if (h == amrex::Real(0.0)) {
-                return {amrex::Real(0.0), amrex::Long(0)};
+                // A dry cell has no wave speed, but its discharges must still
+                // be numbers: they are written to the plotfile.
+                const bool finite = amrex::Math::isfinite(s[box_no](i, j, k, State::hu))
+                                    && amrex::Math::isfinite(s[box_no](i, j, k, State::hv));
+                return {amrex::Real(0.0), amrex::Long(finite ? 0 : 1)};
             }
             const amrex::Real c = std::sqrt(gravity * h);
             const amrex::Real u = s[box_no](i, j, k, State::hu) / h;

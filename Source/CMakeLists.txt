@@ -1,6 +1,8 @@
 # The solver is a library so the executable and later unit tests link the
 # same compiled code.
 add_library(flume_lib STATIC
+    FLUME_Advance.cpp
+    FLUME_Boundary.cpp
     FLUME_Flood.cpp
     FLUME_IO.cpp
     FLUME_Init.cpp

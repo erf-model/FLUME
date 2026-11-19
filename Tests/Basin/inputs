@@ -1,0 +1,18 @@
+# Closed basin: 40 x 24 cells of 1 m in 6 boxes, walls on all four sides. The
+# bed is a plane (slopes 0.01 and 0.02) with a roughness of 0.2 m, between
+# -0.19 and 0.99 m. The water starts 2 m high at x < 15 m and 1.5 m high
+# beyond, moving at (0.5, -0.3) m/s. In 20 s the waves cross the basin and
+# come back from the walls. No water leaves: the mass stays as it was, to
+# round-off.
+flume.n_cell        = 40 24
+flume.prob_hi       = 40.0 24.0
+flume.max_grid_size = 16
+flume.plot_file     = basin
+flume.stop_time     = 20.0
+
+flume.bed.slope                  = 0.01 0.02
+flume.bed.noise                  = 0.2
+flume.init.surface_elevation     = 2.0
+flume.init.dam_position          = 15.0
+flume.init.dam_surface_elevation = 1.5
+flume.init.velocity              = 0.5 -0.3

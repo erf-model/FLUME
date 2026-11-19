@@ -201,6 +201,16 @@ read_inputs ()
 
     const long long int_max = std::numeric_limits<int>::max();
 
+    // periodic: optional, two integers, each 0 or 1
+    if (pp.contains("periodic")) {
+        require_count(pp, "periodic", 2);
+        std::vector<long long> v;
+        pp.getarr("periodic", v);
+        for (int d = 0; d < 2; ++d) {
+            in.periodic[d] = checked_int(v[d], 0, 1, "periodic", " in x and y");
+        }
+    }
+
     // max_grid_size: optional, one integer in [1, INT_MAX]
     query_int(pp, "max_grid_size", 1, int_max, in.max_grid_size);
 
@@ -249,16 +259,66 @@ read_inputs ()
     query_finite(pp, "bed.elevation", in.bed_elevation);
     query_finite_pair(pp, "bed.slope", in.bed_slope);
 
+    // bed.noise: optional, one finite real >= 0
+    query_finite(pp, "bed.noise", in.bed_noise);
+    if (!(in.bed_noise >= amrex::Real(0.0))) {
+        amrex::Abort("flume.bed.noise must be >= 0; it is " + all_digits(in.bed_noise));
+    }
+
     // init.surface_elevation: optional, finite. Without it the domain is dry,
     // and a velocity would have nothing to move.
     {
         amrex::Real v = amrex::Real(0.0);
         if (query_finite(pp, "init.surface_elevation", v)) { in.init_surface_elevation = v; }
     }
+    // A key that needs another one is reported after the check for unknown
+    // keys below: the other key may be there, misspelled. `needs` holds the
+    // first such message.
+    std::string needs;
+    const auto defer = [&needs] (const char* msg) { if (needs.empty()) { needs = msg; } };
     if (query_finite_pair(pp, "init.velocity", in.init_velocity)
         && !in.init_surface_elevation.has_value()) {
-        amrex::Abort("flume.init.velocity needs flume.init.surface_elevation: without a water"
-                     " surface the domain starts dry");
+        defer("flume.init.velocity needs flume.init.surface_elevation: without a water"
+              " surface the domain starts dry");
+    }
+
+    // init.dam_position, init.dam_surface_elevation, init.dam_direction: a dam
+    // needs the surface on both of its sides, and the other two keys need a dam.
+    {
+        amrex::Real v = amrex::Real(0.0);
+        if (query_finite(pp, "init.dam_position", v)) { in.init_dam_position = v; }
+    }
+    const bool dam = in.init_dam_position.has_value();
+    const bool dam_surface = query_finite(pp, "init.dam_surface_elevation",
+                                          in.init_dam_surface_elevation);
+    if (pp.contains("init.dam_direction")) {
+        require_count(pp, "init.dam_direction", 1);
+        std::string v;
+        pp.get("init.dam_direction", v);
+        if (v == "x") {
+            in.init_dam_direction = 0;
+        } else if (v == "y") {
+            in.init_dam_direction = 1;
+        } else {
+            amrex::Abort("flume.init.dam_direction must be x or y; it is " + v);
+        }
+        if (!dam) { defer("flume.init.dam_direction needs flume.init.dam_position"); }
+    }
+    // The velocity beyond the dam is that of the near side unless given.
+    in.init_dam_velocity = in.init_velocity;
+    if (query_finite_pair(pp, "init.dam_velocity", in.init_dam_velocity) && !dam) {
+        defer("flume.init.dam_velocity needs flume.init.dam_position");
+    }
+    if (dam_surface && !dam) {
+        defer("flume.init.dam_surface_elevation needs flume.init.dam_position");
+    }
+    if (dam && !in.init_surface_elevation.has_value()) {
+        defer("flume.init.dam_position needs flume.init.surface_elevation: the water"
+              " surface on the low-coordinate side of the dam");
+    }
+    if (dam && !dam_surface) {
+        defer("flume.init.dam_position needs flume.init.dam_surface_elevation: the"
+              " water surface on the high-coordinate side of the dam");
     }
 
     // A key in the flume namespace that nothing above read is an error.
@@ -269,6 +329,31 @@ read_inputs ()
             msg += s;
         }
         amrex::Abort(msg);
+    }
+    if (!needs.empty()) { amrex::Abort(needs); }
+
+    if (dam) {
+        // A cell is on the low side when its centre is below the dam (as
+        // fill_state_dam computes it). Each side must hold at least one cell:
+        // otherwise the keys of the other side would be read and not used.
+        const int d = in.init_dam_direction;
+        const amrex::Real x = *in.init_dam_position;
+        const amrex::Real dx = (in.prob_hi[d] - in.prob_lo[d]) / static_cast<amrex::Real>(in.n_cell[d]);
+        const amrex::Real first = in.prob_lo[d] + amrex::Real(0.5) * dx;
+        const amrex::Real last = in.prob_lo[d]
+                                 + (static_cast<amrex::Real>(in.n_cell[d] - 1) + amrex::Real(0.5)) * dx;
+        if (!(x > first && x <= last)) {
+            std::string msg = "flume.init.dam_position must leave a cell centre on each side of the"
+                              " dam: it must be > ";
+            msg += all_digits(first);
+            msg += " and <= ";
+            msg += all_digits(last);
+            msg += " in ";
+            msg += dir_name[d];
+            msg += " (flume.prob_lo, flume.prob_hi and flume.n_cell set these); it is ";
+            msg += all_digits(x);
+            amrex::Abort(msg);
+        }
     }
 
     return in;

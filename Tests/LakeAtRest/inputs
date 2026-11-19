@@ -1,0 +1,17 @@
+# Lake at rest over a rough bed, between walls: 50 x 30 cells of 2 m in 8
+# boxes of uneven size. The bed is a plane (10 m at the lower corner, slopes
+# 0.01 and -0.02) moved in every cell by a fixed pseudo-random amount of up
+# to 0.5 m, so it lies between 8.3 and 11.5 m. The water surface is level at
+# 13 m and the water does not move. It must stay so: after 50 steps the depth
+# is the initial one and the discharges are zero, to round-off.
+flume.n_cell        = 50 30
+flume.prob_lo       = 1000.0 -60.0
+flume.prob_hi       = 1100.0 0.0
+flume.max_grid_size = 16
+flume.plot_file     = lake
+flume.max_step      = 50
+
+flume.bed.elevation          = 10.0
+flume.bed.slope              = 0.01 -0.02
+flume.bed.noise              = 0.5
+flume.init.surface_elevation = 13.0

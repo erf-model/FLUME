@@ -108,8 +108,9 @@ flume_add_regtest(skeleton_defaults NPROCS 1
 # Tests/Uniform/inputs: depth 2 m, velocity (6, -2) m/s, g = 8 m/s2, 2 m cells,
 # CFL 0.5: the rate is (6 + 4) / 2 + (2 + 4) / 2 = 8 1/s, the step is 0.0625 s,
 # 16 steps reach the stop time of 1 s, and plot_int = 5 writes steps 0, 5, 10,
-# 15 and 16. Every cell of every plotfile must hold the initial state on 1, 2
-# and 4 ranks.
+# 15 and 16. The domain is periodic in x and y, so every cell of every plotfile
+# must hold the initial state on 1, 2 and 4 ranks: the fluxes on the two faces
+# of a cell are the same number, and their difference is exactly zero.
 set(uni_state --surface 2 --velocity 6 -2)
 foreach(np 1 2 4)
     flume_add_regtest(uniform_np${np} NPROCS ${np}
@@ -123,6 +124,7 @@ endforeach()
 flume_add_regtest(uniform_defaults NPROCS 1
     INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/Skeleton/inputs
     ARGS flume.init.surface_elevation=2 flume.init.velocity=6\ -2 flume.gravity=8 flume.max_step=6
+         flume.periodic=1\ 1
     CHECK ${check_plotfile} skel --steps 0 6 --times 0 0.375 ${skel_grid} --n-files 1 ${uni_state})
 # The default gravity, 9.81 m/s2: still water 2.5 m deep (g h = 24.525) on
 # 2 m cells, CFL 0.5, one step of 0.5 / (2 sqrt(24.525) / 2) s. The time alone
@@ -135,8 +137,8 @@ flume_add_regtest(uniform_gravity_default NPROCS 1
           ${skel_grid} --n-files 1 --surface 2.5)
 # CFL 1 and a stop time that is not a whole number of steps: steps of 0.125 s
 # to 0.25 s, then one of 0.0625 s that lands on 0.3125 s.
-# plot_int = 1 writes every step. The state does not use the step yet, so the
-# shortened step is read from the log.
+# plot_int = 1 writes every step. A uniform state does not show the size of
+# a step, so the shortened step is read from the log.
 flume_add_regtest(uniform_last_step_cut NPROCS 1
     INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/Uniform/inputs
     ARGS flume.cfl=1 flume.stop_time=0.3125 flume.plot_int=1 flume.max_step=7
@@ -178,6 +180,20 @@ flume_add_regtest(uniform_unequal_cells NPROCS 1
     CHECK ${check_plotfile} uni --steps 0 2 --times 0 0.125
           --n-cell 48 64 --prob-lo -10 5 --prob-hi 86 69 --dx 2 1
           --max-grid-size 16 --n-boxes 12 --n-files 1 --surface 2 --velocity 4 0)
+# A channel: periodic along the flow and walls on its two sides. The flow is
+# along the walls and stays uniform. With the two periodic flags exchanged the
+# flow would meet a wall. Once along x and once along y, at 8 m/s: the rate is
+# (8 + 4) / 2 + 4 / 2 = 8 1/s and four steps of 0.0625 s end at 0.25 s.
+flume_add_regtest(uniform_channel_x NPROCS 1
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/Uniform/inputs
+    ARGS flume.periodic=1\ 0 flume.init.velocity=8\ 0 flume.max_step=4
+    CHECK ${check_plotfile} uni --steps 0 4 --times 0 0.25 ${skel_grid} --n-files 1
+          --surface 2 --velocity 8 0)
+flume_add_regtest(uniform_channel_y NPROCS 2
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/Uniform/inputs
+    ARGS flume.periodic=0\ 1 flume.init.velocity=0\ -8 flume.max_step=4
+    CHECK ${check_plotfile} uni --steps 0 4 --times 0 0.25 ${skel_grid} --n-files 2
+          --surface 2 --velocity 0 -8)
 # A stop time or a step limit of zero: no step, one plotfile.
 flume_add_regtest(uniform_stop_time_zero NPROCS 1
     INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/Uniform/inputs
@@ -196,24 +212,188 @@ flume_add_regtest(dry_stop_time NPROCS 1
           --n-cell 48 64 --prob-lo -10 5 --prob-hi 86 69 --dx 2 1
           --max-grid-size 16 --n-boxes 12 --n-files 1
           --bed-elevation -3 --bed-slope 0.5 -0.25)
+# The same with a stop time near the largest number: the step of a dry domain
+# is not bounded, and a state update with it would give 0 times infinity. The
+# run only advances the time, and the plotfile holds zeros, not NaN.
+flume_add_regtest(dry_stop_time_huge NPROCS 2
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/Skeleton/inputs
+    ARGS flume.stop_time=1e308
+    CHECK ${check_plotfile} skel --steps 0 1 --times 0 1e308 ${skel_grid} --n-files 2)
 
-# --- Sloping bed, partly dry --------------------------------------------------
+# --- Lake at rest --------------------------------------------------------------
 # Tests/SlopingBed/inputs: a plane bed that rises through a level surface, on
-# 50 x 30 cells in 8 boxes of uneven size. The deepest cell sets the step and
-# is in one box only, and some boxes are dry, so on 2 and 4 ranks the ranks
-# agree on the step only through the reduction of the largest rate over the
-# ranks. Every cell is checked against the
-# closed form: bed, depth (zero where the bed is above the surface),
-# discharges and surface elevation on the absolute datum.
+# 50 x 30 cells in 8 boxes of uneven size, between walls; the water is at
+# rest. The deepest cell sets the step and is in one box only, and some boxes
+# are dry, so on 2 and 4 ranks the ranks agree on the step only through the
+# reduction of the largest rate over the ranks. After three steps every cell
+# is checked against the closed form: bed, depth (zero where the bed is above
+# the surface), zero discharges and the surface elevation on the absolute
+# datum. Every number of the deck is exact in the arithmetic, and the
+# tolerance is 4 epsilons of 100 m.
 foreach(np 1 2 4)
     flume_add_regtest(sloping_bed_np${np} NPROCS ${np}
         INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/SlopingBed/inputs
-        CHECK ${check_plotfile} slope --steps 0 3 --times 0 0.1875
+        CHECK ${check_plotfile} slope --steps 0 3 --times 0 0.375
               --n-cell 50 30 --prob-lo 1000 -60 --prob-hi 1100 0 --dx 2 2
               --max-grid-size 16 --n-boxes 8 --n-files ${np}
               --bed-elevation 100 --bed-slope -0.03125 0.015625
-              --surface 98.921875 --velocity 6 -2)
+              --surface 98.921875)
 endforeach()
+# Tests/LakeAtRest/inputs: a level surface at 13 m over a rough bed (a plane
+# moved by up to 0.5 m in every cell), between walls. Fifty steps; the deepest
+# cell has 4.52404296875 m of water, so with g = 9.81 m/s2 and 2 m cells a step
+# is 0.5 / sqrt(g h) = 0.07505370572066064 s. Depth and discharges must be the
+# initial ones within 16 epsilons of 13 m (4.6e-14 in double precision): the
+# bed-slope term balances the difference of the fluxes to round-off. Without
+# that term the discharges reach 1 m2/s.
+set(lake_grid --n-cell 50 30 --prob-lo 1000 -60 --prob-hi 1100 0 --dx 2 2
+              --max-grid-size 16 --n-boxes 8
+              --bed-elevation 10 --bed-slope 0.01 -0.02 --bed-noise 0.5 --tol-eps 16)
+foreach(np 1 2 4)
+    flume_add_regtest(lake_at_rest_np${np} NPROCS ${np}
+        INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/LakeAtRest/inputs
+        CHECK ${check_plotfile} lake --steps 0 50 --times 0 3.752685286033032 --time-rtol 1e-6
+              ${lake_grid} --n-files ${np} --surface 13)
+endforeach()
+# The same bed with the surface at 10.2 m: the high parts of the rough bed are
+# islands, and wet and dry cells lie side by side over the whole domain. The
+# deepest cell has 1.72404296875 m of water: steps of 0.12157980929135076 s.
+flume_add_regtest(lake_at_rest_islands NPROCS 2
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/LakeAtRest/inputs
+    ARGS flume.init.surface_elevation=10.2
+    CHECK ${check_plotfile} lake --steps 0 50 --times 0 6.078990464567538 --time-rtol 1e-6
+          ${lake_grid} --n-files 2 --surface 10.2)
+
+# --- Dam break -------------------------------------------------------------------
+# Tests/DamBreak/inputs: still water 2 m and 1 m deep on a flat bed, 400 cells
+# of 0.25 m along the flow, compared at 5 s with the solution of Stoker (1957):
+# hm = 1.4538 m, um = 1.3058 m/s, shock speed 4.1831 m/s. The scheme is first
+# order; at this cell size the L1 error is 0.8 % of the depth step and 1.6 % of
+# the discharge, the constant state is within 0.2 %, and the shock is 0.2 cell
+# from its place. The bounds are 2 %, 0.5 % and 1 cell. The check also sums
+# the depth: mass is conserved to round-off.
+set(check_dam_break ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/check_dam_break.py)
+set(stoker_bounds --l1-max 0.02 --plateau-rtol 0.005 --shock-cells 1)
+foreach(np 1 2 4)
+    flume_add_regtest(dam_break_x_np${np} NPROCS ${np}
+        INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/DamBreak/inputs
+        CHECK ${check_dam_break} dam --time 5 --direction x --position 50
+              --surface-lo 2 --surface-hi 1 ${stoker_bounds})
+endforeach()
+# The same along y, with the deep water on the high side: the shock runs
+# towards low y.
+flume_add_regtest(dam_break_y NPROCS 2
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/DamBreak/inputs
+    ARGS flume.n_cell=4\ 400 flume.prob_hi=1\ 100 flume.init.dam_direction=y
+         flume.init.surface_elevation=1 flume.init.dam_surface_elevation=2
+    CHECK ${check_dam_break} dam --time 5 --direction y --position 50
+          --surface-lo 1 --surface-hi 2 ${stoker_bounds})
+# Over a dry bed (the low side has no water): the solution of Ritter (1892),
+# whose front is at 94.3 m (x) or 5.7 m (y) at 5 s, short of the wall. This is
+# the test of the dry-bed wave speeds and of the depth staying non-negative.
+# The L1 error is 0.46 % of the depth and 0.39 % of the discharge scale
+# (bound 1 %); beyond the exact front the depth stays below 1e-11 of 2 m (the
+# run gives 6.5e-14 of 2 m).
+set(ritter_bounds --l1-max 0.01 --front-max 1e-11)
+flume_add_regtest(dam_break_dry_x NPROCS 2
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/DamBreak/inputs
+    ARGS flume.init.dam_surface_elevation=0
+    CHECK ${check_dam_break} dam --time 5 --direction x --position 50
+          --surface-lo 2 --surface-hi 0 ${ritter_bounds})
+flume_add_regtest(dam_break_dry_y NPROCS 4
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/DamBreak/inputs
+    ARGS flume.n_cell=4\ 400 flume.prob_hi=1\ 100 flume.init.dam_direction=y
+         flume.init.surface_elevation=0 flume.init.dam_surface_elevation=2
+    CHECK ${check_dam_break} dam --time 5 --direction y --position 50
+          --surface-lo 0 --surface-hi 2 ${ritter_bounds})
+# The first step of the two runs above has a closed form that holds the
+# dry-bed wave speeds (-c and 2 c, c = sqrt(g h)): the face at the dam passes
+# 2 c h / 3 of mass and g h^2 / 3 of momentum, and the step is
+# cfl / (c / dx + c / dy). With cfl = 0.5, square cells and h = 2 m the first
+# dry cell ends 1/3 m deep and the last wet cell 5/3 m deep. Later steps hardly use these speeds (the bed ahead of the
+# front is then thinly wet), so the 5 s runs do not test them.
+flume_add_regtest(dam_break_dry_first_step_x NPROCS 2
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/DamBreak/inputs
+    ARGS flume.init.dam_surface_elevation=0 flume.max_step=1
+    CHECK ${check_dam_break} dam --first-step-cfl 0.5 --direction x --position 50
+          --surface-lo 2 --surface-hi 0)
+flume_add_regtest(dam_break_dry_first_step_y NPROCS 1
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/DamBreak/inputs
+    ARGS flume.n_cell=4\ 400 flume.prob_hi=1\ 100 flume.init.dam_direction=y
+         flume.init.surface_elevation=0 flume.init.dam_surface_elevation=2 flume.max_step=1
+    CHECK ${check_dam_break} dam --first-step-cfl 0.5 --direction y --position 50
+          --surface-lo 0 --surface-hi 2)
+
+# --- Shear layer -------------------------------------------------------------------
+# Tests/Shear/inputs: a uniform, subcritical flow at 2 m/s along x carries a jump of the
+# velocity along y from 1 to -1 m/s, in a periodic domain. Depth and discharge
+# along the flow must stay uniform to 4 epsilons. The velocity across the flow
+# must stay between -1 and 1 m/s, its sum must not change, and its two jumps
+# must be within one cell of where the flow has carried them, one of them
+# through the periodic side. The momentum along a face is carried by the mass
+# flux from its upwind side; taken from the other side the jump grows and the
+# bounds fail.
+set(check_shear ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/check_shear.py)
+foreach(np 1 4)
+    flume_add_regtest(shear_x_np${np} NPROCS ${np}
+        INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/Shear/inputs
+        CHECK ${check_shear} shear --time 5 --direction x --position 50 --depth 2
+              --speed 2 --along-lo 1 --along-hi -1)
+endforeach()
+# The flow reversed: the upwind side of every face is now its high side.
+flume_add_regtest(shear_x_reversed NPROCS 2
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/Shear/inputs
+    ARGS flume.init.velocity=-2\ 1 flume.init.dam_velocity=-2\ -1
+    CHECK ${check_shear} shear --time 5 --direction x --position 50 --depth 2
+          --speed -2 --along-lo 1 --along-hi -1)
+# Along y, with the dam across y, jumps of 3 to 0.5 m/s, and the flow towards
+# low y.
+flume_add_regtest(shear_y NPROCS 2
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/Shear/inputs
+    ARGS flume.n_cell=8\ 100 flume.prob_hi=8\ 100 flume.init.dam_direction=y
+         flume.init.velocity=3\ -2 flume.init.dam_velocity=0.5\ -2
+    CHECK ${check_shear} shear --time 5 --direction y --position 50 --depth 2
+          --speed -2 --along-lo 3 --along-hi 0.5)
+
+# --- Mass in a closed basin ------------------------------------------------------
+# Tests/Basin/inputs: a dam break with moving water over a rough, sloping bed
+# between four walls, run until the waves have come back from the walls. The
+# sum of the depth over the cells must not change by more than 16 epsilons of
+# itself, and the depth must have changed by at least 0.1 m somewhere.
+foreach(np 1 2 4)
+    flume_add_regtest(basin_mass_np${np} NPROCS ${np}
+        INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/Basin/inputs
+        CHECK ${check_dam_break} basin --time 20 --direction x --position 15
+              --surface-lo 2 --surface-hi 1.5 --velocity-lo 0.5 -0.3 --velocity-hi 0.5 -0.3
+              --mass-only --min-change 0.1)
+endforeach()
+
+# --- Initial states, no step ---------------------------------------------------
+# The dam of the basin moved to 15.5 m, a cell centre, with another velocity
+# beyond it: the cell whose centre is at the dam is on the high side. The
+# check compares every cell of the first plotfile with the dam initial state
+# (it does so in every dam test; here the dam is not on a face).
+flume_add_regtest(dam_initial_on_centre NPROCS 2
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/Basin/inputs
+    ARGS flume.init.dam_position=15.5 flume.init.dam_velocity=-1\ 2 flume.max_step=0
+    CHECK ${check_dam_break} basin --direction x --position 15.5 --surface-lo 2 --surface-hi 1.5
+          --velocity-lo 0.5 -0.3 --velocity-hi -1 2 --initial-only)
+flume_add_regtest(dam_initial_on_centre_y NPROCS 1
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/Basin/inputs
+    ARGS flume.init.dam_position=7.5 flume.init.dam_direction=y flume.init.dam_velocity=-1\ 2
+         flume.max_step=0
+    CHECK ${check_dam_break} basin --direction y --position 7.5 --surface-lo 2 --surface-hi 1.5
+          --velocity-lo 0.5 -0.3 --velocity-hi -1 2 --initial-only)
+# Tests/SlopingBed/inputs with moving water, not advanced: the discharges are
+# the depth times the velocity in a domain that is partly dry.
+flume_add_regtest(sloping_bed_initial NPROCS 2
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/SlopingBed/inputs
+    ARGS flume.init.velocity=6\ -2 flume.max_step=0
+    CHECK ${check_plotfile} slope --steps 0 --times 0
+          --n-cell 50 30 --prob-lo 1000 -60 --prob-hi 1100 0 --dx 2 2
+          --max-grid-size 16 --n-boxes 8 --n-files 2
+          --bed-elevation 100 --bed-slope -0.03125 0.015625
+          --surface 98.921875 --velocity 6 -2)
 
 # --- Inputs that must abort ---------------------------------------------------
 # Every check in Source/FLUME_Inputs.cpp has at least one test.
@@ -253,12 +433,14 @@ if(FLUME_PRECISION STREQUAL "SINGLE")
     set(tiny_extent 4e-30)
     set(huge_extent 4e18)
     set(tiny_depth 1e-44)
+    set(near_max 3e38)
 else()
     set(one_step 1.0000000000000002)
     set(too_big 1e308)
     set(tiny_extent 4e-300)
     set(huge_extent 4e155)
     set(tiny_depth 1e-320)
+    set(near_max 1.7e308)
 endif()
 flume_add_abort_test(abort_cell_size_unresolved
     EXPECT "flume\\.prob_lo, flume\\.prob_hi and flume\\.n_cell give a cell size in y that .* cannot resolve"
@@ -343,11 +525,11 @@ flume_add_abort_test(abort_dry_without_stop_time EXPECT "set flume\\.stop_time"
 # largest number, a depth times a velocity that does, and a depth whose wave
 # speed does. ${too_big} is 1e308 in double precision and 1e38 in single.
 flume_add_abort_test(abort_bed_overflows
-    EXPECT "The bed elevation is not finite in [0-9]+ cell\\(s\\): check flume\\.bed\\.elevation and flume\\.bed\\.slope"
+    EXPECT "The bed elevation is not finite in [0-9]+ cell\\(s\\): check flume\\.bed\\.elevation, flume\\.bed\\.slope"
     ARGS ${ok} flume.bed.slope=${too_big}\ 0)
 # A bed far below the surface: the bed is reported, not the depth built on it.
 flume_add_abort_test(abort_bed_overflows_below_surface
-    EXPECT "The bed elevation is not finite in [0-9]+ cell\\(s\\): check flume\\.bed\\.elevation and flume\\.bed\\.slope"
+    EXPECT "The bed elevation is not finite in [0-9]+ cell\\(s\\): check flume\\.bed\\.elevation, flume\\.bed\\.slope"
     ARGS ${ok} flume.bed.slope=-${too_big}\ 0 flume.init.surface_elevation=1)
 flume_add_abort_test(abort_initial_state_overflows
     EXPECT "The initial depth or discharge is not finite in 64 cell\\(s\\): check flume\\.init\\.surface_elevation"
@@ -355,6 +537,15 @@ flume_add_abort_test(abort_initial_state_overflows
 flume_add_abort_test(abort_wave_speed_overflows
     EXPECT "the wave speed is not finite, in 64 cell\\(s\\) at step 0"
     ARGS ${ok} flume.init.surface_elevation=${too_big} flume.gravity=100 flume.max_step=1)
+# A step too long for the flow. Water 2 m deep in the one column of cells
+# below the dam, with a dry bed beyond it and across the periodic side: the
+# column loses water through both faces and ends near h (1 - 4 cfl / 3),
+# which is negative for flume.cfl = 0.8 (Docs/sphinx_doc/Model.rst).
+flume_add_abort_test(abort_depth_negative
+    EXPECT "The depth is negative or not finite, or the wave speed is not finite, in 4 cell\\(s\\) at step 1: .*lower flume\\.cfl"
+    ARGS ${CMAKE_CURRENT_SOURCE_DIR}/DamBreak/inputs flume.periodic=1\ 0
+         flume.prob_hi=100\ 1000 flume.init.dam_position=0.3
+         flume.init.dam_surface_elevation=0 flume.cfl=0.8 flume.max_step=3)
 # A time step that cannot advance the run. Cells so small that cfl / rate
 # underflows to zero, and water so shallow on cells so large that it
 # overflows. The numbers depend on the precision.
@@ -366,3 +557,83 @@ flume_add_abort_test(abort_time_step_not_finite
     EXPECT "The time step, inf s, is zero, not finite or too small to advance the time, 0 s, at step 0:"
     ARGS flume.n_cell=4\ 4 flume.prob_hi=${huge_extent}\ ${huge_extent}
          flume.init.surface_elevation=${tiny_depth} flume.max_step=3)
+
+# --- Boundaries, rough bed and dam -----------------------------------------------
+flume_add_abort_test(abort_periodic_one     EXPECT "flume\\.periodic needs exactly 2 values \\(x and y\\); it has 1"
+    ARGS ${ok} flume.periodic=1)
+flume_add_abort_test(abort_periodic_two     EXPECT "flume\\.periodic must be >= 0 and <= 1 in x and y; it is 2"
+    ARGS ${ok} flume.periodic=0\ 2)
+flume_add_abort_test(abort_periodic_negative EXPECT "flume\\.periodic must be >= 0 and <= 1 in x and y; it is -1"
+    ARGS ${ok} flume.periodic=-1\ 0)
+flume_add_abort_test(abort_bed_noise_negative EXPECT "flume\\.bed\\.noise must be >= 0; it is -0\\.5"
+    ARGS ${ok} flume.bed.noise=-0.5)
+flume_add_abort_test(abort_bed_noise_nan    EXPECT "flume\\.bed\\.noise must be finite"
+    ARGS ${ok} flume.bed.noise=nan)
+flume_add_abort_test(abort_bed_noise_two    EXPECT "flume\\.bed\\.noise needs exactly 1 value; it has 2"
+    ARGS ${ok} flume.bed.noise=0.1\ 0.2)
+# A bed and a roughness that are each finite and whose sum is not, in the
+# cells that the roughness raises. ${near_max} is 1.7e308 or 3e38.
+flume_add_abort_test(abort_bed_noise_overflows
+    EXPECT "The bed elevation is not finite in [0-9]+ cell\\(s\\): check flume\\.bed\\.elevation, flume\\.bed\\.slope and flume\\.bed\\.noise"
+    ARGS ${ok} flume.bed.elevation=${near_max} flume.bed.noise=${near_max})
+set(dam ${ok} flume.init.surface_elevation=2 flume.init.dam_position=4 flume.init.dam_surface_elevation=1)
+flume_add_abort_test(abort_dam_without_surface
+    EXPECT "flume\\.init\\.dam_position needs flume\\.init\\.surface_elevation"
+    ARGS ${ok} flume.init.dam_position=4 flume.init.dam_surface_elevation=1)
+flume_add_abort_test(abort_dam_without_dam_surface
+    EXPECT "flume\\.init\\.dam_position needs flume\\.init\\.dam_surface_elevation"
+    ARGS ${ok} flume.init.surface_elevation=2 flume.init.dam_position=4)
+flume_add_abort_test(abort_dam_surface_without_dam
+    EXPECT "flume\\.init\\.dam_surface_elevation needs flume\\.init\\.dam_position"
+    ARGS ${ok} flume.init.surface_elevation=2 flume.init.dam_surface_elevation=1)
+flume_add_abort_test(abort_dam_direction_without_dam
+    EXPECT "flume\\.init\\.dam_direction needs flume\\.init\\.dam_position"
+    ARGS ${ok} flume.init.surface_elevation=2 flume.init.dam_direction=y)
+flume_add_abort_test(abort_dam_velocity_without_dam
+    EXPECT "flume\\.init\\.dam_velocity needs flume\\.init\\.dam_position"
+    ARGS ${ok} flume.init.surface_elevation=2 flume.init.dam_velocity=1\ 0)
+flume_add_abort_test(abort_dam_velocity_one
+    EXPECT "flume\\.init\\.dam_velocity needs exactly 2 values \\(x and y\\); it has 1"
+    ARGS ${dam} flume.init.dam_velocity=1)
+flume_add_abort_test(abort_dam_velocity_nan
+    EXPECT "flume\\.init\\.dam_velocity must be finite in x and y"
+    ARGS ${dam} flume.init.dam_velocity=0\ nan)
+flume_add_abort_test(abort_dam_direction_unknown
+    EXPECT "flume\\.init\\.dam_direction must be x or y; it is z"
+    ARGS ${dam} flume.init.dam_direction=z)
+flume_add_abort_test(abort_dam_direction_two
+    EXPECT "flume\\.init\\.dam_direction needs exactly 1 value; it has 2"
+    ARGS ${dam} flume.init.dam_direction=x\ y)
+flume_add_abort_test(abort_dam_position_nan
+    EXPECT "flume\\.init\\.dam_position must be finite"
+    ARGS ${dam} flume.init.dam_position=nan)
+flume_add_abort_test(abort_dam_surface_inf
+    EXPECT "flume\\.init\\.dam_surface_elevation must be finite"
+    ARGS ${dam} flume.init.dam_surface_elevation=inf)
+# The dam must leave a cell centre on each side, along its own direction. With
+# 8 cells of 1 m the centres are at 0.5 to 7.5 m: a dam at 0.5 m has no cell
+# below it (a centre at the dam is on the high side), one at 7.75 m none
+# above, and 7.5 m is the last place allowed (abort tests cannot show that it
+# runs; dam_initial_on_centre below puts a dam on a centre). 20 m is inside a
+# domain of 8 m by 32 m only along y.
+set(dam_range "flume\\.init\\.dam_position must leave a cell centre on each side of the dam: it must be > 0\\.5 and <= 7\\.5 in")
+flume_add_abort_test(abort_dam_position_at_corner
+    EXPECT "${dam_range} x .*; it is 8"
+    ARGS ${dam} flume.init.dam_position=8)
+flume_add_abort_test(abort_dam_position_first_centre
+    EXPECT "${dam_range} x .*; it is 0\\.5"
+    ARGS ${dam} flume.init.dam_position=0.5)
+flume_add_abort_test(abort_dam_position_past_last_centre
+    EXPECT "${dam_range} x .*; it is 7\\.75"
+    ARGS ${dam} flume.init.dam_position=7.75)
+flume_add_abort_test(abort_dam_position_below
+    EXPECT "${dam_range} y .*; it is -1"
+    ARGS ${dam} flume.init.dam_position=-1 flume.init.dam_direction=y)
+# A misspelled key is reported as unknown, not as the key another one needs.
+flume_add_abort_test(abort_dam_key_misspelled
+    EXPECT "Unknown key\\(s\\) in the flume namespace:[^a-z]*flume\\.init\\.dam_positon "
+    ARGS ${ok} flume.init.surface_elevation=2 flume.init.dam_positon=4 flume.init.dam_surface_elevation=1)
+flume_add_abort_test(abort_dam_position_other_direction
+    EXPECT "${dam_range} x .*; it is 20"
+    ARGS flume.n_cell=8\ 8 flume.prob_hi=8\ 32 flume.init.surface_elevation=2
+         flume.init.dam_position=20 flume.init.dam_surface_elevation=1)

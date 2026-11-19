@@ -2,10 +2,12 @@
 # 48 x 32 cells of 2 m in 6 boxes. With g = 8 m/s2 the wave speed is 4 m/s, the
 # rate (|u| + c) / dx + (|v| + c) / dy is (6 + 4) / 2 + (2 + 4) / 2 = 8 1/s
 # and the CFL step is 0.5 / 8 = 0.0625 s: 16 steps to 1 s, plotfiles at steps
-# 0, 5, 10, 15 and 16.
+# 0, 5, 10, 15 and 16. The domain is periodic in x and y, so the uniform flow
+# stays uniform.
 flume.n_cell        = 48 32
 flume.prob_lo       = -10.0 5.0
 flume.prob_hi       = 86.0 69.0
+flume.periodic      = 1 1
 flume.max_grid_size = 16
 flume.plot_file     = uni
 flume.plot_int      = 5
