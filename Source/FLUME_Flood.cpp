@@ -34,11 +34,13 @@ Flood::Flood (const Inputs& in) : m_in(in)
     m_ba.maxSize(amrex::IntVect(in.max_grid_size, in.max_grid_size, 1));
     m_dm.define(m_ba);
 
-    // One layer of ghost cells in x and y, none in z.
-    const amrex::IntVect n_ghost(1, 1, 0);
+    // Ghost cells in x and y, none in z: a face reads the cell on each side
+    // of it, and at second order also the neighbours of those two cells.
+    const amrex::IntVect n_ghost(in.order, in.order, 0);
     m_bed.define(m_ba, m_dm, 1, n_ghost);
     m_state.define(m_ba, m_dm, State::ncomp, n_ghost);
-    m_outflow_factor.define(m_ba, m_dm, 1, n_ghost);
+    if (in.order == 2) { m_state_old.define(m_ba, m_dm, State::ncomp, 0); }
+    m_outflow_factor.define(m_ba, m_dm, 1, amrex::IntVect(1, 1, 0));
     m_bed_source.define(m_ba, m_dm, 2, 0);
     for (int d = 0; d < 2; ++d) {
         m_flux[d].define(amrex::convert(m_ba, amrex::IntVect::TheDimensionVector(d)), m_dm,
@@ -67,6 +69,10 @@ Flood::Flood (const Inputs& in) : m_in(in)
         fill_state_dam(m_state, m_bed, m_geom, in.init_dam_direction, *in.init_dam_position,
                        *in.init_surface_elevation, in.init_dam_surface_elevation,
                        in.init_velocity, in.init_dam_velocity);
+    } else if (in.init_wave_amplitude != amrex::Real(0.0)) {
+        fill_state_wave(m_state, m_bed, m_geom, in.init_wave_direction,
+                        *in.init_surface_elevation, in.init_wave_amplitude, in.init_velocity,
+                        in.gravity);
     } else if (in.init_surface_elevation.has_value()) {
         const bool level = in.init_surface_slope[0] == amrex::Real(0.0)
                            && in.init_surface_slope[1] == amrex::Real(0.0)
@@ -86,7 +92,8 @@ Flood::Flood (const Inputs& in) : m_in(in)
         std::string msg = "The initial depth or discharge is not finite in ";
         msg += std::to_string(bad_state);
         msg += " cell(s): check flume.init.surface_elevation, flume.init.surface_slope"
-               ", flume.init.surface_curvature, flume.init.dam_surface_elevation"
+               ", flume.init.surface_curvature, flume.init.wave_amplitude"
+               ", flume.init.dam_surface_elevation"
                ", flume.init.velocity and flume.init.dam_velocity against the bed"
                " (flume.bed.elevation, flume.bed.slope, flume.bed.bowl_depth,"
                " flume.bed.bowl_radius, flume.bed.noise)";
@@ -109,12 +116,33 @@ Flood::check_state () const
         msg += ": at step 0 the initial depth or velocity (flume.init.surface_elevation,"
                " flume.init.dam_surface_elevation, flume.init.velocity, flume.init.dam_velocity)"
                " or flume.gravity is too large (with a tilted or curved surface also"
-               " flume.init.surface_slope, flume.init.surface_curvature); later, the outflow"
+               " flume.init.surface_slope, flume.init.surface_curvature, and with a wave"
+               " flume.init.wave_amplitude); later, the outflow"
                " limit should have kept the depth at zero or above: lower flume.cfl and"
                " report the deck";
         amrex::Abort(msg);
     }
     return w.rate;
+}
+
+void
+Flood::advance_stage (amrex::Real dt)
+{
+    // The update leaves the ghost cells of the state out of date.
+    fill_state_ghost_cells(m_state, m_geom);
+    if (m_in.order == 2) {
+        compute_fluxes_second_order(m_flux, m_state, m_bed, m_in.gravity, m_in.dry_depth);
+    } else {
+        compute_fluxes(m_flux, m_state, m_bed, m_in.gravity, m_in.dry_depth);
+    }
+    limit_outflow(m_flux, m_outflow_factor, m_state, m_geom, dt);
+    if (m_in.order == 2) {
+        compute_bed_source_second_order(m_bed_source, m_state, m_bed, m_in.gravity,
+                                        m_in.dry_depth);
+    } else {
+        compute_bed_source(m_bed_source, m_state, m_bed, m_in.gravity, m_in.dry_depth);
+    }
+    update_state(m_state, m_flux, m_bed_source, m_geom, m_in.dry_depth, dt);
 }
 
 double
@@ -176,13 +204,19 @@ Flood::evolve ()
         // advances with the step in its own precision; in single precision
         // that differs from dt by rounding.
         if (!dry) {
-            // The update leaves the ghost cells of the state out of date.
-            fill_state_ghost_cells(m_state, m_geom);
             const auto dt_real = static_cast<amrex::Real>(dt);
-            compute_fluxes(m_flux, m_state, m_bed, m_in.gravity, m_in.dry_depth);
-            limit_outflow(m_flux, m_outflow_factor, m_state, m_geom, dt_real);
-            compute_bed_source(m_bed_source, m_state, m_bed, m_in.gravity, m_in.dry_depth);
-            update_state(m_state, m_flux, m_bed_source, m_geom, m_in.dry_depth, dt_real);
+            if (m_in.order == 2) {
+                // Two stages from the state, then the mean with it.
+                amrex::MultiFab::Copy(m_state_old, m_state, 0, 0, State::ncomp, 0);
+                advance_stage(dt_real);
+                // The second stage does not start from a state that a step
+                // would stop on.
+                check_state();
+                advance_stage(dt_real);
+                average_with(m_state, m_state_old, m_in.dry_depth);
+            } else {
+                advance_stage(dt_real);
+            }
         } else {
             amrex::Print() << "No depth is above flume.dry_depth (" << m_in.dry_depth
                            << " m): the state is not advanced\n";

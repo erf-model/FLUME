@@ -2,7 +2,7 @@ Model
 =====
 
 This page describes what the code holds and computes today: the
-shallow-water equations over a fixed bed, advanced by a first-order
+shallow-water equations over a fixed bed, advanced by a first-order or a second-order
 finite-volume scheme with wetting and drying, between walls or periodic
 sides. Friction, rainfall and open boundaries are not written yet.
 
@@ -100,7 +100,7 @@ The initial water surface is level, at :math:`\eta_0`
 
 A cell whose bed is at or above :math:`\eta_0` starts dry.
 
-Four more features of the bed and the initial state build test cases.
+Five more features of the bed and the initial state build test cases.
 
 **Rough bed.** ``flume.bed.noise`` gives an amplitude :math:`A`, and the bed
 of cell :math:`(i, j)` moves by :math:`A\,r_{ij}`, where :math:`r_{ij}` is a
@@ -137,6 +137,22 @@ start under the surface :math:`\eta_0`; the others start under
 ``flume.init.dam_surface_elevation``. The velocity is the same on both sides
 unless ``flume.init.dam_velocity`` gives another one for the second side.
 
+**Wave.** ``flume.init.wave_amplitude`` (:math:`A`) adds one sine wave to
+the level surface along x or y (``flume.init.wave_direction``), in a domain
+that is periodic along it. With :math:`s` the distance of a cell centre from
+the low side of the domain over its length, :math:`H = \eta_0 - z_b` and
+:math:`c = \sqrt{g h}`,
+
+.. math::
+
+   h = \max\bigl(0,\; H + A \sin 2\pi s\bigr) , \qquad
+   u = u_0 + 2\left(c - \sqrt{g \max(0, H)}\right)
+
+along the wave, where :math:`u_0` is the component of
+``flume.init.velocity`` along it; the velocity across it is the other
+component. Over a flat bed this is a simple wave, whose exact solution is
+known until it breaks (:doc:`Testing`).
+
 Finite-volume step
 ------------------
 
@@ -152,8 +168,9 @@ the directions. With :math:`U = (h, hu, hv)`:
      + \Delta t\, S_{ij} .
 
 :math:`F` and :math:`G` are the fluxes across the faces in x and y, and
-:math:`S` is the bed-slope term, both defined below. The scheme is first order
-in space and time. The fluxes are computed once per face and stored, so the
+:math:`S` is the bed-slope term, both defined below. This scheme is first order
+in space and time, and is the default (``flume.order = 1``). ``flume.order = 2``
+selects the scheme of `Second order`_, which is built from the same parts. The fluxes are computed once per face and stored, so the
 water that leaves a cell through a face is the water that enters its
 neighbour. Before the update the fluxes of a cell that would give away more
 water than it holds are scaled down (`Wetting and drying`_).
@@ -352,8 +369,8 @@ HLLC scheme in that cell for that step.
 **Time step.** Dry cells do not enter the largest wave rate (`Time step`_),
 so a film that carries a large velocity does not shorten the step.
 
-**Limits.** The scheme is first order, and at a moving shoreline it damps
-the motion: see the bowl tests in :doc:`Testing`. A shore that retreats leaves a film on the bed, which stays
+**Limits.** The first-order scheme damps the motion at a moving shoreline;
+the second-order one damps it less: see the bowl tests in :doc:`Testing`. A shore that retreats leaves a film on the bed, which stays
 until water flows over it again: a cell at or below the dry depth passes no
 water on. With
 ``flume.dry_depth = 0`` a front that advances over a dry bed also carries a
@@ -361,14 +378,151 @@ trace of water ahead of it, one cell per step. The
 limit of the hydrostatic reconstruction on a steep bed (above) applies to
 thin water on a slope in particular.
 
+Second order
+------------
+
+``flume.order = 2`` replaces the constant state of a cell by a linear one in
+each direction, and the single stage by two. The first-order scheme stays
+available and is not changed by this option.
+
+**Limited differences.** Along x, with :math:`\eta = h + z_b` the surface
+elevation, cell :math:`i` gets a difference of the depth, of the surface and
+of the two velocities from its two neighbours (the same along y):
+
+.. math::
+
+   \delta h_i = \mathrm{mm}(h_i - h_{i-1},\; h_{i+1} - h_i) , \qquad
+   \delta \eta_i = \mathrm{mm}(\eta_i - \eta_{i-1},\; \eta_{i+1} - \eta_i) ,
+
+and :math:`\delta u_i`, :math:`\delta v_i` alike, with the minmod function
+
+.. math::
+
+   \mathrm{mm}(a, b) = \begin{cases}
+       a & \text{if } ab > 0 \text{ and } |a| \le |b| , \\
+       b & \text{if } ab > 0 \text{ and } |a| > |b| , \\
+       0 & \text{otherwise.}
+   \end{cases}
+
+The difference of the surface is computed as
+:math:`(h_i - h_{i-1}) + (z_{b,i} - z_{b,i-1})`, so large elevations cost no
+digits. The velocity of a dry neighbour counts as zero. A dry cell
+(:math:`h_i \le h_{\mathrm{dry}}`) is not reconstructed: all its differences
+are zero.
+
+**Sides of a cell.** The cell presents to its low-x face (W) and to its
+high-x face (E)
+
+.. math::
+
+   h_{W} = h_i - \tfrac{1}{2}\delta h_i , \qquad
+   h_{E} = h_i + \tfrac{1}{2}\delta h_i , \qquad
+   z_{W} = z_{b,i} - \tfrac{1}{2}(\delta\eta_i - \delta h_i) , \qquad
+   z_{E} = z_{b,i} + \tfrac{1}{2}(\delta\eta_i - \delta h_i) ,
+
+.. math::
+
+   u_{W} = u_i - \frac{h_{E}}{2 h_i}\,\delta u_i , \qquad
+   u_{E} = u_i + \frac{h_{W}}{2 h_i}\,\delta u_i ,
+
+and :math:`v_W`, :math:`v_E` alike. The bed on a side is what the surface and
+the depth leave: :math:`h_W + z_W = \eta_i - \tfrac{1}{2}\delta\eta_i`. Three
+properties follow.
+
+* :math:`|\delta h_i| \le h_i` when the three depths are not negative (the
+  minmod value is no larger than :math:`h_i - h_{i-1} \le h_i` when positive,
+  and than :math:`h_i - h_{i+1} \le h_i` in magnitude when negative), so
+  :math:`h_W, h_E \ge h_i / 2 \ge 0`.
+* :math:`\tfrac{1}{2}(h_W u_W + h_E u_E) = h_i u_i`: the mean of the two
+  sides is the discharge of the cell. The weights :math:`h_E / 2h_i` and
+  :math:`h_W / 2h_i` lie between 1/4 and 3/4.
+* Under a level surface, :math:`\delta\eta_i = 0`: the surface is level on
+  the two sides whatever the bed and the depth do.
+
+**Faces.** The face between cells :math:`i` and :math:`i+1` applies the
+`Hydrostatic reconstruction`_ and the `HLLC flux`_ to the high side of cell
+:math:`i` and the low side of cell :math:`i+1`: depths :math:`h_{E,i}` and
+:math:`h_{W,i+1}`, beds :math:`z_{E,i}` and :math:`z_{W,i+1}`, and the
+velocities of these two sides. This gives :math:`h^{*}_{E}` for cell
+:math:`i`, with the same cut at the dry depth.
+
+**Bed-slope term.** Inside the cell the bed goes from :math:`z_W` to
+:math:`z_E`, and the hydrostatic reconstruction leaves a step at each face.
+The term has one part for each (Audusse et al., 2004):
+
+.. math::
+
+   S^{hu}_{i} = \frac{g}{2\,\Delta x}\left[
+       \left(h^{*2}_{E} - h_{E}^{2}\right) - \left(h^{*2}_{W} - h_{W}^{2}\right)
+       - (h_W + h_E)(z_E - z_W) \right] .
+
+The first two parts are the steps at the two faces, as at first order. The
+last is :math:`-g h\, \partial z_b / \partial x` over the cell, with the mean
+of the two depths. With :math:`z_E - z_W = \delta\eta_i - \delta h_i`,
+:math:`h_E - h_W = \delta h_i` and :math:`h_W + h_E = 2 h_i`, the terms
+without a star are
+
+.. math::
+
+   -\left(h_E^2 - h_W^2\right) - (h_W + h_E)(z_E - z_W)
+     = -2 h_i\,\delta h_i - 2 h_i\,(\delta\eta_i - \delta h_i)
+     = -2 h_i\,\delta\eta_i ,
+
+and the term is
+
+.. math::
+
+   S^{hu}_{i} = \frac{g}{2\,\Delta x}\left(h^{*2}_{E} - h^{*2}_{W}\right)
+     - \frac{g}{\Delta x}\, h_i\,\delta\eta_i .
+
+The first part is the first-order term with the depths of the sides. The
+second is the weight of the water on the slope of the surface inside the
+cell.
+
+**Why.** For water at rest under a level surface :math:`\delta\eta_i = 0`
+and the surface on every side of every cell is the same. The two sides of a
+face then present the same :math:`h^{*}`, as at first order, and the momentum
+flux :math:`\tfrac{1}{2} g h^{*2}` on the two faces of a cell is cancelled by
+the first part of :math:`S`; the second part is zero to round-off. The water
+stays at rest to round-off.
+
+**Two stages.** With :math:`\mathcal{E}(U, \Delta t)` one step of the
+`Finite-volume step`_ with the fluxes and the bed-slope term above, including
+the outflow limit and the dry-cell rule,
+
+.. math::
+
+   U^{(1)} = \mathcal{E}(U^{n}, \Delta t) , \qquad
+   U^{(2)} = \mathcal{E}(U^{(1)}, \Delta t) , \qquad
+   U^{n+1} = \tfrac{1}{2}\left(U^{n} + U^{(2)}\right) .
+
+This is Heun's method. The step :math:`\Delta t` is computed once, from
+:math:`U^{n}`. Each stage keeps the depth non-negative (the outflow limit
+uses the cell depth and applies to any flux), and a mean of two non-negative
+depths is non-negative. Each stage conserves mass, so the mean does. The
+discharges of a cell whose mean depth is at or below
+:math:`h_{\mathrm{dry}}` are set to zero.
+
+**Limits.** The minmod limiter sets the differences to zero at a maximum or
+a minimum of a field, where the scheme is then first order. The error of a
+smooth solution with such points falls more slowly than the square of the
+cell size in the largest norm (:doc:`Testing` gives the measured rates).
+Next to a dry cell the depth difference is limited by the neighbour's depth
+and the cell is close to first order. The outflow limit and the cut at the
+dry depth are those of the first-order scheme.
+
 Sides of the domain
 -------------------
 
 Each direction is periodic or closed by walls (``flume.periodic``). The state
-and the bed carry one layer of ghost cells. Between boxes and across a
+and the bed carry one layer of ghost cells at first order and two at second
+order. Between boxes and across a
 periodic side a ghost cell holds the value of the cell it covers. Outside a
-wall it mirrors the first cell inside: same depth and bed, same discharge
+wall the first layer mirrors the first cell inside and the second layer the
+second cell: same depth and bed, same discharge
 along the wall, and the discharge normal to the wall with its sign changed.
+Every box whose ghost layers reach outside a wall is filled this way, also a
+box that ends one cell short of it.
 The mass flux through a wall is then exactly zero. A sloping bed is taken as
 it is at a periodic side: the bed has a step there.
 
@@ -392,11 +546,21 @@ is taken over all boxes and all MPI ranks. The time step is
 
    \Delta t = \frac{C}{r} ,
 
-with the CFL number :math:`C` (``flume.cfl``, :math:`0 < C \le 1`).
+with the CFL number :math:`C` (``flume.cfl``, :math:`0 < C \le 1`, and
+:math:`C \le 0.5` at second order).
 
 The rates of the two directions are added because the scheme updates a cell
 with the fluxes of both directions in one step (unsplit). :math:`C \le 1` is
-the linear stability bound of the first-order scheme. The depth stays
+the linear stability bound of the first-order scheme. The second-order
+scheme uses the same step for its two stages, with :math:`C \le 0.5`: a
+side of a cell holds up to 1.5 times the depth of the cell, so above half
+the first-order bound the water that leaves through one face can exceed
+what the cell holds, and the outflow limit, which is first order where it
+acts, becomes part of the scheme. On cells much longer across the wave than
+along it, where one direction sets the whole step, the simple wave of the
+tests has an error of 0.36 % of its amplitude at :math:`C = 0.5` and of
+1.53 % at :math:`C = 1` on 100 cells, and its rate of convergence falls from
+1.9 to 1.25 (:doc:`Testing`). The depth stays
 non-negative when no cell loses more water in a step than it holds. The
 wave speeds :math:`s_L` and :math:`s_R` at a face can be larger than the rate
 of either cell, so :math:`C \le 1` alone does not give this; the outflow

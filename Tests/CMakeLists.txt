@@ -569,6 +569,280 @@ flume_add_regtest(sloping_bed_initial NPROCS 2
           --bed-elevation 100 --bed-slope -0.03125 0.015625
           --surface 98.921875 --velocity 6 -2)
 
+# --- Second order ------------------------------------------------------------------
+# flume.order = 2: limited linear reconstruction and two stages per step
+# (Docs/sphinx_doc/Model.rst). First the rate of convergence on a smooth
+# solution, then the tests above repeated at second order.
+#
+# Tests/Wave/inputs: a simple wave of 0.1 m on water 1 m deep, periodic,
+# compared at 1 s with its exact solution (the depth of each point travels
+# at u + c; Docs/sphinx_doc/Testing.rst). L1 errors of the depth and of the
+# discharge, over the amplitude:
+#                100 cells            200 cells            400 cells
+#   order 1    0.0353  0.0408
+#   order 2    0.00350 0.00413      0.00094 0.00111      0.00025 0.00030
+# on square cells (along y: 0.00271 0.00252 and 0.00073 0.00068). The error of
+# the second-order runs falls by 3.7 when the cell size is halved, a rate of
+# 1.9: the minmod limiter is first order at the highest and at the lowest
+# point of the wave.
+# The bounds of each second-order run are below half the errors of the run
+# with cells twice as large, and below the errors of the first-order run on
+# the same cells: a scheme that falls back to first order fails them.
+set(check_wave ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/check_wave.py)
+set(wave_x wave --direction x --surface 1 --amplitude 0.1 --time 1 --velocity 0.5 -0.3)
+set(wave_y wave --direction y --surface 1 --amplitude 0.1 --time 1 --velocity 0.5 -0.3)
+set(wave_deck_y flume.prob_hi=0.4\ 10 flume.init.wave_direction=y)
+flume_add_regtest(wave_x_first_order NPROCS 1
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/Wave/inputs
+    CHECK ${check_wave} ${wave_x} --l1-max 0.045 0.052 --l1-min 0.025)
+flume_add_regtest(wave_x_second_order NPROCS 1
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/Wave/inputs
+    ARGS flume.order=2
+    CHECK ${check_wave} ${wave_x} --l1-max 0.0044 0.0052)
+flume_add_regtest(wave_x_second_order_fine NPROCS 2
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/Wave/inputs
+    ARGS flume.order=2 flume.n_cell=200\ 8
+    CHECK ${check_wave} ${wave_x} --l1-max 0.0012 0.0014)
+flume_add_regtest(wave_x_second_order_finest NPROCS 4
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/Wave/inputs
+    ARGS flume.order=2 flume.n_cell=400\ 16
+    CHECK ${check_wave} ${wave_x} --l1-max 0.00032 0.00038)
+# Along y, where the water moves at -0.3 m/s along the wave.
+flume_add_regtest(wave_y_second_order NPROCS 2
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/Wave/inputs
+    ARGS flume.order=2 flume.n_cell=4\ 100 ${wave_deck_y}
+    CHECK ${check_wave} ${wave_y} --l1-max 0.0034 0.0032)
+flume_add_regtest(wave_y_second_order_fine NPROCS 4
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/Wave/inputs
+    ARGS flume.order=2 flume.n_cell=8\ 200 ${wave_deck_y}
+    CHECK ${check_wave} ${wave_y} --l1-max 0.00092 0.00086)
+# A wave of negative amplitude on cells 250 m wide: the time step is set by
+# the direction of the wave alone, at the largest flume.cfl of the second
+# order (0.5), in 82 steps: 0.00364 and 0.00428. At flume.cfl = 1, which the reader
+# stops, the errors on these cells are 0.0153 and 0.0181.
+flume_add_regtest(wave_x_second_order_wide_cells NPROCS 2
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/Wave/inputs
+    ARGS flume.order=2 flume.prob_hi=10\ 1000 flume.init.wave_amplitude=-0.1
+    CHECK ${check_wave} wave --direction x --surface 1 --amplitude -0.1 --time 1
+          --velocity 0.5 -0.3 --l1-max 0.0046 0.0054)
+# A periodic domain one cell wide, narrower than its two ghost layers: the
+# errors of the run four cells wide.
+flume_add_regtest(wave_x_second_order_one_cell_wide NPROCS 1
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/Wave/inputs
+    ARGS flume.order=2 flume.n_cell=100\ 1 flume.prob_hi=10\ 0.1
+    CHECK ${check_wave} ${wave_x} --l1-max 0.0044 0.0052)
+
+# The uniform state stays as it is: every reconstructed difference is zero.
+# Two ghost layers are exchanged across the periodic sides and between boxes.
+foreach(np 1 4)
+    flume_add_regtest(uniform_second_order_np${np} NPROCS ${np}
+        INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/Uniform/inputs
+        ARGS flume.order=2
+        CHECK ${check_plotfile} uni --steps 0 5 10 15 16 --times 0 0.3125 0.625 0.9375 1
+              ${skel_grid} --n-files ${np} ${uni_state})
+endforeach()
+# Water at rest stays at rest to round-off: the difference of the surface is
+# zero in every cell, whatever the bed. The decks, steps and tolerances of
+# the first-order tests; boxes of 16 cells, so the second ghost layer of a
+# box lies in its neighbour, and at a wall mirrors the second cell inside.
+foreach(np 1 2 4)
+    flume_add_regtest(sloping_bed_second_order_np${np} NPROCS ${np}
+        INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/SlopingBed/inputs
+        ARGS flume.order=2
+        CHECK ${check_plotfile} slope --steps 0 3 --times 0 0.375
+              --n-cell 50 30 --prob-lo 1000 -60 --prob-hi 1100 0 --dx 2 2
+              --max-grid-size 16 --n-boxes 8 --n-files ${np}
+              --bed-elevation 100 --bed-slope -0.03125 0.015625
+              --surface 98.921875)
+    flume_add_regtest(lake_at_rest_second_order_np${np} NPROCS ${np}
+        INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/LakeAtRest/inputs
+        ARGS flume.order=2
+        CHECK ${check_plotfile} lake --steps 0 50 --times 0 3.752685286033032 --time-rtol 1e-6
+              ${lake_grid} --n-files ${np} --surface 13)
+endforeach()
+flume_add_regtest(lake_at_rest_islands_second_order NPROCS 2
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/LakeAtRest/inputs
+    ARGS flume.order=2 flume.init.surface_elevation=10.2
+    CHECK ${check_plotfile} lake --steps 0 50 --times 0 6.078990464567538 --time-rtol 1e-6
+          ${lake_grid} --n-files 2 --surface 10.2)
+flume_add_regtest(lake_at_rest_islands_dry_depth_second_order NPROCS 2
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/LakeAtRest/inputs
+    ARGS flume.order=2 flume.init.surface_elevation=10.2 flume.dry_depth=0.05
+    CHECK ${check_plotfile} lake --steps 0 50 --times 0 6.078990464567538 --time-rtol 1e-6
+          ${lake_grid} --n-files 2 --surface 10.2)
+flume_add_regtest(lake_at_rest_dry_depth_at_a_face_second_order NPROCS 2
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/LakeAtRest/inputs
+    ARGS flume.order=2 flume.bed.elevation=0.3 flume.init.surface_elevation=0.7
+         flume.dry_depth=0.94279296875
+    CHECK ${check_plotfile} lake --steps 0 50 --times 0 5.754374485 --time-rtol 1e-6
+          --n-cell 50 30 --prob-lo 1000 -60 --prob-hi 1100 0 --dx 2 2
+          --max-grid-size 16 --n-boxes 8 --bed-elevation 0.3 --bed-slope 0.01 -0.02
+          --bed-noise 0.5 --tol-eps 64 --n-files 2 --surface 0.7)
+
+# The dam breaks of Tests/DamBreak/inputs. Over a wet bed the L1 error is
+# 0.24 % of the depth step and 0.50 % of the discharge (first order: 0.80 %
+# and 1.59 %), and the constant state is within 0.03 % (0.19 %). The bounds
+# are 0.65 % and 0.1 %: the first-order run is above them.
+set(wet_bed_bounds_2 --l1-max 0.0065 --plateau-rtol 0.001 --shock-cells 1)
+foreach(np 1 4)
+    flume_add_regtest(dam_break_x_second_order_np${np} NPROCS ${np}
+        INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/DamBreak/inputs
+        ARGS flume.order=2
+        CHECK ${check_dam_break} dam --time 5 --direction x --position 50
+              --surface-lo 2 --surface-hi 1 ${wet_bed_bounds_2})
+endforeach()
+# Between walls one cell apart: the second ghost layer outside each wall
+# mirrors the first layer outside the other. Every value starts as a
+# signalling NaN.
+flume_add_regtest(dam_break_x_second_order_one_cell_wide NPROCS 2
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/DamBreak/inputs
+    ARGS flume.order=2 flume.n_cell=400\ 1 flume.prob_hi=100\ 0.25 amrex.init_snan=1
+    CHECK ${check_dam_break} dam --time 5 --direction x --position 50
+          --surface-lo 2 --surface-hi 1 ${wet_bed_bounds_2})
+flume_add_regtest(dam_break_y_second_order NPROCS 2
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/DamBreak/inputs
+    ARGS flume.order=2 flume.n_cell=4\ 400 flume.prob_hi=1\ 100 flume.init.dam_direction=y
+         flume.init.surface_elevation=1 flume.init.dam_surface_elevation=2
+    CHECK ${check_dam_break} dam --time 5 --direction y --position 50
+          --surface-lo 1 --surface-hi 2 ${wet_bed_bounds_2})
+# Over a dry bed: 0.13 % and 0.12 % (first order: 0.46 % and 0.39 %), bound
+# 0.2 %. No water beyond the exact front.
+set(ritter_bounds_2 --l1-max 0.002 --front-max 0)
+flume_add_regtest(dam_break_dry_x_second_order NPROCS 2
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/DamBreak/inputs
+    ARGS flume.order=2 flume.init.dam_surface_elevation=0
+    CHECK ${check_dam_break} dam --time 5 --direction x --position 50
+          --surface-lo 2 --surface-hi 0 ${ritter_bounds_2})
+flume_add_regtest(dam_break_dry_y_second_order NPROCS 4
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/DamBreak/inputs
+    ARGS flume.order=2 flume.n_cell=4\ 400 flume.prob_hi=1\ 100 flume.init.dam_direction=y
+         flume.init.surface_elevation=0 flume.init.dam_surface_elevation=2
+    CHECK ${check_dam_break} dam --time 5 --direction y --position 50
+          --surface-lo 0 --surface-hi 2 ${ritter_bounds_2})
+# The draining column: each of the two stages keeps the depth at zero or
+# above, and the mass is the same. The cells are 250 m wide, so the step is
+# that of the direction of the flow at flume.cfl = 0.5, the largest value of
+# the second order.
+flume_add_regtest(draining_column_second_order NPROCS 2
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/DamBreak/inputs
+    ARGS flume.order=2 flume.periodic=1\ 0 flume.prob_hi=100\ 1000
+         flume.init.dam_position=0.3 flume.init.dam_surface_elevation=0 flume.cfl=0.5
+    CHECK ${check_dam_break} dam --time 5 --direction x --position 0.3
+          --surface-lo 2 --surface-hi 0 --mass-only --min-change 1.9 --dry-depth 1e-6)
+# The film of Tests/Film/inputs. In the first stage the film (third cell)
+# passes no water on and takes water from the fourth cell; in the second it
+# is wet and passes water to the second cell. The first cell holds exactly
+# nothing after the step. With the face depth cut at zero the second cell
+# would pass on in the second stage the trace it took in the first.
+set(film_cells_2 "")
+foreach(j 0 1 2 3)
+    list(APPEND film_cells_2 --cell 0 ${j} 0 0 0)
+endforeach()
+flume_add_regtest(film_passes_no_water_second_order NPROCS 2
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/Film/inputs
+    ARGS flume.order=2
+    CHECK ${check_cells} film00001 ${film_cells_2} --tol-eps 0)
+flume_add_regtest(film_behind_a_bed_step_second_order NPROCS 2
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/Film/inputs
+    ARGS flume.order=2 flume.bed.slope=-0.0009995\ 0 flume.init.surface_elevation=0.74850125
+    CHECK ${check_cells} film00001 ${film_cells_2} --tol-eps 0)
+
+# Thacker's solutions in the bowl (Tests/Bowl/inputs). L1 errors of the depth
+# and of the discharge (first order in brackets):
+#   planar, half a period, 100 x 100   1.71 %  2.12 %   (13.5 %  19.7 %)
+#   planar, half a period, 200 x 200   0.61 %  0.71 %   ( 7.3 %  10.8 %)
+#   planar, three periods, 100 x 100   3.67 %  5.56 %   (56.5 %  76.8 %)
+#   radial, half a period, 100 x 100   1.02 %  0.71 %   ( 4.2 %   2.8 %)
+#   radial, half a period, 200 x 200   0.29 %  0.20 %   ( 2.2 %   1.8 %)
+#   radial, three periods, 100 x 100   3.80 %  1.54 %   (20.7 %   4.5 %)
+# The bounds of the fine runs are below half the errors of the coarse ones,
+# and every bound is below the first-order error of the same run.
+flume_add_regtest(bowl_planar_half_second_order NPROCS 1
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/Bowl/inputs
+    ARGS flume.order=2 flume.stop_time=2.242850732733187
+    CHECK ${check_bowl} ${planar} --periods 0.5 --l1-max 0.022 0.027 --l1-min 0.005)
+flume_add_regtest(bowl_planar_half_fine_second_order NPROCS 4
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/Bowl/inputs
+    ARGS flume.order=2 flume.stop_time=2.242850732733187 flume.n_cell=200\ 200
+         flume.max_grid_size=64
+    CHECK ${check_bowl} ${planar} --periods 0.5 --l1-max 0.008 0.0092 --l1-min 0.002)
+flume_add_regtest(bowl_planar_second_order NPROCS 2
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/Bowl/inputs
+    ARGS flume.order=2
+    CHECK ${check_bowl} ${planar} --periods 3 --l1-max 0.047 0.07 --max-steps 2100)
+flume_add_regtest(bowl_radial_half_second_order NPROCS 2
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/Bowl/inputs
+    ARGS flume.order=2 ${radial_deck} flume.stop_time=1.1214253663665935
+    CHECK ${check_bowl} ${radial} --periods 0.5 --l1-max 0.013 0.0092 --l1-min 0.003)
+flume_add_regtest(bowl_radial_half_fine_second_order NPROCS 4
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/Bowl/inputs
+    ARGS flume.order=2 ${radial_deck} flume.stop_time=1.1214253663665935 flume.n_cell=200\ 200
+         flume.max_grid_size=64
+    CHECK ${check_bowl} ${radial} --periods 0.5 --l1-max 0.0038 0.0026 --l1-min 0.001)
+flume_add_regtest(bowl_radial_second_order NPROCS 2
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/Bowl/inputs
+    ARGS flume.order=2 ${radial_deck} flume.stop_time=6.72855219819956
+    CHECK ${check_bowl} ${radial} --periods 3 --l1-max 0.048 0.02 --max-steps 750)
+
+# The shear layer: the velocity across the flow gets a limited difference of
+# its own, and must stay between its two values.
+foreach(np 1 4)
+    flume_add_regtest(shear_x_second_order_np${np} NPROCS ${np}
+        INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/Shear/inputs
+        ARGS flume.order=2
+        CHECK ${check_shear} shear --time 5 --direction x --position 50 --depth 2
+              --speed 2 --along-lo 1 --along-hi -1 --width-max 10)
+endforeach()
+flume_add_regtest(shear_x_reversed_second_order NPROCS 2
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/Shear/inputs
+    ARGS flume.order=2 flume.init.velocity=-2\ 1 flume.init.dam_velocity=-2\ -1
+    CHECK ${check_shear} shear --time 5 --direction x --position 50 --depth 2
+          --speed -2 --along-lo 1 --along-hi -1 --width-max 10)
+flume_add_regtest(shear_y_second_order NPROCS 2
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/Shear/inputs
+    ARGS flume.order=2 flume.n_cell=8\ 100 flume.prob_hi=8\ 100 flume.init.dam_direction=y
+         flume.init.velocity=3\ -2 flume.init.dam_velocity=0.5\ -2
+    CHECK ${check_shear} shear --time 5 --direction y --position 50 --depth 2
+          --speed -2 --along-lo 3 --along-hi 0.5 --width-max 10)
+# The film below flume.dry_depth beside still water: the dry rule acts in
+# each of the two stages.
+flume_add_regtest(thin_film_time_step_second_order NPROCS 1
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/DamBreak/inputs
+    ARGS flume.order=2 flume.init.surface_elevation=1 flume.init.dam_surface_elevation=1e-8
+         flume.init.dam_velocity=1e4\ 0 flume.stop_time=0.03125
+    OUTPUT "FLUME: 2 step\\(s\\)"
+    CHECK ${check_dam_break} dam --time 0.03125 --direction x --position 50
+          --surface-lo 1 --surface-hi 1e-8 --velocity-hi 1e4 0
+          --mass-only --min-change 0.05 --dry-depth 1e-6)
+# Mass in the closed basin: two ghost layers at the four walls, rough bed.
+foreach(np 1 2 4)
+    flume_add_regtest(basin_mass_second_order_np${np} NPROCS ${np}
+        INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/Basin/inputs
+        ARGS flume.order=2
+        CHECK ${check_dam_break} basin --time 20 --direction x --position 15
+              --surface-lo 2 --surface-hi 1.5 --velocity-lo 0.5 -0.3 --velocity-hi 0.5 -0.3
+              --mass-only --min-change 0.1)
+endforeach()
+# Boxes two cells wide on an odd number of cells: the last box along each
+# direction is one cell wide, so the box before it holds the first layer
+# outside the wall in its second ghost layer. That layer is read by the last
+# face of the box; left as it was allocated, the two boxes of a face disagree
+# on its flux and the mass changes (by 0.9 m3 of 1267 here).
+flume_add_regtest(basin_mass_second_order_thin_boxes NPROCS 2
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/Basin/inputs
+    ARGS flume.order=2 flume.n_cell=41\ 25 flume.prob_hi=41\ 25 flume.max_grid_size=2
+         amrex.init_snan=1
+    CHECK ${check_dam_break} basin --time 20 --direction x --position 15
+          --surface-lo 2 --surface-hi 1.5 --velocity-lo 0.5 -0.3 --velocity-hi 0.5 -0.3
+          --mass-only --min-change 0.1)
+flume_add_regtest(basin_mass_second_order_one_cell_boxes NPROCS 2
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/Basin/inputs
+    ARGS flume.order=2 flume.n_cell=20\ 12 flume.prob_hi=40\ 24 flume.max_grid_size=1
+         amrex.init_snan=1
+    CHECK ${check_dam_break} basin --time 20 --direction x --position 15
+          --surface-lo 2 --surface-hi 1.5 --velocity-lo 0.5 -0.3 --velocity-hi 0.5 -0.3
+          --mass-only --min-change 0.1)
+
 # --- Inputs that must abort ---------------------------------------------------
 # Every check in Source/FLUME_Inputs.cpp has at least one test.
 set(ok flume.n_cell=8\ 8 flume.prob_hi=8\ 8)
@@ -783,6 +1057,61 @@ flume_add_abort_test(abort_surface_curvature_with_dam
     EXPECT "flume\\.init\\.surface_curvature cannot be used with flume\\.init\\.dam_position"
     ARGS ${ok} flume.init.surface_elevation=2 flume.init.dam_position=4
          flume.init.dam_surface_elevation=1 flume.init.surface_curvature=0.1)
+
+# --- Order and wave ----------------------------------------------------------------
+flume_add_abort_test(abort_cfl_above_half_second_order
+    EXPECT "flume\\.cfl must be <= 0\\.5 with flume\\.order = 2. it is 0\\.75"
+    ARGS ${ok} flume.order=2 flume.cfl=0.75)
+flume_add_abort_test(abort_order_zero       EXPECT "flume\\.order must be >= 1 and <= 2. it is 0"
+    ARGS ${ok} flume.order=0)
+flume_add_abort_test(abort_order_three      EXPECT "flume\\.order must be >= 1 and <= 2. it is 3"
+    ARGS ${ok} flume.order=3)
+flume_add_abort_test(abort_order_two_values EXPECT "flume\\.order needs exactly 1 value. it has 2"
+    ARGS ${ok} flume.order=1\ 2)
+set(wave_ok ${ok} flume.periodic=1\ 1 flume.init.surface_elevation=1)
+flume_add_abort_test(abort_wave_amplitude_nan
+    EXPECT "flume\\.init\\.wave_amplitude must be finite"
+    ARGS ${wave_ok} flume.init.wave_amplitude=nan)
+flume_add_abort_test(abort_wave_amplitude_two
+    EXPECT "flume\\.init\\.wave_amplitude needs exactly 1 value. it has 2"
+    ARGS ${wave_ok} flume.init.wave_amplitude=0.1\ 0.1)
+flume_add_abort_test(abort_wave_amplitude_without_surface
+    EXPECT "flume\\.init\\.wave_amplitude needs flume\\.init\\.surface_elevation"
+    ARGS ${ok} flume.periodic=1\ 1 flume.init.wave_amplitude=0.1)
+flume_add_abort_test(abort_wave_amplitude_not_periodic
+    EXPECT "flume\\.init\\.wave_amplitude needs flume\\.periodic = 1 along flume\\.init\\.wave_direction"
+    ARGS ${ok} flume.periodic=0\ 1 flume.init.surface_elevation=1 flume.init.wave_amplitude=0.1)
+flume_add_abort_test(abort_wave_amplitude_not_periodic_y
+    EXPECT "flume\\.init\\.wave_amplitude needs flume\\.periodic = 1 along flume\\.init\\.wave_direction"
+    ARGS ${ok} flume.periodic=1\ 0 flume.init.surface_elevation=1 flume.init.wave_amplitude=0.1
+         flume.init.wave_direction=y)
+flume_add_abort_test(abort_wave_amplitude_with_slope
+    EXPECT "flume\\.init\\.wave_amplitude cannot be used with flume\\.init\\.surface_slope or flume\\.init\\.surface_curvature"
+    ARGS ${wave_ok} flume.init.wave_amplitude=0.1 flume.init.surface_slope=0.1\ 0)
+flume_add_abort_test(abort_wave_amplitude_with_curvature
+    EXPECT "flume\\.init\\.wave_amplitude cannot be used with flume\\.init\\.surface_slope or flume\\.init\\.surface_curvature"
+    ARGS ${wave_ok} flume.init.wave_amplitude=0.1 flume.init.surface_curvature=0.1)
+flume_add_abort_test(abort_wave_amplitude_with_dam
+    EXPECT "flume\\.init\\.wave_amplitude cannot be used with flume\\.init\\.dam_position"
+    ARGS ${wave_ok} flume.init.wave_amplitude=0.1 flume.init.dam_position=4
+         flume.init.dam_surface_elevation=1)
+flume_add_abort_test(abort_wave_direction_z
+    EXPECT "flume\\.init\\.wave_direction must be x or y. it is z"
+    ARGS ${wave_ok} flume.init.wave_amplitude=0.1 flume.init.wave_direction=z)
+flume_add_abort_test(abort_wave_direction_two
+    EXPECT "flume\\.init\\.wave_direction needs exactly 1 value. it has 2"
+    ARGS ${wave_ok} flume.init.wave_amplitude=0.1 flume.init.wave_direction=x\ y)
+flume_add_abort_test(abort_wave_direction_without_amplitude
+    EXPECT "flume\\.init\\.wave_direction needs flume\\.init\\.wave_amplitude"
+    ARGS ${wave_ok} flume.init.wave_direction=y)
+flume_add_abort_test(abort_wave_direction_with_amplitude_zero
+    EXPECT "flume\\.init\\.wave_direction needs flume\\.init\\.wave_amplitude"
+    ARGS ${wave_ok} flume.init.wave_amplitude=0 flume.init.wave_direction=y)
+# An amplitude near the largest number: gravity times the depth overflows in
+# the velocity of the wave, and the discharge is not finite.
+flume_add_abort_test(abort_wave_overflows
+    EXPECT "The initial depth or discharge is not finite in [0-9]+ cell\\(s\\): check .*flume\\.init\\.wave_amplitude"
+    ARGS ${wave_ok} flume.init.wave_amplitude=${near_max})
 
 # --- Boundaries, rough bed and dam -----------------------------------------------
 flume_add_abort_test(abort_periodic_one     EXPECT "flume\\.periodic needs exactly 2 values \\(x and y\\). it has 1"

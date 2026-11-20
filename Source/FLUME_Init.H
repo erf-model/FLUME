@@ -37,6 +37,21 @@ void fill_state_from_curved_surface (amrex::MultiFab& state, const amrex::MultiF
                                      const amrex::Array<amrex::Real, 2>& velocity);
 
 /**
+ * As fill_state_from_surface, under a level surface that carries one sine
+ * wave along direction `dir` (0 for x, 1 for y):
+ * eta = surface + amplitude sin(2 pi s), with s the distance of the cell
+ * centre from the low side of the domain over the length of the domain.
+ * The velocity along `dir` is velocity[dir] + 2 (sqrt(g h) - sqrt(g h_level)),
+ * h_level = max(surface - z_b, 0): over a flat bed, a simple wave that
+ * travels towards high coordinates and leaves the water behind it as it
+ * found it, until it breaks.
+ */
+void fill_state_wave (amrex::MultiFab& state, const amrex::MultiFab& bed,
+                      const amrex::Geometry& geom, int dir, amrex::Real surface,
+                      amrex::Real amplitude, const amrex::Array<amrex::Real, 2>& velocity,
+                      amrex::Real gravity);
+
+/**
  * Add a paraboloid bowl to the valid cells: the bed moves by
  * -depth (1 - r^2 / radius^2), with r the distance of the cell centre from
  * the centre of the domain. A negative `depth` makes a mound.

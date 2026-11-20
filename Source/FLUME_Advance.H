@@ -23,6 +23,17 @@ void compute_fluxes (amrex::Array<amrex::MultiFab, 2>& flux, const amrex::MultiF
                      const amrex::MultiFab& bed, amrex::Real gravity, amrex::Real dry_depth);
 
 /**
+ * As compute_fluxes, second order in space: each face takes the two cells
+ * next to it as their piecewise-linear reconstruction presents them
+ * (FLUME_Reconstruct.H): depth, bed and velocities on the side of the face.
+ * The hydrostatic reconstruction then acts on these in place of the cell
+ * values. `state` and `bed` need two layers of filled ghost cells.
+ */
+void compute_fluxes_second_order (amrex::Array<amrex::MultiFab, 2>& flux,
+                                  const amrex::MultiFab& state, const amrex::MultiFab& bed,
+                                  amrex::Real gravity, amrex::Real dry_depth);
+
+/**
  * Scale the fluxes so that no cell gives away more water in the step `dt`
  * than it holds.
  *
@@ -54,6 +65,23 @@ void compute_bed_source (amrex::MultiFab& source, const amrex::MultiFab& state,
                          const amrex::MultiFab& bed, amrex::Real gravity, amrex::Real dry_depth);
 
 /**
+ * As compute_bed_source, for compute_fluxes_second_order:
+ *
+ *   g/2 (h_hi^2 - h_lo^2) - g h d_eta ,
+ *
+ * with h_hi and h_lo the depths the reconstructed sides of the cell present
+ * to its two faces, and d_eta the limited difference of the surface elevation
+ * over the cell. The second part is the slope of the bed inside the cell.
+ * Under a level surface d_eta is zero (to rounding) and the first part
+ * balances the fluxes as at first order.
+ *
+ * `state` and `bed` need two layers of filled ghost cells.
+ */
+void compute_bed_source_second_order (amrex::MultiFab& source, const amrex::MultiFab& state,
+                                      const amrex::MultiFab& bed, amrex::Real gravity,
+                                      amrex::Real dry_depth);
+
+/**
  * One forward-Euler step of the valid cells:
  *
  *   U <- U - dt/dx (Fx_hi - Fx_lo) - dt/dy (Fy_hi - Fy_lo) + dt S ,
@@ -69,6 +97,14 @@ void compute_bed_source (amrex::MultiFab& source, const amrex::MultiFab& state,
 void update_state (amrex::MultiFab& state, const amrex::Array<amrex::MultiFab, 2>& flux,
                    const amrex::MultiFab& source, const amrex::Geometry& geom,
                    amrex::Real dry_depth, amrex::Real dt);
+
+/**
+ * Last part of the two-stage step: the valid cells of `state` (the result of
+ * two forward-Euler steps) become the mean of `old` (the state before them)
+ * and `state`. A cell whose depth is then at or below `dry_depth` loses its
+ * momentum. The mean of two depths >= 0 is >= 0.
+ */
+void average_with (amrex::MultiFab& state, const amrex::MultiFab& old, amrex::Real dry_depth);
 
 } // namespace flume
 

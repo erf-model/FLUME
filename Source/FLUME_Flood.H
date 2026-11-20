@@ -20,12 +20,16 @@ namespace flume {
  * The grid is two-dimensional: nx by ny cells and one cell in z. The z extent
  * of the domain is 0 to 1 m and carries no meaning.
  *
- * The state (FLUME_State.H) and the bed elevation carry one layer of ghost
- * cells in x and y (FLUME_Boundary.H). The bed does not change, so its ghost
- * cells are filled once; those of the state are filled at the start of each
- * step. A step is first order in space and time: HLLC fluxes on the faces
- * from the hydrostatic reconstruction, scaled where a cell would give away
- * more water than it holds, then a forward-Euler update (FLUME_Advance.H).
+ * The state (FLUME_State.H) and the bed elevation carry ghost cells in x and
+ * y (FLUME_Boundary.H): one layer at first order, two at second order. The
+ * bed does not change, so its ghost cells are filled once; those of the
+ * state are filled at the start of each stage. A stage is HLLC fluxes on the
+ * faces from the hydrostatic reconstruction, scaled where a cell would give
+ * away more water than it holds, then a forward-Euler update
+ * (FLUME_Advance.H). With flume.order = 1 a step is one stage from the cell
+ * values. With flume.order = 2 the faces take a piecewise-linear
+ * reconstruction of the cells, and a step is the mean of the state and of
+ * two stages from it.
  */
 class Flood
 {
@@ -63,12 +67,17 @@ public:
     [[nodiscard]] const amrex::Geometry& geom () const { return m_geom; }
 
 private:
+    //! One forward-Euler stage of `dt` on m_state, at the order of the run.
+    void advance_stage (amrex::Real dt);
+
     Inputs m_in;
     amrex::Geometry m_geom;
     amrex::BoxArray m_ba;
     amrex::DistributionMapping m_dm;
-    amrex::MultiFab m_state; //!< State::ncomp components, one ghost layer in x and y
-    amrex::MultiFab m_bed;   //!< bed elevation, m, one ghost layer in x and y
+    amrex::MultiFab m_state; //!< State::ncomp components, ghost layers in x and y
+    amrex::MultiFab m_bed;   //!< bed elevation, m, ghost layers in x and y
+    //! The state before the step (flume.order = 2 only), no ghost cells
+    amrex::MultiFab m_state_old;
     //! Fluxes on the faces across x and across y, State::ncomp components
     amrex::Array<amrex::MultiFab, 2> m_flux;
     //! Work space of limit_outflow: one component, one ghost layer in x and y

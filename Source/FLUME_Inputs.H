@@ -59,6 +59,11 @@ struct Inputs
     //! added (flume.cfl; default 0.5; > 0 and <= 1)
     amrex::Real cfl = amrex::Real(0.5);
 
+    //! Order of the scheme in space and time (flume.order; default 1; 1 or 2).
+    //! 1: cell values at the faces, forward Euler. 2: piecewise-linear
+    //! reconstruction with the minmod limiter, two-stage step.
+    int order = 1;
+
     //! Acceleration of gravity, m/s2 (flume.gravity; default 9.81; finite, > 0)
     amrex::Real gravity = amrex::Real(9.81);
 
@@ -101,6 +106,19 @@ struct Inputs
     //! Curvature of the initial water surface, 1/m (flume.init.surface_curvature;
     //! default 0; finite; needs flume.init.surface_elevation; not with a dam)
     amrex::Real init_surface_curvature = amrex::Real(0.0);
+
+    //! Amplitude of a sine wave on the initial water surface, m
+    //! (flume.init.wave_amplitude; default 0: no wave; finite; needs
+    //! flume.init.surface_elevation and a periodic domain along the wave; not
+    //! with a dam, a slope or a curvature). One wavelength spans the domain
+    //! along flume.init.wave_direction, and the velocity along it is that of
+    //! a simple wave: flume.init.velocity + 2 (sqrt(g h) - sqrt(g h_level)),
+    //! with h_level the depth under the level surface.
+    amrex::Real init_wave_amplitude = amrex::Real(0.0);
+
+    //! Direction the wave runs along: 0 for x, 1 for y (flume.init.wave_direction;
+    //! "x" or "y"; default x; needs flume.init.wave_amplitude)
+    int init_wave_direction = 0;
 
     //! Initial velocity in x and y where there is water, m/s (flume.init.velocity;
     //! default 0 0; finite; needs flume.init.surface_elevation)

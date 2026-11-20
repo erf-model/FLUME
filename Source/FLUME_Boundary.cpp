@@ -19,10 +19,19 @@ namespace {
 using WallSigns = amrex::Array<amrex::GpuArray<amrex::Real, State::ncomp>, 2>;
 
 /**
- * Mirror the first layer of cells inside each wall into the ghost layer
- * outside it. `sign[d][n]` multiplies component n at a wall whose normal is
- * direction d. The mirror cell of a ghost cell next to the domain is the
- * first cell inside, which is in the same box.
+ * Mirror the cells inside each wall into the ghost layers outside it: layer m
+ * (1 is next to the wall) takes the m-th cell inside. `sign[d][n]` multiplies
+ * component n at a wall whose normal is direction d.
+ *
+ * Every fab whose ghost cells reach outside the wall is filled, not only
+ * those whose box touches it: a box one cell short of the wall holds the
+ * first layer outside it in its second ghost layer.
+ *
+ * The mirror cell is in the same fab: a valid cell, or, in a box thinner
+ * than the ghost layers, a ghost cell that FillBoundary has filled (call it
+ * first). In a domain thinner than the ghost layers the mirror of an outer
+ * layer is the inner layer beyond the other wall, which is filled before it:
+ * the layers are done in order.
  */
 void
 fill_walls (amrex::MultiFab& mf, const amrex::Geometry& geom, const WallSigns& sign)
@@ -36,23 +45,27 @@ fill_walls (amrex::MultiFab& mf, const amrex::Geometry& geom, const WallSigns& s
         for (int d = 0; d < 2; ++d) {
             if (geom.isPeriodic(d)) { continue; }
             const auto sgn = sign[d];
-            for (int side = 0; side < 2; ++side) {
-                const int face = (side == 0) ? domain.smallEnd(d) : domain.bigEnd(d);
-                const int edge = (side == 0) ? valid.smallEnd(d) : valid.bigEnd(d);
-                if (edge != face) { continue; }
-                // The ghost strip outside the wall, and the offset to its mirror.
-                amrex::Box strip = valid;
-                const int ghost = (side == 0) ? face - 1 : face + 1;
-                strip.setSmall(d, ghost);
-                strip.setBig(d, ghost);
-                const amrex::IntVect to_mirror = amrex::IntVect::TheDimensionVector(d)
-                                                 * ((side == 0) ? 1 : -1);
-                amrex::ParallelFor(strip, ncomp,
-                    [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-                    {
-                        const amrex::IntVect m = amrex::IntVect(i, j, k) + to_mirror;
-                        a(i, j, k, n) = sgn[n] * a(m, n);
-                    });
+            const int n_grow = mf.nGrowVect()[d];
+            for (int layer = 1; layer <= n_grow; ++layer) {
+                for (int side = 0; side < 2; ++side) {
+                    const int face = (side == 0) ? domain.smallEnd(d) : domain.bigEnd(d);
+                    // The ghost strip outside the wall, and the offset to its mirror.
+                    const int ghost = (side == 0) ? face - layer : face + layer;
+                    const bool held = (side == 0) ? ghost >= valid.smallEnd(d) - n_grow
+                                                  : ghost <= valid.bigEnd(d) + n_grow;
+                    if (!held) { continue; }
+                    amrex::Box strip = valid;
+                    strip.setSmall(d, ghost);
+                    strip.setBig(d, ghost);
+                    const amrex::IntVect to_mirror = amrex::IntVect::TheDimensionVector(d)
+                                                     * ((side == 0) ? 2 * layer - 1 : 1 - 2 * layer);
+                    amrex::ParallelFor(strip, ncomp,
+                        [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+                        {
+                            const amrex::IntVect m = amrex::IntVect(i, j, k) + to_mirror;
+                            a(i, j, k, n) = sgn[n] * a(m, n);
+                        });
+                }
             }
         }
     }

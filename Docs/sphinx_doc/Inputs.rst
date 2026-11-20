@@ -80,9 +80,18 @@ a valid number.
      - real
      - ``0.5``
      - CFL number of the time step, with the wave rates of the two directions
-       added (:doc:`Model`). Must be greater than 0 and at most 1. For any
+       added (:doc:`Model`). Must be greater than 0 and at most 1, and at
+       most 0.5 with ``flume.order = 2``. For any
        value in the range the water that leaves a cell in a step is limited
        to the water the cell holds (:doc:`Model`).
+   * - ``flume.order``
+     - integer
+     - ``1``
+     - Order of the scheme in space and time. Must be 1 or 2. ``1`` is the
+       first-order step. ``2`` reconstructs the depth, the surface and the
+       velocity in each cell with a minmod limiter and takes two stages per
+       step (:doc:`Model`); it reads two cells on each side of a cell and
+       costs about twice the work of ``1`` per step.
    * - ``flume.gravity``
      - real
      - ``9.81``
@@ -151,6 +160,21 @@ a valid number.
        this value times the square of the distance from the centre of the
        domain. Must be finite. Needs ``flume.init.surface_elevation``; not
        with a dam. For tests.
+   * - ``flume.init.wave_amplitude``
+     - real
+     - ``0``
+     - Amplitude of one sine wave of the initial depth along
+       ``flume.init.wave_direction``, in metres, with the velocity of a
+       simple wave (:doc:`Model`). Must be finite; ``0`` is no wave. Needs
+       ``flume.init.surface_elevation`` and ``flume.periodic = 1`` along the
+       wave; not with a dam, ``flume.init.surface_slope`` or
+       ``flume.init.surface_curvature``. The state is a simple wave only
+       over a flat bed. For tests.
+   * - ``flume.init.wave_direction``
+     - ``x`` or ``y``
+     - ``x``
+     - Direction along which the wave varies. Needs a
+       ``flume.init.wave_amplitude`` that is not 0.
    * - ``flume.init.velocity``
      - 2 reals
      - ``0 0``

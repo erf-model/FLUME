@@ -223,7 +223,8 @@ Current tests
    depth and of the discharge over the cells that hold water at the start or
    at the end, in the run or in the solution,
    divided by the mean initial depth (times :math:`\sqrt{g h_0}` for the
-   discharge). The scheme is first order and damps this motion:
+   discharge). The first-order scheme damps this motion (the second-order
+   runs are below):
 
    .. list-table::
       :header-rows: 1
@@ -366,6 +367,234 @@ Current tests
    0.1 m somewhere. A wall that does not reverse the normal discharge lets
    water through and fails the test.
 
+``wave_x_first_order``, ``wave_x_second_order``, ``wave_x_second_order_fine``, ``wave_x_second_order_finest``, ``wave_y_second_order``, ``wave_y_second_order_fine``, ``wave_x_second_order_wide_cells``, ``wave_x_second_order_one_cell_wide``
+   ``Tests/Wave/inputs``: the rate of convergence on a smooth solution. One
+   sine wave of 0.1 m on water 1 m deep over a flat bed, 10 m long and
+   periodic, in water that moves at (0.5, -0.3) m/s
+   (``flume.init.wave_amplitude``, :doc:`Model`), compared at 1 s with the
+   exact solution by ``Tests/check_wave.py``.
+
+   Over a flat bed and along one direction the shallow-water equations can
+   be written, with :math:`c = \sqrt{g h}`, as
+
+   .. math::
+
+      \left(\frac{\partial}{\partial t} + (u \pm c)\frac{\partial}{\partial x}\right)
+      (u \pm 2c) = 0 .
+
+   The initial state has :math:`u - 2c = u_0 - 2 c_H` everywhere
+   (:math:`c_H = \sqrt{g H}`), and the equation with the lower signs keeps it
+   so. The other equation then says that :math:`u + 2c`, and so :math:`u`
+   and :math:`c` each, do not change along a path that moves at
+   :math:`u + c = u_0 + 3c - 2 c_H`. This speed is constant on the path, so
+   the path is a straight line: the depth at :math:`x` at the time :math:`t`
+   is the initial depth at :math:`x_0`, where
+
+   .. math::
+
+      x_0 + \bigl(u_0 + 3 c(x_0) - 2 c_H\bigr)\, t = x .
+
+   The script solves this for :math:`x_0` by bisection. Deeper water moves
+   faster, so the front of the wave steepens, and the solution is smooth
+   until two paths meet, at :math:`t = -1 / \min\,(3\, \partial c / \partial x_0)`.
+   This is no earlier than
+   :math:`L \sqrt{H - |A|} / (3 \pi |A| \sqrt{g})` = 3.2 s here, with
+   :math:`L` the length of the wave. The check stops if the time of the run
+   is not below it.
+
+   The check compares the first plotfile with the wave (64 machine
+   epsilons), requires that the state does not vary across the wave and that
+   the mass is kept (16 epsilons), and bounds the mean over the cells of the
+   error of the depth, divided by :math:`|A|`, and of the discharge along the
+   wave, divided by :math:`|A|\, c_H`. The cells are square. The runs give:
+
+   .. list-table::
+      :header-rows: 1
+      :widths: 28 14 14 14 14 16
+
+      * - Run
+        - Cells along
+        - Steps
+        - Depth
+        - Discharge
+        - Bounds
+      * - order 1, x
+        - 100
+        - 154
+        - 0.0353
+        - 0.0408
+        - 0.045, 0.052
+      * - order 2, x
+        - 100
+        - 154
+        - 0.00350
+        - 0.00413
+        - 0.0044, 0.0052
+      * - order 2, x
+        - 200
+        - 307
+        - 0.00094
+        - 0.00111
+        - 0.0012, 0.0014
+      * - order 2, x
+        - 400
+        - 614
+        - 0.00025
+        - 0.00030
+        - 0.00032, 0.00038
+      * - order 2, y
+        - 100
+        - 142
+        - 0.00271
+        - 0.00252
+        - 0.0034, 0.0032
+      * - order 2, y
+        - 200
+        - 283
+        - 0.00073
+        - 0.00068
+        - 0.00092, 0.00086
+      * - order 2, x, cells 250 m wide, :math:`A` = -0.1 m
+        - 100
+        - 82
+        - 0.00364
+        - 0.00428
+        - 0.0046, 0.0054
+      * - order 2, x, one cell wide
+        - 100
+        - 154
+        - 0.00350
+        - 0.00413
+        - 0.0044, 0.0052
+
+   The run one cell wide has a periodic direction narrower than its two
+   ghost layers. The error of the second-order runs falls by 3.7 each time the cell size
+   is halved, a rate of 1.9. It is below 2 because the minmod limiter sets
+   the differences to zero at the highest and at the lowest point of the wave (:doc:`Model`).
+   The first-order run is ten times further from the solution on the same
+   cells; its test also has a lower bound (0.025), so it fails if the
+   default scheme changes. The bounds of each second-order run are below
+   half the errors of the run on cells twice as large, and below the
+   first-order errors, so a scheme that is first order in space or in time
+   fails them. On the cells 250 m wide the direction of the wave alone sets
+   the time step, at ``flume.cfl = 0.5``, the largest value of the second
+   order: at ``flume.cfl = 1``, which the reader stops, the errors on these
+   cells are 0.0153 and 0.0181 (:doc:`Model`).
+
+``*_second_order*``
+   The tests above repeated with ``flume.order = 2``, on the same decks.
+
+   * ``uniform_second_order_np1``, ``_np4``: the uniform state is unchanged
+     in every plotfile.
+   * ``sloping_bed_second_order_np1``, ``_np2``, ``_np4``,
+     ``lake_at_rest_second_order_np1``, ``_np2``, ``_np4``,
+     ``lake_at_rest_islands_second_order``,
+     ``lake_at_rest_islands_dry_depth_second_order``,
+     ``lake_at_rest_dry_depth_at_a_face_second_order``: water at rest stays
+     at rest, with the tolerances of the first-order tests (16 machine
+     epsilons of the surface elevation; 64 with the dry depth at a face).
+   * ``dam_break_x_second_order_np1``, ``_np4``, ``dam_break_y_second_order``:
+     L1 errors of 0.24 % (depth) and 0.50 % (discharge), against 0.80 % and
+     1.59 % at first order; constant state within 0.03 % (0.19 %); shock
+     0.1 cell from its place. Bounds: 0.65 %, 0.1 % and 1 cell.
+   * ``dam_break_dry_x_second_order``, ``dam_break_dry_y_second_order``:
+     0.13 % and 0.12 % against Ritter's solution (0.46 % and 0.39 %), bound
+     0.2 %; no negative depth and no water beyond the exact front.
+   * ``draining_column_second_order``: no negative
+     depth and the same mass at 5 s.
+   * ``film_passes_no_water_second_order``,
+     ``film_behind_a_bed_step_second_order``: after one step (two stages)
+     the first cell holds exactly nothing. The film takes water in the first
+     stage, so the second cell is reached in the second.
+   * ``shear_x_second_order_np1``, ``_np4``,
+     ``shear_x_reversed_second_order``, ``shear_y_second_order``: the bounds
+     of the first-order tests; the jumps are 0.04 cell from their place
+     (0.13 at first order). In addition at most 10 cells may hold a velocity
+     across the flow that is more than a tenth of the jump away from both of
+     its two values (``--width-max``): the runs give 8 cells for the two
+     layers together, and 16 at first order or when the velocity across the
+     direction of a face is not reconstructed.
+   * ``dam_break_x_second_order_one_cell_wide``: the dam break between
+     walls one cell apart, where the second ghost layer outside each wall
+     mirrors the first layer outside the other; every value starts as a
+     signalling NaN.
+   * ``thin_film_time_step_second_order``: the checks of the first-order
+     test; the dry rule acts in each of the two stages.
+   * ``basin_mass_second_order_np1``, ``_np2``, ``_np4``: the mass is kept
+     to 16 machine epsilons between four walls.
+   * ``basin_mass_second_order_thin_boxes``,
+     ``basin_mass_second_order_one_cell_boxes``: the same check with boxes
+     two cells wide on 41 x 25 cells, and one cell wide on 20 x 12. A box
+     that ends one cell short of a wall holds the first layer outside the
+     wall in its second ghost layer, and its last face reads it. The runs
+     start with every value set to a signalling NaN
+     (``amrex.init_snan = 1``); they fail (the mass changes by 0.9 m\ :sup:`3`
+     of 1267) if only the boxes that touch a wall are filled.
+   * ``bowl_planar_half_second_order``, ``bowl_planar_half_fine_second_order``,
+     ``bowl_planar_second_order``, ``bowl_radial_half_second_order``,
+     ``bowl_radial_half_fine_second_order``, ``bowl_radial_second_order``:
+     Thacker's solutions, with the errors below.
+
+   .. list-table::
+      :header-rows: 1
+      :widths: 30 14 14 14 14 14
+
+      * - Run
+        - Cells
+        - Depth
+        - Discharge
+        - Depth, order 1
+        - Discharge, order 1
+      * - planar, half a period
+        - 100 x 100
+        - 1.71 %
+        - 2.12 %
+        - 13.5 %
+        - 19.7 %
+      * - planar, half a period
+        - 200 x 200
+        - 0.61 %
+        - 0.71 %
+        - 7.3 %
+        - 10.8 %
+      * - planar, three periods
+        - 100 x 100
+        - 3.67 %
+        - 5.56 %
+        - 56.5 %
+        - 76.8 %
+      * - radial, half a period
+        - 100 x 100
+        - 1.02 %
+        - 0.71 %
+        - 4.2 %
+        - 2.8 %
+      * - radial, half a period
+        - 200 x 200
+        - 0.29 %
+        - 0.20 %
+        - 2.2 %
+        - 1.8 %
+      * - radial, three periods
+        - 100 x 100
+        - 3.80 %
+        - 1.54 %
+        - 20.7 %
+        - 4.5 %
+
+   With a moving shoreline the error falls by 2.8 (planar) and 3.5 (radial)
+   when the cell size is halved, rates of 1.5 and 1.8. The bounds are about
+   1.3 times the errors; those of the fine runs are below half the errors of
+   the coarse ones.
+
+   Not repeated at second order: the closed forms of one first-order step
+   (``dam_break_dry_first_step_*``, ``draining_column_first_step``), which
+   do not hold for two stages, ``dam_break_dry_x_no_tolerance``, whose
+   lower bound on the trace of water ahead of the front is that of the
+   first-order scheme (at second order the trace is 10\ :sup:`-44` m), and
+   ``draining_column_round_off`` and the draining columns at ``flume.cfl``
+   0.8 and 1, which run above the 0.5 that ``flume.order = 2`` allows.
+
 ``abort_*``
    At least one test per check in :doc:`Inputs`: missing keys, wrong numbers
    of values, values outside the range (including integers that would wrap),
@@ -378,8 +607,9 @@ Current tests
    state or a wave speed that is not finite; the ranges of
    ``flume.dry_depth``, of the bowl and of the tilted and curved surface, the
    keys these need and the keys they cannot be used with; water that is all
-   below ``flume.dry_depth`` with a step limit and no stop time; and a
-   time step that is zero or not finite. The wrong-type values that AMReX's parser
+   below ``flume.dry_depth`` with a step limit and no stop time; a
+   time step that is zero or not finite; and the range of ``flume.order``,
+   the keys the wave needs and the keys it cannot be used with. The wrong-type values that AMReX's parser
    stops are not tested.
 
 Adding a test

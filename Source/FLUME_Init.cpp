@@ -10,6 +10,7 @@
 #include <AMReX_ParReduce.H>
 #include <AMReX_ParallelDescriptor.H>
 
+#include <cmath>
 #include <cstdint>
 #include <AMReX_Tuple.H>
 #include <AMReX_TypeList.H>
@@ -99,6 +100,38 @@ fill_state_from_curved_surface (amrex::MultiFab& state, const amrex::MultiFab& b
             s[box_no](i, j, k, State::h) = h;
             s[box_no](i, j, k, State::hu) = h * u;
             s[box_no](i, j, k, State::hv) = h * v;
+        });
+    amrex::Gpu::streamSynchronize();
+}
+
+void
+fill_state_wave (amrex::MultiFab& state, const amrex::MultiFab& bed, const amrex::Geometry& geom,
+                 int dir, amrex::Real surface, amrex::Real amplitude,
+                 const amrex::Array<amrex::Real, 2>& velocity, amrex::Real gravity)
+{
+    const amrex::Real u = velocity[0];
+    const amrex::Real v = velocity[1];
+    const int lo = geom.Domain().smallEnd(dir);
+    const int n = geom.Domain().length(dir);
+    const amrex::Real two_pi = amrex::Real(2.0) * amrex::Math::pi<amrex::Real>();
+    const auto& zb = bed.const_arrays();
+    const auto& s = state.arrays();
+    amrex::ParallelFor(state,
+        [=] AMREX_GPU_DEVICE (int box_no, int i, int j, int k) noexcept
+        {
+            const int m = (dir == 0) ? i : j;
+            // (m - lo + 1/2) / n, the numerator exact.
+            const amrex::Real frac = amrex::Real(0.5) * static_cast<amrex::Real>(2 * (m - lo) + 1)
+                                     / static_cast<amrex::Real>(n);
+            const amrex::Real z = zb[box_no](i, j, k);
+            const amrex::Real zero = amrex::Real(0.0);
+            const amrex::Real h_level = amrex::max(surface - z, zero);
+            const amrex::Real h = amrex::max(surface + amplitude * std::sin(two_pi * frac) - z, zero);
+            const amrex::Real du = amrex::Real(2.0) * (std::sqrt(gravity * h)
+                                                       - std::sqrt(gravity * h_level));
+            s[box_no](i, j, k, State::h) = h;
+            s[box_no](i, j, k, State::hu) = h * (u + ((dir == 0) ? du : zero));
+            s[box_no](i, j, k, State::hv) = h * (v + ((dir == 1) ? du : zero));
         });
     amrex::Gpu::streamSynchronize();
 }
