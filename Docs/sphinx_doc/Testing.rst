@@ -704,6 +704,72 @@ Current tests
    at second order with :math:`n` = 0.05 on 3 ranks: the mass is kept to 16
    epsilons.
 
+``dam_break_dry_x_outflow``, ``dam_break_dry_y_outflow``, ``_second_order``
+   ``dam_break_dry_x`` and ``dam_break_dry_y`` with an outflow side ahead of
+   the front (``xhi``, and ``ylo`` for the dam along y), run to 9 s. The
+   front leaves the domain at 5.64 s; the rarefaction reaches the wall behind
+   it at 11.3 s. The outflow is supercritical, so Ritter's solution of an
+   unbounded domain still holds. ``check_dam_break.py --open-side`` compares
+   with it and requires the sum of the depth to drop. L1 errors at first and
+   second order: 0.45 % and 0.10 % of the depth, 0.30 % and 0.07 % of the
+   discharge; bounds 0.6 % and 0.2 %. With a wall in place of the outflow
+   the errors are 0.99 % and 0.69 %, above the bounds.
+
+``dam_break_x_outflow``, ``dam_break_x_outflow_second_order``
+   The wet-bed dam break with the dam at 70 m and an outflow side at
+   ``xhi``, run to 10 s. The shock leaves at 7.17 s and the flow behind it
+   is subcritical. The weak wave it sends back (:doc:`Model`) leaves the
+   constant state 0.17 % low in depth and 0.28 % high in velocity next to
+   the side at first order, 0.68 % and 1.97 % at second order. Bounds: L1
+   error 2 % and 0.5 % (the runs give 0.67 % and 0.20 % of the depth step,
+   1.21 % and 0.32 % of the discharge), constant state 0.5 % and 2.5 %. With
+   a wall in place of the outflow the reflected shock gives L1 errors of 6 %
+   (depth) and 11 % (discharge) at first order, 5.5 % and 10.1 % at second
+   order. The shock is not checked once it has left.
+
+``lake_at_rest_segments``, ``lake_at_rest_segments_second_order``, ``lake_at_rest_islands_segments_second_order``
+   The lake at rest over the rough bed with outflow segments on parts of
+   ``xlo`` and ``yhi`` and on all of ``xhi``, and an explicit wall segment
+   on part of ``ylo``, on 3 (and 2) ranks, every value a signalling NaN at
+   the start. Still water stays still to 16 epsilons of the surface, with
+   islands too.
+
+``outflow_whole_side``, ``outflow_split_side``
+   A dam break over a dry bed on 400 by 12 cells in 100 boxes on 3 ranks, at
+   second order, run to 7 s with an outflow side at ``xhi``: once as one
+   segment, once as two outflow segments that meet inside a box. The
+   plotfiles of the two runs are identical to the last bit
+   (``Tests/compare_plotfiles.py``).
+
+``partial_outflow``, ``partial_outflow_second_order``
+   The dry-bed dam break on 200 by 40 cells (100 m by 20 m) in boxes of up
+   to 16 cells, on 2 and 3 ranks, run to 9 s. The side at ``xhi`` is an
+   outflow from y = 10 m to 20 m and a wall below: at first order an
+   explicit wall segment listed after the outflow segment, at second order
+   the gap no segment covers. ``Tests/check_partial_outflow.py`` checks the
+   rows at least 5 m from y = 10 m. In the open rows the L1 error against
+   Ritter's solution is at most 1 % (first order; the run gives 0.75 % of
+   the depth and 0.49 % of the discharge) and 0.3 % (second order; 0.20 %
+   and 0.13 %). In the wall rows the water arriving stops in a bore; the
+   depth at the wall is within 6 % of the bore depth from the jump
+   conditions with the arriving Ritter state (the runs give 3.9 % and
+   4.3 %). The sum of the depth must drop.
+
+``outflow_boxes_one_box``, ``outflow_boxes_one_cell``
+   The basin dam break (rough bed sloping in x, water moving at an angle)
+   on 20 by 12 cells, periodic in y, at second order, with an outflow
+   segment on part of ``xhi``, every value a signalling NaN at the start,
+   run to 8 s: in one box on one rank, where the sum of the depth must drop
+   by the outflow, and in boxes of one cell on 2 ranks. Boxes of one cell
+   are thinner than the two ghost layers, and some end one cell short of the
+   side. Every value of every cell is the same in the two runs
+   (``Tests/compare_plotfiles.py --cells``).
+
+``boundary_segment_cells``
+   The printed cells of two segments whose ends fall on cell centres: a
+   centre on the first coordinate is in the segment, a centre on the second
+   is not.
+
 ``abort_*``
    At least one test per check in :doc:`Inputs`: missing keys, wrong numbers
    of values, values outside the range (including integers that would wrap),
@@ -721,7 +787,11 @@ Current tests
    the keys the wave needs and the keys it cannot be used with; the range of
    ``flume.friction.manning`` and of ``flume.bed.continue_slope``, and
    ``flume.bed.continue_slope = 1`` without a periodic side across which
-   the bed slopes. The wrong-type values that AMReX's parser
+   the bed slopes; each check of ``flume.bc.*`` (names, sides, types, the
+   two reserved types, a periodic side, ranges, a range with no cell centre,
+   overlapping segments, the keys of a segment that is not listed, a
+   misspelled key of a segment). The
+   wrong-type values that AMReX's parser
    stops are not tested.
 
 Adding a test

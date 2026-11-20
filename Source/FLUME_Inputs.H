@@ -6,12 +6,31 @@
 
 #include <optional>
 #include <string>
+#include <vector>
 
 namespace flume {
 
 //! Largest flume.n_cell in x or y: 2^30, which leaves room below the largest
 //! int for ghost-cell and node indices.
 inline constexpr int n_cell_max = 1073741824;
+
+//! The type of a boundary segment (flume.bc.<name>.type).
+enum class BoundaryType : int { wall, outflow };
+
+/**
+ * A segment of a side that is not periodic (flume.bc.<name>.*): the boundary
+ * cells cell_lo to cell_hi along the side, all with one type. read_inputs
+ * resolves flume.bc.<name>.range to these cells and checks them.
+ */
+struct BoundarySegment
+{
+    std::string name;
+    int direction = 0;  //!< direction of the normal to the side: 0 x, 1 y
+    int high = 0;       //!< 0 the low side, 1 the high side
+    BoundaryType type = BoundaryType::wall;
+    int cell_lo = 0;    //!< first boundary cell along the side
+    int cell_hi = -1;   //!< last boundary cell along the side
+};
 
 /**
  * The run's inputs, all in the "flume" namespace of the inputs file.
@@ -34,8 +53,14 @@ struct Inputs
     amrex::Array<amrex::Real, 2> prob_hi{{amrex::Real(0.0), amrex::Real(0.0)}};
 
     //! Whether the domain is periodic in x and y (flume.periodic; default 0 0;
-    //! each 0 or 1). A side that is not periodic is a wall.
+    //! each 0 or 1). A side that is not periodic is made of the segments
+    //! below, and is a wall where no segment covers it.
     amrex::Array<int, 2> periodic{{0, 0}};
+
+    //! Segments of the sides that are not periodic (flume.bc.segments and
+    //! flume.bc.<name>.side, .type, .range; default none: every such side is
+    //! a wall), in the order listed.
+    std::vector<BoundarySegment> bc_segments;
 
     //! Largest box edge in cells (flume.max_grid_size; default 64; >= 1)
     int max_grid_size = 64;

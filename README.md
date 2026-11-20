@@ -16,8 +16,8 @@ The repository holds the build system, a test harness, the continuous
 integration and the documentation. The executable, `flume`, reads an inputs
 file, builds the grid, the bed and the initial state, and advances the
 shallow-water equations with a first-order or second-order finite-volume
-scheme (HLLC fluxes with hydrostatic reconstruction) between walls or periodic sides, with
-Manning friction, writing plotfiles. It is tested on a lake at rest over a rough bed, on the dam-break
+scheme (HLLC fluxes with hydrostatic reconstruction) between walls, outflow
+sides or periodic sides, with Manning friction, writing plotfiles. It is tested on a lake at rest over a rough bed, on the dam-break
 exact solution, on water moving in a bowl with a shoreline (Thacker's
 solutions), on the rate of convergence on a smooth wave, on uniform flow
 with friction down an inclined channel and on mass conservation in a closed

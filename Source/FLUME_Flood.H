@@ -1,8 +1,9 @@
 #ifndef FLUME_FLOOD_H_
 #define FLUME_FLOOD_H_
 
-#include "FLUME_Friction.H"
+#include "FLUME_Boundary.H"
 #include "FLUME_Inputs.H"
+#include "FLUME_Source.H"
 
 #include <AMReX_Array.H>
 #include <AMReX_BoxArray.H>
@@ -11,7 +12,9 @@
 #include <AMReX_MultiFab.H>
 #include <AMReX_REAL.H>
 
+#include <memory>
 #include <string>
+#include <vector>
 
 namespace flume {
 
@@ -30,8 +33,9 @@ namespace flume {
  * (FLUME_Advance.H). With flume.order = 1 a step is one stage from the cell
  * values. With flume.order = 2 the faces take a piecewise-linear
  * reconstruction of the cells, and a step is the mean of the state and of
- * two stages from it. With Manning friction the step ends with the implicit
- * friction update of the discharge over the whole step (FLUME_Friction.H).
+ * two stages from it. The step ends with the source terms
+ * (FLUME_Source.H), each over the whole step, in order: today Manning
+ * friction, implicit in the discharge (FLUME_Friction.H).
  */
 class Flood
 {
@@ -86,9 +90,10 @@ private:
     amrex::MultiFab m_outflow_factor;
     //! Bed-slope term in x and in y (compute_bed_source), no ghost cells
     amrex::MultiFab m_bed_source;
-    //! Manning friction (flume.friction.manning), applied at the end of
-    //! each step
-    Friction m_friction;
+    //! The sides that are not periodic (flume.periodic, flume.bc.*)
+    Boundary m_boundary;
+    //! The source terms, applied in order at the end of each step
+    std::vector<std::unique_ptr<Source>> m_sources;
     //! Time, s. In double precision in every build: a single-precision sum of
     //! steps stops growing after about 2^24 steps.
     double m_time = 0.0;

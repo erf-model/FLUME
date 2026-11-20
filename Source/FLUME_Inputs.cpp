@@ -5,6 +5,7 @@
 #include <AMReX_Vector.H>
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <iomanip>
 #include <limits>
@@ -211,6 +212,162 @@ read_inputs ()
         }
     }
 
+    // A key that needs another one is reported after the check for unknown
+    // keys below: the other key may be there, misspelled. `needs` holds the
+    // first such message.
+    std::string needs;
+    const auto defer = [&needs] (const std::string& msg) { if (needs.empty()) { needs = msg; } };
+
+    // bc.segments and bc.<name>.side, .type, .range: segments of the sides
+    // that are not periodic, each with its own type. Checked here against
+    // the grid: on a side that is not periodic, inside it, holding at least
+    // one cell centre, not overlapping another segment.
+    if (pp.contains("bc.segments")) {
+        // AMReX's parser stops a key with no value, so there is at least one name.
+        std::vector<std::string> names;
+        pp.getarr("bc.segments", names);
+        for (const auto& name : names) {
+            const bool ok_name = !name.empty()
+                && std::all_of(name.begin(), name.end(), [] (char c) {
+                       return std::isalnum(static_cast<unsigned char>(c)) != 0 || c == '_';
+                   });
+            if (!ok_name) {
+                amrex::Abort("flume.bc.segments: a name may hold only letters, digits and _; "
+                             "it is \"" + name + "\"");
+            }
+            for (const auto& s : in.bc_segments) {
+                if (s.name == name) { amrex::Abort("flume.bc.segments lists " + name + " twice"); }
+            }
+            BoundarySegment seg;
+            seg.name = name;
+            const std::string key = "bc." + name + ".";
+
+            // A segment without its side or type is reported after the check
+            // for unknown keys (the key may be there, misspelled); its other
+            // keys are marked as read so that they are not reported too.
+            const bool has_side = pp.contains(key + "side");
+            const bool has_type = pp.contains(key + "type");
+            if (!has_side || !has_type) {
+                defer(!has_side ? "flume." + key + "side is required: xlo, xhi, ylo or yhi"
+                                : "flume." + key + "type is required: wall or outflow");
+                static_cast<void>(pp.contains(key + "range"));
+                continue;
+            }
+            require_count(pp, key + "side", 1);
+            std::string side;
+            pp.get(key + "side", side);
+            if (side == "xlo") {
+                seg.direction = 0; seg.high = 0;
+            } else if (side == "xhi") {
+                seg.direction = 0; seg.high = 1;
+            } else if (side == "ylo") {
+                seg.direction = 1; seg.high = 0;
+            } else if (side == "yhi") {
+                seg.direction = 1; seg.high = 1;
+            } else {
+                amrex::Abort("flume." + key + "side must be xlo, xhi, ylo or yhi; it is " + side);
+            }
+
+            require_count(pp, key + "type", 1);
+            std::string type;
+            pp.get(key + "type", type);
+            if (type == "wall") {
+                seg.type = BoundaryType::wall;
+            } else if (type == "outflow") {
+                seg.type = BoundaryType::outflow;
+            } else if (type == "discharge" || type == "stage") {
+                amrex::Abort("flume." + key + "type = " + type + " is reserved for a later version"
+                             " (a prescribed " + (type == "discharge" ? "inflow discharge" : "water level")
+                             + " from a time series) and is not available yet: use wall or outflow");
+            } else {
+                amrex::Abort("flume." + key + "type must be wall or outflow; it is " + type);
+            }
+
+            const int d = seg.direction;
+            const int t = 1 - d;
+            if (in.periodic[d] == 1) {
+                amrex::Abort("flume." + key + "side is " + side + ", but flume.periodic is 1 in "
+                             + dir_name[d] + ": a periodic side has no boundary to set");
+            }
+            const amrex::Real lo = in.prob_lo[t];
+            const amrex::Real hi = in.prob_hi[t];
+            amrex::Real r_lo = lo;
+            amrex::Real r_hi = hi;
+            if (pp.contains(key + "range")) {
+                const int have = pp.countval(key + "range");
+                if (have != 2) {
+                    amrex::Abort("flume." + key + "range needs exactly 2 values (from and to, in "
+                                 + dir_name[t] + "); it has " + std::to_string(have));
+                }
+                amrex::Vector<amrex::Real> r;
+                pp.getarr(key + "range", r);
+                r_lo = r[0];
+                r_hi = r[1];
+                if (!std::isfinite(r_lo) || !std::isfinite(r_hi)) {
+                    std::string msg = "flume." + key + "range must be finite; it is ";
+                    msg += all_digits(r_lo);
+                    msg += " ";
+                    msg += all_digits(r_hi);
+                    amrex::Abort(msg);
+                }
+                if (!(r_lo < r_hi && r_lo >= lo && r_hi <= hi)) {
+                    std::string msg = "flume." + key + "range must be two coordinates along the side,"
+                                      " in ";
+                    msg += dir_name[t];
+                    msg += ", the first below the second, both from ";
+                    msg += all_digits(lo);
+                    msg += " to ";
+                    msg += all_digits(hi);
+                    msg += " (flume.prob_lo and flume.prob_hi); it is ";
+                    msg += all_digits(r_lo);
+                    msg += " ";
+                    msg += all_digits(r_hi);
+                    amrex::Abort(msg);
+                }
+            }
+            // The cells whose centre is at r_lo or above and below r_hi, with
+            // the centres computed as the plotfile and the kernels place them.
+            const int n = in.n_cell[t];
+            const amrex::Real dx = (hi - lo) / static_cast<amrex::Real>(n);
+            auto centre = [&] (long long j) {
+                return lo + (static_cast<amrex::Real>(j) + amrex::Real(0.5)) * dx;
+            };
+            // The first cell whose centre is at x or above (n if none): a
+            // guess from the division, moved to the exact answer.
+            auto first_at_or_above = [&] (amrex::Real x) {
+                long long j = static_cast<long long>(std::ceil((x - lo) / dx - amrex::Real(0.5)));
+                j = std::clamp(j, 0LL, static_cast<long long>(n));
+                while (j > 0 && centre(j - 1) >= x) { --j; }
+                while (j < n && centre(j) < x) { ++j; }
+                return static_cast<int>(j);
+            };
+            // An end at the side's own end is its end cell, exactly: in single
+            // precision the last centre of a long side can round up to hi.
+            const int first = (r_lo == lo) ? 0 : first_at_or_above(r_lo);
+            const int last = (r_hi == hi) ? n - 1 : first_at_or_above(r_hi) - 1;
+            if (last < first) {
+                std::string msg = "flume." + key + "range holds no cell centre: a segment takes the"
+                                  " cells whose centre is at the first coordinate or above and below"
+                                  " the second; it is ";
+                msg += all_digits(r_lo);
+                msg += " ";
+                msg += all_digits(r_hi);
+                amrex::Abort(msg);
+            }
+            seg.cell_lo = first;
+            seg.cell_hi = last;
+            for (const auto& s : in.bc_segments) {
+                if (s.direction == d && s.high == seg.high && s.cell_lo <= last
+                    && first <= s.cell_hi) {
+                    amrex::Abort("flume.bc." + s.name + " and flume.bc." + name
+                                 + " overlap on side " + side + ": a boundary cell can belong to"
+                                 " one segment only");
+                }
+            }
+            in.bc_segments.push_back(seg);
+        }
+    }
+
     // max_grid_size: optional, one integer in [1, INT_MAX]
     query_int(pp, "max_grid_size", 1, int_max, in.max_grid_size);
 
@@ -296,12 +453,6 @@ read_inputs ()
         amrex::Real v = amrex::Real(0.0);
         if (query_finite(pp, "init.surface_elevation", v)) { in.init_surface_elevation = v; }
     }
-    // A key that needs another one is reported after the check for unknown
-    // keys below: the other key may be there, misspelled. `needs` holds the
-    // first such message.
-    std::string needs;
-    const auto defer = [&needs] (const char* msg) { if (needs.empty()) { needs = msg; } };
-
     // bed.continue_slope = 1 acts on a periodic side across which the bed
     // slopes; anywhere else it would be read and not used.
     if (continue_slope && in.bed_continue_slope == 1

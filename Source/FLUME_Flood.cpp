@@ -20,15 +20,26 @@
 
 namespace flume {
 
-Flood::Flood (const Inputs& in) : m_in(in)
+namespace {
+
+//! The grid of the run. One cell in z: the flood grid is two-dimensional.
+amrex::Geometry
+make_geometry (const Inputs& in)
 {
-    // One cell in z: the flood grid is two-dimensional.
     const amrex::Box domain(amrex::IntVect(0, 0, 0),
                             amrex::IntVect(in.n_cell[0] - 1, in.n_cell[1] - 1, 0));
     const amrex::RealBox real_box({in.prob_lo[0], in.prob_lo[1], amrex::Real(0.0)},
                                   {in.prob_hi[0], in.prob_hi[1], amrex::Real(1.0)});
     const amrex::Array<int, 3> is_periodic{{in.periodic[0], in.periodic[1], 0}};
-    m_geom.define(domain, real_box, amrex::CoordSys::cartesian, is_periodic);
+    return amrex::Geometry(domain, real_box, amrex::CoordSys::cartesian, is_periodic);
+}
+
+} // namespace
+
+Flood::Flood (const Inputs& in) : m_in(in), m_boundary(in, make_geometry(in))
+{
+    m_geom = make_geometry(in);
+    const amrex::Box& domain = m_geom.Domain();
 
     m_ba.define(domain);
     m_ba.maxSize(amrex::IntVect(in.max_grid_size, in.max_grid_size, 1));
@@ -66,7 +77,7 @@ Flood::Flood (const Inputs& in) : m_in(in)
     const amrex::Real zero = amrex::Real(0.0);
     const amrex::Array<amrex::Real, 2> continued_slope =
         (in.bed_continue_slope == 1) ? in.bed_slope : amrex::Array<amrex::Real, 2>{{zero, zero}};
-    fill_bed_ghost_cells(m_bed, m_geom, continued_slope);
+    m_boundary.fill_bed(m_bed, continued_slope);
 
     if (in.init_dam_position.has_value()) {
         fill_state_dam(m_state, m_bed, m_geom, in.init_dam_direction, *in.init_dam_position,
@@ -106,7 +117,7 @@ Flood::Flood (const Inputs& in) : m_in(in)
     amrex::Print() << "FLUME: " << in.n_cell[0] << " x " << in.n_cell[1] << " cells in "
                    << m_ba.size() << " box(es)\n";
 
-    m_friction.define(m_ba, m_dm, in.friction_manning, in.gravity, in.dry_depth);
+    m_sources = make_sources(in, m_ba, m_dm);
 }
 
 amrex::Real
@@ -134,7 +145,7 @@ void
 Flood::advance_stage (amrex::Real dt)
 {
     // The update leaves the ghost cells of the state out of date.
-    fill_state_ghost_cells(m_state, m_geom);
+    m_boundary.fill_state(m_state);
     if (m_in.order == 2) {
         compute_fluxes_second_order(m_flux, m_state, m_bed, m_in.gravity, m_in.dry_depth);
     } else {
@@ -222,12 +233,13 @@ Flood::evolve ()
             } else {
                 advance_stage(dt_real);
             }
-            // Friction acts once, after the explicit terms of the whole
-            // step: implicit in the discharge, with the depth at the end of
-            // the step (FLUME_Friction.H). Acting on each stage instead,
-            // and then taking the mean, would remove only half of a stiff
-            // film's excess discharge per step.
-            if (m_friction.active()) { m_friction.apply(m_state, dt_real); }
+            // The sources act once, after the explicit terms of the whole
+            // step, in order. Friction is implicit in the discharge, with
+            // the depth at the end of the step (FLUME_Friction.H): acting on
+            // each stage instead, and then taking the mean, would remove
+            // only half of a stiff film's excess discharge per step.
+            const SourceContext ctx{m_bed, m_geom, m_time};
+            for (auto& s : m_sources) { s->apply(m_state, ctx, dt_real); }
         } else {
             amrex::Print() << "No depth is above flume.dry_depth (" << m_in.dry_depth
                            << " m): the state is not advanced\n";

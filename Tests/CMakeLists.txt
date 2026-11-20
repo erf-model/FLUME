@@ -864,6 +864,7 @@ set(check_friction ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/check_frict
 set(fric_x --depth 1 --slope -0.001 0 --manning 0.03)
 flume_add_regtest(friction_channel NPROCS 1
     INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/Friction/inputs
+    OUTPUT "FLUME: sources: manning_friction"
     CHECK ${check_friction} fric --time 100 ${fric_x} --q-rtol 6e-4)
 flume_add_regtest(friction_channel_steady NPROCS 2
     INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/Friction/inputs
@@ -957,6 +958,176 @@ flume_add_regtest(friction_basin_mass_second_order NPROCS 3
     CHECK ${check_dam_break} basin --time 20 --direction x --position 15
           --surface-lo 2 --surface-hi 1.5 --velocity-lo 0.5 -0.3 --velocity-hi 0.5 -0.3
           --mass-only --min-change 0.1)
+
+# --- Boundary segments ----------------------------------------------------------
+# flume.bc.*: a side that is not periodic is made of segments, wall or
+# outflow; the cells no segment covers are walls (Docs/sphinx_doc/Model.rst).
+#
+# The dam breaks of Tests/DamBreak/inputs with an outflow side, run past the
+# time the waves reach it. The exact solution of an unbounded domain still
+# holds: check_dam_break.py --open-side also requires the mass to drop.
+# Over a dry bed the front leaves the domain at 5.64 s and the outflow is
+# supercritical; at 9 s the rarefaction has not reached the wall behind it
+# (11.3 s). L1 errors (first order, second order): 0.45 % and 0.10 % of the
+# depth, 0.30 % and 0.07 % of the discharge. With a wall in place of the
+# outflow they are 0.99 % and 0.69 %, so the bounds are 0.6 % and 0.2 %.
+flume_add_regtest(dam_break_dry_x_outflow NPROCS 2
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/DamBreak/inputs
+    ARGS flume.init.dam_surface_elevation=0 flume.stop_time=9
+         flume.bc.segments=out flume.bc.out.side=xhi flume.bc.out.type=outflow
+    CHECK ${check_dam_break} dam --time 9 --direction x --position 50
+          --surface-lo 2 --surface-hi 0 --l1-max 0.006 --front-max 0 --open-side)
+flume_add_regtest(dam_break_dry_x_outflow_second_order NPROCS 3
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/DamBreak/inputs
+    ARGS flume.order=2 flume.init.dam_surface_elevation=0 flume.stop_time=9
+         flume.bc.segments=out flume.bc.out.side=xhi flume.bc.out.type=outflow
+    CHECK ${check_dam_break} dam --time 9 --direction x --position 50
+          --surface-lo 2 --surface-hi 0 --l1-max 0.002 --front-max 0 --open-side)
+# The same along y, with the water running out through the low side.
+flume_add_regtest(dam_break_dry_y_outflow NPROCS 3
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/DamBreak/inputs
+    ARGS flume.n_cell=4\ 400 flume.prob_hi=1\ 100 flume.init.dam_direction=y
+         flume.init.surface_elevation=0 flume.init.dam_surface_elevation=2 flume.stop_time=9
+         flume.bc.segments=out flume.bc.out.side=ylo flume.bc.out.type=outflow
+    CHECK ${check_dam_break} dam --time 9 --direction y --position 50
+          --surface-lo 0 --surface-hi 2 --l1-max 0.006 --front-max 0 --open-side)
+flume_add_regtest(dam_break_dry_y_outflow_second_order NPROCS 2
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/DamBreak/inputs
+    ARGS flume.order=2 flume.n_cell=4\ 400 flume.prob_hi=1\ 100 flume.init.dam_direction=y
+         flume.init.surface_elevation=0 flume.init.dam_surface_elevation=2 flume.stop_time=9
+         flume.bc.segments=out flume.bc.out.side=ylo flume.bc.out.type=outflow
+    CHECK ${check_dam_break} dam --time 9 --direction y --position 50
+          --surface-lo 0 --surface-hi 2 --l1-max 0.002 --front-max 0 --open-side)
+# Over a wet bed with the dam at 70 m: the shock leaves at 7.17 s and the flow
+# behind it is subcritical (Froude number 0.35). As the shock crosses the
+# outflow side a weak wave runs back into the constant state: at 10 s the
+# depth there is 0.17 % low and the velocity 0.28 % high at first order,
+# 0.68 % and 1.97 % at second order. L1 errors: 0.67 % and 0.20 % of the
+# depth step, 1.21 % and 0.32 % of the discharge. With a wall in place of the
+# outflow the reflected shock gives 6.0 % and 11.0 % (first order). Bounds:
+# L1 2 % and 0.5 %, constant state 0.5 % and 2.5 %.
+flume_add_regtest(dam_break_x_outflow NPROCS 2
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/DamBreak/inputs
+    ARGS flume.init.dam_position=70 flume.stop_time=10
+         flume.bc.segments=out flume.bc.out.side=xhi flume.bc.out.type=outflow
+    CHECK ${check_dam_break} dam --time 10 --direction x --position 70
+          --surface-lo 2 --surface-hi 1 --l1-max 0.02 --plateau-rtol 0.005 --shock-cells 1
+          --open-side)
+flume_add_regtest(dam_break_x_outflow_second_order NPROCS 3
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/DamBreak/inputs
+    ARGS flume.order=2 flume.init.dam_position=70 flume.stop_time=10
+         flume.bc.segments=out flume.bc.out.side=xhi flume.bc.out.type=outflow
+    CHECK ${check_dam_break} dam --time 10 --direction x --position 70
+          --surface-lo 2 --surface-hi 1 --l1-max 0.005 --plateau-rtol 0.025 --shock-cells 1
+          --open-side)
+# Water at rest on the rough bed of Tests/LakeAtRest/inputs stays at rest
+# with outflow on parts of three sides and an explicit wall segment on the
+# fourth: an outflow ghost cell copies the depth and the bed of the boundary
+# cell, so the surface stays level across the side. Three ranks, eight boxes,
+# every value a signalling NaN at the start; the times are those of the runs
+# between walls.
+set(lake_segments flume.bc.segments=w\ n\ e\ s
+    flume.bc.w.side=xlo flume.bc.w.type=outflow flume.bc.w.range=-60\ -30
+    flume.bc.n.side=yhi flume.bc.n.type=outflow flume.bc.n.range=1020\ 1070
+    flume.bc.e.side=xhi flume.bc.e.type=outflow
+    flume.bc.s.side=ylo flume.bc.s.type=wall flume.bc.s.range=1000\ 1050 amrex.init_snan=1)
+flume_add_regtest(lake_at_rest_segments NPROCS 3
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/LakeAtRest/inputs
+    ARGS ${lake_segments}
+    CHECK ${check_plotfile} lake --steps 0 50 --times 0 3.752685286033032 --time-rtol 1e-6
+          ${lake_grid} --n-files 3 --surface 13)
+flume_add_regtest(lake_at_rest_segments_second_order NPROCS 3
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/LakeAtRest/inputs
+    ARGS flume.order=2 ${lake_segments}
+    CHECK ${check_plotfile} lake --steps 0 50 --times 0 3.752685286033032 --time-rtol 1e-6
+          ${lake_grid} --n-files 3 --surface 13)
+flume_add_regtest(lake_at_rest_islands_segments_second_order NPROCS 2
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/LakeAtRest/inputs
+    ARGS flume.order=2 flume.init.surface_elevation=10.2 ${lake_segments}
+    CHECK ${check_plotfile} lake --steps 0 50 --times 0 6.078990464567538 --time-rtol 1e-6
+          ${lake_grid} --n-files 2 --surface 10.2)
+# One outflow segment over a whole side, and the same cells as two outflow
+# segments that meet inside a box: the plotfiles are identical to the last
+# bit. 400 x 12 cells in 100 boxes of up to 8 x 8 on three ranks, second
+# order, every value a signalling NaN at the start: a boundary cell that no
+# piece fills stops the run.
+set(split_deck flume.order=2 flume.n_cell=400\ 12 flume.prob_hi=100\ 3 flume.max_grid_size=8
+    flume.init.dam_surface_elevation=0 flume.stop_time=7 amrex.init_snan=1)
+flume_add_regtest(outflow_whole_side NPROCS 3
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/DamBreak/inputs
+    ARGS ${split_deck} flume.bc.segments=out flume.bc.out.side=xhi flume.bc.out.type=outflow
+    CHECK ${check_dam_break} dam --time 7 --direction x --position 50
+          --surface-lo 2 --surface-hi 0 --mass-only --min-change 1 --open-side)
+flume_add_regtest(outflow_split_side NPROCS 3
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/DamBreak/inputs
+    ARGS ${split_deck} flume.bc.segments=b\ a
+         flume.bc.a.side=xhi flume.bc.a.type=outflow flume.bc.a.range=0\ 1.1
+         flume.bc.b.side=xhi flume.bc.b.type=outflow flume.bc.b.range=1.1\ 3
+    OUTPUT "cells 0 to 3 in y"
+    CHECK ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/compare_plotfiles.py dam
+          ${FLUME_TEST_RUN_DIR}/outflow_whole_side)
+# A build without MPI registers no test on more than one rank.
+if(TEST outflow_whole_side AND TEST outflow_split_side)
+    set_tests_properties(outflow_whole_side PROPERTIES FIXTURES_SETUP outflow_whole)
+    set_tests_properties(outflow_split_side PROPERTIES FIXTURES_REQUIRED outflow_whole)
+endif()
+# A dry-bed dam break, 2 m deep at x < 50 m, on 200 x 40 cells of 0.5 m. The
+# side at x = 100 m is an outflow for y >= 10 m and a wall below: away from
+# y = 10 m the open rows follow Ritter's solution, and the wall rows hold the
+# bore that stops the arriving water (Tests/check_partial_outflow.py). First
+# order: the wall is a segment of its own, listed after the outflow, so the
+# pieces are sorted along the side. Second order: the wall is the cells that
+# no segment covers.
+set(partial_deck flume.n_cell=200\ 40 flume.prob_hi=100\ 20 flume.max_grid_size=16 flume.stop_time=9
+    flume.init.dam_surface_elevation=0 flume.bc.up.side=xhi flume.bc.up.type=outflow
+    flume.bc.up.range=10\ 20)
+set(check_partial ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/check_partial_outflow.py dam
+    --time 9 --position 50 --depth 2 --split 10 --margin 5)
+flume_add_regtest(partial_outflow NPROCS 2
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/DamBreak/inputs
+    ARGS ${partial_deck} flume.bc.segments=up\ down flume.bc.down.side=xhi flume.bc.down.type=wall
+         flume.bc.down.range=0\ 10
+    CHECK ${check_partial} --l1-max 0.01 --bore-rtol 0.06)
+flume_add_regtest(partial_outflow_second_order NPROCS 3
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/DamBreak/inputs
+    ARGS ${partial_deck} flume.order=2 flume.bc.segments=up
+    CHECK ${check_partial} --l1-max 0.003 --bore-rtol 0.06)
+# The basin dam break (rough bed sloping in x, water moving at an angle) on
+# 20 x 12 cells, periodic in y, with an outflow on part of the side at
+# x = 40 m, second order, signalling NaN start: run in one box, where water
+# must leave, and in boxes of one cell, where every cell value must be the
+# same. Boxes of one cell are thinner than the two ghost layers, and some end
+# one cell short of the side.
+set(boxes_deck flume.n_cell=20\ 12 flume.periodic=0\ 1 flume.bed.slope=0.01\ 0 flume.order=2
+    flume.stop_time=8 flume.bc.segments=s flume.bc.s.side=xhi flume.bc.s.type=outflow
+    flume.bc.s.range=4\ 16 amrex.init_snan=1)
+flume_add_regtest(outflow_boxes_one_box NPROCS 1
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/Basin/inputs
+    ARGS ${boxes_deck} flume.max_grid_size=64
+    CHECK ${check_dam_break} basin --time 8 --direction x --position 15
+          --surface-lo 2 --surface-hi 1.5 --velocity-lo 0.5 -0.3 --velocity-hi 0.5 -0.3
+          --mass-only --min-change 0.1 --open-side)
+flume_add_regtest(outflow_boxes_one_cell NPROCS 2
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/Basin/inputs
+    ARGS ${boxes_deck} flume.max_grid_size=1
+    CHECK ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/compare_plotfiles.py basin
+          ${FLUME_TEST_RUN_DIR}/outflow_boxes_one_box --cells)
+if(TEST outflow_boxes_one_box AND TEST outflow_boxes_one_cell)
+    set_tests_properties(outflow_boxes_one_box PROPERTIES FIXTURES_SETUP outflow_one_box)
+    set_tests_properties(outflow_boxes_one_cell PROPERTIES FIXTURES_REQUIRED outflow_one_box)
+endif()
+# The cells of a segment: those whose centre is at the first coordinate of
+# flume.bc.<name>.range or above, and below the second. The cell centres are
+# at 0.125 + 0.25 j; both ends of segment lo and the start of hi fall on a
+# centre.
+flume_add_regtest(boundary_segment_cells NPROCS 1
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/DamBreak/inputs
+    ARGS flume.max_step=0 flume.bc.segments=lo\ hi
+         flume.bc.lo.side=ylo flume.bc.lo.type=outflow flume.bc.lo.range=0.125\ 50.125
+         flume.bc.hi.side=ylo flume.bc.hi.type=wall flume.bc.hi.range=50.125\ 100
+    OUTPUT "(?s)segment lo: outflow on ylo, cells 0 to 199 in x.*segment hi: wall on ylo, cells 200 to 399 in x.*sources: none"
+    CHECK ${check_dam_break} dam --initial-only --direction x --position 50
+          --surface-lo 2 --surface-hi 1)
 
 # --- Inputs that must abort ---------------------------------------------------
 # Every check in Source/FLUME_Inputs.cpp has at least one test.
@@ -1342,3 +1513,70 @@ flume_add_abort_test(abort_continue_slope_other_direction
 flume_add_abort_test(abort_continue_slope_flat
     EXPECT "${continue_needs}"
     ARGS ${ok} flume.periodic=1\ 1 flume.bed.continue_slope=1)
+
+# --- Boundary segments ----------------------------------------------------------
+set(seg flume.bc.segments=a)
+flume_add_abort_test(abort_segment_name
+    EXPECT "flume\\.bc\\.segments: a name may hold only letters, digits and _. it is .a-b."
+    ARGS ${ok} flume.bc.segments=a-b)
+flume_add_abort_test(abort_segment_twice   EXPECT "flume\\.bc\\.segments lists a twice"
+    ARGS ${ok} flume.bc.segments=a\ a flume.bc.a.side=xlo flume.bc.a.type=wall)
+flume_add_abort_test(abort_segment_side_missing
+    EXPECT "flume\\.bc\\.a\\.side is required: xlo, xhi, ylo or yhi"
+    ARGS ${ok} ${seg} flume.bc.a.type=wall)
+# A misspelled side is reported as an unknown key, not as a missing side.
+flume_add_abort_test(abort_segment_side_misspelled
+    EXPECT "Unknown key\\(s\\) in the flume namespace:[^a-z]*flume\\.bc\\.a\\.sid "
+    ARGS ${ok} ${seg} flume.bc.a.sid=xlo flume.bc.a.type=wall flume.bc.a.range=1\ 2)
+flume_add_abort_test(abort_segment_side_unknown
+    EXPECT "flume\\.bc\\.a\\.side must be xlo, xhi, ylo or yhi. it is top"
+    ARGS ${ok} ${seg} flume.bc.a.side=top flume.bc.a.type=wall)
+flume_add_abort_test(abort_segment_side_two
+    EXPECT "flume\\.bc\\.a\\.side needs exactly 1 value. it has 2"
+    ARGS ${ok} ${seg} flume.bc.a.side=xlo\ xhi flume.bc.a.type=wall)
+flume_add_abort_test(abort_segment_type_missing
+    EXPECT "flume\\.bc\\.a\\.type is required: wall or outflow"
+    ARGS ${ok} ${seg} flume.bc.a.side=xlo)
+flume_add_abort_test(abort_segment_type_unknown
+    EXPECT "flume\\.bc\\.a\\.type must be wall or outflow. it is inflow"
+    ARGS ${ok} ${seg} flume.bc.a.side=xlo flume.bc.a.type=inflow)
+# The names of the two types that later versions add.
+flume_add_abort_test(abort_segment_type_discharge
+    EXPECT "flume\\.bc\\.a\\.type = discharge is reserved for a later version \\(a prescribed inflow discharge from a time series\\)"
+    ARGS ${ok} ${seg} flume.bc.a.side=xlo flume.bc.a.type=discharge)
+flume_add_abort_test(abort_segment_type_stage
+    EXPECT "flume\\.bc\\.a\\.type = stage is reserved for a later version \\(a prescribed water level from a time series\\)"
+    ARGS ${ok} ${seg} flume.bc.a.side=xlo flume.bc.a.type=stage)
+flume_add_abort_test(abort_segment_periodic_side
+    EXPECT "flume\\.bc\\.a\\.side is yhi, but flume\\.periodic is 1 in y: a periodic side has no boundary to set"
+    ARGS ${ok} flume.periodic=0\ 1 ${seg} flume.bc.a.side=yhi flume.bc.a.type=outflow)
+flume_add_abort_test(abort_segment_range_one
+    EXPECT "flume\\.bc\\.a\\.range needs exactly 2 values \\(from and to, in y\\). it has 1"
+    ARGS ${ok} ${seg} flume.bc.a.side=xlo flume.bc.a.type=outflow flume.bc.a.range=4)
+set(range_bad "flume\\.bc\\.a\\.range must be two coordinates along the side, in x, the first below the second, both from 0 to 8 \\(flume\\.prob_lo and flume\\.prob_hi\\). it is")
+flume_add_abort_test(abort_segment_range_outside  EXPECT "${range_bad} -1 4"
+    ARGS ${ok} ${seg} flume.bc.a.side=ylo flume.bc.a.type=outflow flume.bc.a.range=-1\ 4)
+flume_add_abort_test(abort_segment_range_beyond   EXPECT "${range_bad} 4 8\\.5"
+    ARGS ${ok} ${seg} flume.bc.a.side=yhi flume.bc.a.type=outflow flume.bc.a.range=4\ 8.5)
+flume_add_abort_test(abort_segment_range_reversed EXPECT "${range_bad} 6 2"
+    ARGS ${ok} ${seg} flume.bc.a.side=ylo flume.bc.a.type=outflow flume.bc.a.range=6\ 2)
+flume_add_abort_test(abort_segment_range_equal    EXPECT "${range_bad} 3 3"
+    ARGS ${ok} ${seg} flume.bc.a.side=ylo flume.bc.a.type=outflow flume.bc.a.range=3\ 3)
+flume_add_abort_test(abort_segment_range_nan
+    EXPECT "flume\\.bc\\.a\\.range must be finite. it is nan 3"
+    ARGS ${ok} ${seg} flume.bc.a.side=ylo flume.bc.a.type=outflow flume.bc.a.range=nan\ 3)
+# Cells of 1 m: centres at 0.5, 1.5, ...; none in [2.75, 3.25).
+flume_add_abort_test(abort_segment_no_cell
+    EXPECT "flume\\.bc\\.a\\.range holds no cell centre: a segment takes the cells whose centre is at the first coordinate or above and below the second. it is 2\\.75 3\\.25"
+    ARGS ${ok} ${seg} flume.bc.a.side=ylo flume.bc.a.type=outflow flume.bc.a.range=2.75\ 3.25)
+flume_add_abort_test(abort_segment_overlap
+    EXPECT "flume\\.bc\\.a and flume\\.bc\\.b overlap on side xlo: a boundary cell can belong to one segment only"
+    ARGS ${ok} flume.bc.segments=a\ b flume.bc.a.side=xlo flume.bc.a.type=outflow flume.bc.a.range=0\ 4
+         flume.bc.b.side=xlo flume.bc.b.type=wall flume.bc.b.range=3.5\ 8)
+# The keys of a segment that flume.bc.segments does not list are unknown.
+flume_add_abort_test(abort_segment_not_listed
+    EXPECT "Unknown key\\(s\\) in the flume namespace:[^a-z]*flume\\.bc\\.b\\.side "
+    ARGS ${ok} ${seg} flume.bc.a.side=xlo flume.bc.a.type=wall flume.bc.b.side=xhi)
+flume_add_abort_test(abort_segment_no_list
+    EXPECT "Unknown key\\(s\\) in the flume namespace:[^a-z]*flume\\.bc\\.a\\.side "
+    ARGS ${ok} flume.bc.a.side=xlo)

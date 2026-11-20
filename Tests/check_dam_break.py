@@ -85,6 +85,13 @@ check of the dam in it is made. --time is not given.
 With --dry-depth D every cell of the last plotfile whose depth is at most D
 must hold no discharge (flume.dry_depth: a dry cell has no momentum).
 
+With --open-side the domain has an outflow side (flume.bc.*) that the waves
+reach before T. The exact solution is still that of an unbounded domain: the
+outflow lets the water and the waves out. The mass check becomes: the depths
+sum to less at T than at the start, by more than the tolerance. The shock
+check is made only if the exact shock is still inside the domain, at least C
+cells from its end; the front check holds the cells inside the domain only.
+
 With --mass-only the comparison with an exact solution is left out (the bed may be rough and
 the water may move at the start), and the depth must have changed somewhere by
 at least D between the two plotfiles: the run did move water.
@@ -179,6 +186,7 @@ def main():
     p.add_argument("--velocity-hi", type=float, nargs=2, default=[0.0, 0.0])
     p.add_argument("--min-change", type=float)
     p.add_argument("--dry-depth", type=float)
+    p.add_argument("--open-side", action="store_true")
     a = p.parse_args()
     if a.initial_only:
         if a.time is not None or a.mass_only or a.first_step_cfl is not None:
@@ -261,10 +269,15 @@ def main():
     m0 = math.fsum(v[0] for v in first.values())
     m1 = math.fsum(v[0] for v in last.values())
     mass_tol = a.mass_tol_eps * eps * m0
-    if not abs(m1 - m0) <= mass_tol:
+    if a.open_side:
+        if not m0 - m1 > mass_tol:
+            errors.append(f"mass: the depths sum to {m1!r}, at the start to {m0!r}: with an outflow"
+                          f" side the sum must drop by more than {mass_tol:.3g}")
+    elif not abs(m1 - m0) <= mass_tol:
         errors.append(f"mass: the depths sum to {m1!r}, at the start to {m0!r}: difference"
                       f" {m1 - m0:.3g}, tolerance {mass_tol:.3g}")
-    report = f"mass change {(m1 - m0) / (eps * m0):.3g} epsilons of the mass"
+    report = (f"mass change {(m1 - m0) / m0:.4g} of the mass (outflow side)" if a.open_side
+              else f"mass change {(m1 - m0) / (eps * m0):.3g} epsilons of the mass")
 
     if a.first_step_cfl is not None:
         d = 0 if a.direction == "x" else 1
@@ -384,8 +397,14 @@ def main():
             errors.append(f"constant state: depth or velocity off by {worst_plateau:.4g} of hm = {hm:.6g} m,"
                           f" um = {um:.6g} m/s; at most {a.plateau_rtol}")
         x_shock = a.position + sign * shock * a.time
+        x_lo = head["prob_lo"][d]
+        x_hi = x_lo + n * dx
+        shock_inside = x_lo + a.shock_cells * dx <= x_shock <= x_hi - a.shock_cells * dx \
+            if not dry else True
         if dry:
             pass
+        elif a.open_side and not shock_inside:
+            crossing = "out of the domain"
         elif crossing is None:
             errors.append("the depth does not cross the middle of the shock")
         elif not abs(crossing - x_shock) <= a.shock_cells * dx:
@@ -393,7 +412,7 @@ def main():
         if not dry:
             report += (f"; L1 error {l1_h:.4g} (depth), {l1_q:.4g} (discharge); constant state within"
                        f" {worst_plateau:.3g} over {n_plateau} cells; shock at"
-                       f" {crossing if crossing is None else round(crossing, 4)} m (exact {x_shock:.4f} m);"
+                       f" {round(crossing, 4) if isinstance(crossing, float) else crossing} m (exact {x_shock:.4f} m);"
                        f" variation along the dam {worst_across:.3g}")
 
     if errors:
