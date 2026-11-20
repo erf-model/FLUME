@@ -4,10 +4,13 @@
 #include <AMReX_Algorithm.H>
 #include <AMReX_GpuDevice.H>
 #include <AMReX_GpuQualifiers.H>
+#include <AMReX_IntVect.H>
 #include <AMReX_MFParallelFor.H>
 #include <AMReX_Math.H>
 #include <AMReX_ParReduce.H>
 #include <AMReX_ParallelDescriptor.H>
+
+#include <cstdint>
 #include <AMReX_Tuple.H>
 #include <AMReX_TypeList.H>
 
@@ -50,6 +53,60 @@ fill_state_from_surface (amrex::MultiFab& state, const amrex::MultiFab& bed, amr
             s[box_no](i, j, k, State::h) = h;
             s[box_no](i, j, k, State::hu) = h * u;
             s[box_no](i, j, k, State::hv) = h * v;
+        });
+    amrex::Gpu::streamSynchronize();
+}
+
+void
+add_bed_noise (amrex::MultiFab& bed, const amrex::Geometry& geom, amrex::Real amplitude)
+{
+    const int ilo = geom.Domain().smallEnd(0);
+    const int jlo = geom.Domain().smallEnd(1);
+    const auto& zb = bed.arrays();
+    amrex::ParallelFor(bed,
+        [=] AMREX_GPU_DEVICE (int box_no, int i, int j, int k) noexcept
+        {
+            // 32-bit unsigned arithmetic, which wraps.
+            std::uint32_t n = (static_cast<std::uint32_t>(i - ilo) * std::uint32_t(73856093))
+                              ^ (static_cast<std::uint32_t>(j - jlo) * std::uint32_t(19349663));
+            n ^= n >> 13;
+            n *= std::uint32_t(0x5bd1e995);
+            n ^= n >> 15;
+            // The low 11 bits, 0 to 2047, as a number in [-1, 1).
+            const amrex::Real r = (static_cast<amrex::Real>(n & std::uint32_t(2047)) - amrex::Real(1024.0))
+                                  / amrex::Real(1024.0);
+            zb[box_no](i, j, k) += amplitude * r;
+        });
+    amrex::Gpu::streamSynchronize();
+}
+
+void
+fill_state_dam (amrex::MultiFab& state, const amrex::MultiFab& bed, const amrex::Geometry& geom,
+                int dir, amrex::Real position, amrex::Real surface_lo, amrex::Real surface_hi,
+                const amrex::Array<amrex::Real, 2>& velocity_lo,
+                const amrex::Array<amrex::Real, 2>& velocity_hi)
+{
+    const amrex::Real u_lo = velocity_lo[0];
+    const amrex::Real v_lo = velocity_lo[1];
+    const amrex::Real u_hi = velocity_hi[0];
+    const amrex::Real v_hi = velocity_hi[1];
+    const amrex::Real x_lo = geom.ProbLo(dir);
+    const amrex::Real dx = geom.CellSize(dir);
+    const int i_lo = geom.Domain().smallEnd(dir);
+    const auto& zb = bed.const_arrays();
+    const auto& s = state.arrays();
+    amrex::ParallelFor(state,
+        [=] AMREX_GPU_DEVICE (int box_no, int i, int j, int k) noexcept
+        {
+            const amrex::IntVect iv(i, j, k);
+            const amrex::Real x = x_lo + (static_cast<amrex::Real>(iv[dir] - i_lo)
+                                          + amrex::Real(0.5)) * dx;
+            const bool low = x < position;
+            const amrex::Real surface = low ? surface_lo : surface_hi;
+            const amrex::Real h = amrex::max(surface - zb[box_no](i, j, k), amrex::Real(0.0));
+            s[box_no](i, j, k, State::h) = h;
+            s[box_no](i, j, k, State::hu) = h * (low ? u_lo : u_hi);
+            s[box_no](i, j, k, State::hv) = h * (low ? v_lo : v_hi);
         });
     amrex::Gpu::streamSynchronize();
 }

@@ -33,6 +33,10 @@ struct Inputs
     //! > prob_lo; (prob_hi - prob_lo) / n_cell resolvable in amrex::Real)
     amrex::Array<amrex::Real, 2> prob_hi{{amrex::Real(0.0), amrex::Real(0.0)}};
 
+    //! Whether the domain is periodic in x and y (flume.periodic; default 0 0;
+    //! each 0 or 1). A side that is not periodic is a wall.
+    amrex::Array<int, 2> periodic{{0, 0}};
+
     //! Largest box edge in cells (flume.max_grid_size; default 64; >= 1)
     int max_grid_size = 64;
 
@@ -65,6 +69,11 @@ struct Inputs
     //! Bed slope dz_b/dx and dz_b/dy (flume.bed.slope; default 0 0; finite)
     amrex::Array<amrex::Real, 2> bed_slope{{amrex::Real(0.0), amrex::Real(0.0)}};
 
+    //! Amplitude of a rough bed, m (flume.bed.noise; default 0; finite, >= 0):
+    //! each cell's bed is moved by a fixed pseudo-random amount in
+    //! [-noise, noise), the same on any number of ranks.
+    amrex::Real bed_noise = amrex::Real(0.0);
+
     //! Elevation of the initial, level water surface, m, on the same datum
     //! (flume.init.surface_elevation; no default: the domain starts dry; finite)
     std::optional<amrex::Real> init_surface_elevation;
@@ -72,6 +81,28 @@ struct Inputs
     //! Initial velocity in x and y where there is water, m/s (flume.init.velocity;
     //! default 0 0; finite; needs flume.init.surface_elevation)
     amrex::Array<amrex::Real, 2> init_velocity{{amrex::Real(0.0), amrex::Real(0.0)}};
+
+    //! Coordinate of a dam across the domain, m (flume.init.dam_position; no
+    //! default: no dam; finite; inside the domain in the dam direction; needs
+    //! flume.init.surface_elevation and flume.init.dam_surface_elevation).
+    //! Cells whose centre is below it start under flume.init.surface_elevation,
+    //! the others under flume.init.dam_surface_elevation.
+    std::optional<amrex::Real> init_dam_position;
+
+    //! Elevation of the initial water surface on the high-coordinate side of
+    //! the dam, m (flume.init.dam_surface_elevation; finite; required with
+    //! flume.init.dam_position and only read with it)
+    amrex::Real init_dam_surface_elevation = amrex::Real(0.0);
+
+    //! Initial velocity on the high-coordinate side of the dam, m/s
+    //! (flume.init.dam_velocity; default: flume.init.velocity; finite; needs
+    //! flume.init.dam_position)
+    amrex::Array<amrex::Real, 2> init_dam_velocity{{amrex::Real(0.0), amrex::Real(0.0)}};
+
+    //! Direction the dam position is measured along: 0 for x, 1 for y
+    //! (flume.init.dam_direction; "x" or "y"; default x; needs
+    //! flume.init.dam_position)
+    int init_dam_direction = 0;
 };
 
 //! Read and check the "flume" namespace. Aborts on a bad value or an unknown key.

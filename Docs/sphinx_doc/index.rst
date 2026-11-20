@@ -8,9 +8,11 @@ The expansion of the name, FLood and Urban inundation ModulE, is a draft.
 
 **Status.** The repository holds the build system, the test harness, the
 continuous integration and this documentation. The executable reads an inputs
-file, builds the grid, the bed and the initial state, and runs a time loop with
-a CFL time step that writes plotfiles. The loop does not change the state yet:
-the flux kernel is not written.
+file, builds the grid, the bed and the initial state, and advances the
+shallow-water equations with a first-order finite-volume scheme (HLLC fluxes
+with hydrostatic reconstruction) between walls or periodic sides, with a CFL
+time step, writing plotfiles. Wetting and drying fronts, friction, rainfall
+and open boundaries are not written yet.
 
 The plan is a stand-alone code first, which uses AMReX only: the solver,
 prescribed rainfall, losses, restart and benchmarks. A build with ERF, with

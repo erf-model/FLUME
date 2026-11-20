@@ -4,7 +4,7 @@
     check_plotfile.py <prefix> --steps N... --times T... --n-cell NX NY
         --prob-lo X Y --prob-hi X Y --dx DX DY --max-grid-size N --n-boxes N
         --n-files N [--bed-elevation E] [--bed-slope SX SY] [--surface ETA]
-        [--velocity U V] [--rtol R] [--time-rtol R]
+        [--bed-noise A] [--velocity U V] [--tol-eps N] [--rtol R] [--time-rtol R]
 
 The run directory must hold exactly the plotfiles <prefix><step, 5 digits> of
 the steps listed, and no other of that prefix. Each is read (text headers and
@@ -22,13 +22,19 @@ binary cell data; no AMReX or numpy needed) and checked:
   * the number of data files the boxes are written to, which is the number of
     MPI ranks that own a box;
   * every cell of every variable against the closed form
-        bed_elevation     = E + SX (i + 1/2) DX + SY (j + 1/2) DY
+        bed_elevation     = E + SX (i + 1/2) DX + SY (j + 1/2) DY + A r(i, j)
         depth             = max(ETA - bed_elevation, 0)   (0 without --surface)
         discharge_x, _y   = depth U, depth V
         surface_elevation = bed_elevation + depth
-    within 4 machine epsilons (of the precision the data are written in) times
-    the larger of |bed_elevation| and |ETA|, times max(1, |U|, |V|) for the
-    discharges. The check also prints the largest difference found.
+    within N machine epsilons (of the precision the data are written in;
+    N = 4 unless --tol-eps is given) times the larger of |bed_elevation| and
+    |ETA|, times max(1, |U|, |V|) for the discharges. r(i, j) is the rough-bed
+    number of the solver (bed_noise below; Source/FLUME_Init.cpp holds the same
+    hash). The check also prints the largest difference found.
+
+The closed form is the initial state. It is also the state at any later time
+when the flow is uniform in a periodic direction or at rest under a level
+surface, which is what the tests that use this check run.
 """
 import argparse
 import re
@@ -51,6 +57,16 @@ class Checker:
         """Each got[d] within tol[d] of want[d]; no absolute floor."""
         if len(got) != len(want) or not all(abs(g - w) <= t for g, w, t in zip(got, want, tol)):
             self.errors.append(f"{what}: got {got}, expected {want}")
+
+
+def bed_noise(i, j):
+    """The rough-bed number of cell (i, j), in [-1, 1): add_bed_noise() in Source/FLUME_Init.cpp."""
+    m = 0xFFFFFFFF
+    n = ((i * 73856093) & m) ^ ((j * 19349663) & m)
+    n ^= n >> 13
+    n = (n * 0x5BD1E995) & m
+    n ^= n >> 15
+    return ((n & 2047) - 1024) / 1024
 
 
 def read_header(path):
@@ -193,10 +209,12 @@ def check_one(a, c, plotfile, step, time):
     n_bad = 0
     for (i, j), got in sorted(cells.items()):
         zb = a.bed_elevation + a.bed_slope[0] * (i + 0.5) * a.dx[0] + a.bed_slope[1] * (j + 0.5) * a.dx[1]
+        if a.bed_noise != 0.0:
+            zb += a.bed_noise * bed_noise(i, j)
         depth = 0.0 if eta is None else max(eta - zb, 0.0)
         want = [depth, depth * u, depth * v, zb, zb + depth]
         scale = max(abs(zb), 0.0 if eta is None else abs(eta))
-        tol = [4 * eps * scale * s for s in (1.0, vscale, vscale, 1.0, 1.0)]
+        tol = [a.tol_eps * eps * scale * s for s in (1.0, vscale, vscale, 1.0, 1.0)]
         for name, g, w, t in zip(VARS, got, want, tol):
             # "not <=" also catches a NaN
             if not abs(g - w) <= t:
@@ -224,8 +242,11 @@ def main():
     p.add_argument("--n-files", type=int, required=True)
     p.add_argument("--bed-elevation", type=float, default=0.0)
     p.add_argument("--bed-slope", type=float, nargs=2, default=[0.0, 0.0])
+    p.add_argument("--bed-noise", type=float, default=0.0)
     p.add_argument("--surface", type=float, default=None)
     p.add_argument("--velocity", type=float, nargs=2, default=[0.0, 0.0])
+    p.add_argument("--tol-eps", type=float, default=4.0,
+                   help="tolerance of the cell values, in machine epsilons of the scale (default 4)")
     p.add_argument("--rtol", type=float, default=1e-12)
     p.add_argument("--time-rtol", type=float, default=None,
                    help="tolerance of the time only (default: --rtol)")

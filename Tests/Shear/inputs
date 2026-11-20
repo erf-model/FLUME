@@ -1,0 +1,21 @@
+# Shear layer carried by a uniform flow: water 2 m deep moving at 2 m/s along
+# x on 100 x 8 cells of 1 m in 8 boxes, periodic in x and y. The velocity along
+# y is 1 m/s at x < 50 m and -1 m/s beyond, so there is one shear layer at the
+# dam position and one at the periodic side. Depth and discharge along x stay
+# uniform, and the flow carries the two layers 10 m in 5 s: to x = 60 m and
+# x = 10 m. With g = 8 m/s2 the celerity is 4 m/s: the flow is subcritical
+# (Froude number 0.5), so each face blends the states of its two sides. The
+# rate is (2 + 4) / 1 + (1 + 4) / 1 = 11 1/s.
+flume.n_cell        = 100 8
+flume.prob_hi       = 100.0 8.0
+flume.periodic      = 1 1
+flume.max_grid_size = 32
+flume.plot_file     = shear
+flume.stop_time     = 5.0
+flume.gravity       = 8.0
+
+flume.init.surface_elevation     = 2.0
+flume.init.velocity              = 2.0 1.0
+flume.init.dam_position          = 50.0
+flume.init.dam_surface_elevation = 2.0
+flume.init.dam_velocity          = 2.0 -1.0

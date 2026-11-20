@@ -1,0 +1,13 @@
+# Dam break over a wet, flat bed: still water 2 m deep at x < 50 m and 1 m
+# deep beyond, on 400 x 4 cells of 0.25 m in 7 boxes, between walls. At 5 s
+# the rarefaction has reached x = 27.9 m and the shock x = 70.9 m, so neither
+# has met a wall, and the state is the solution of Stoker (1957).
+flume.n_cell        = 400 4
+flume.prob_hi       = 100.0 1.0
+flume.max_grid_size = 64
+flume.plot_file     = dam
+flume.stop_time     = 5.0
+
+flume.init.surface_elevation     = 2.0
+flume.init.dam_position          = 50.0
+flume.init.dam_surface_elevation = 1.0

@@ -25,6 +25,27 @@ void fill_plane_bed (amrex::MultiFab& bed, const amrex::Geometry& geom,
 void fill_state_from_surface (amrex::MultiFab& state, const amrex::MultiFab& bed,
                               amrex::Real surface, const amrex::Array<amrex::Real, 2>& velocity);
 
+/**
+ * Add a rough-bed perturbation to the valid cells: cell (i, j), counted from
+ * the lower corner of the domain, moves by amplitude * r(i, j), where r is a
+ * fixed pseudo-random number in [-1, 1) (a multiple of 1/1024) from an
+ * integer hash of the two indices. The bed does not depend on the boxes or
+ * the number of ranks. Tests/check_plotfile.py holds the same hash.
+ */
+void add_bed_noise (amrex::MultiFab& bed, const amrex::Geometry& geom, amrex::Real amplitude);
+
+/**
+ * State on the two sides of a dam: as fill_state_from_surface, with the
+ * surface at `surface_lo` and the velocity `velocity_lo` in the cells whose
+ * centre along direction `dir` (0 for x, 1 for y) is below `position`, and
+ * `surface_hi` and `velocity_hi` in the others. Fills the valid cells.
+ */
+void fill_state_dam (amrex::MultiFab& state, const amrex::MultiFab& bed,
+                     const amrex::Geometry& geom, int dir, amrex::Real position,
+                     amrex::Real surface_lo, amrex::Real surface_hi,
+                     const amrex::Array<amrex::Real, 2>& velocity_lo,
+                     const amrex::Array<amrex::Real, 2>& velocity_hi);
+
 //! Number of valid cells, over all ranks, in which any component is not finite.
 amrex::Long count_not_finite (const amrex::MultiFab& mf);
 

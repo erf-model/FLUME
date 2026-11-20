@@ -3,6 +3,7 @@
 
 #include "FLUME_Inputs.H"
 
+#include <AMReX_Array.H>
 #include <AMReX_BoxArray.H>
 #include <AMReX_DistributionMapping.H>
 #include <AMReX_Geometry.H>
@@ -19,9 +20,12 @@ namespace flume {
  * The grid is two-dimensional: nx by ny cells and one cell in z. The z extent
  * of the domain is 0 to 1 m and carries no meaning.
  *
- * The state (FLUME_State.H) and the bed elevation have no ghost cells yet:
- * nothing reads a neighbour until the flux kernel exists. Until then a step
- * advances the time and leaves the state as it is.
+ * The state (FLUME_State.H) and the bed elevation carry one layer of ghost
+ * cells in x and y (FLUME_Boundary.H). The bed does not change, so its ghost
+ * cells are filled once; those of the state are filled at the start of each
+ * step. A step is first order in space and time: HLLC fluxes on the faces
+ * from the hydrostatic reconstruction, then a forward-Euler update
+ * (FLUME_Advance.H).
  */
 class Flood
 {
@@ -37,12 +41,16 @@ public:
      * The next time step, s: cfl / max_wave_rate(). A step that reaches
      * flume.stop_time, or falls short of it by round-off only (4 machine
      * epsilons of the stop time), is set to end on it. With no wave anywhere
-     * (a dry domain) the step goes straight to flume.stop_time; without a
-     * stop time it aborts. Aborts on a negative or not-finite depth or wave
-     * speed, and on a step that is zero, not finite or too small to advance
-     * the time. `lands` is set when the step ends at flume.stop_time.
+     * (a dry domain) the step goes straight to flume.stop_time and `dry` is
+     * set; without a stop time it aborts. Aborts as check_state() does, and
+     * on a step that is zero, not finite or too small to advance the time.
+     * `lands` is set when the step ends at flume.stop_time.
      */
-    double compute_dt (bool& lands) const;
+    double compute_dt (bool& lands, bool& dry) const;
+
+    //! Abort if a depth is negative or not finite, or a wave speed is not
+    //! finite, in any cell. Returns the largest wave rate (FLUME_TimeStep.H).
+    amrex::Real check_state () const;
 
     //! Write <plot_file><step>: depth, discharge_x, discharge_y,
     //! bed_elevation, surface_elevation (bed + depth).
@@ -59,8 +67,10 @@ private:
     amrex::Geometry m_geom;
     amrex::BoxArray m_ba;
     amrex::DistributionMapping m_dm;
-    amrex::MultiFab m_state; //!< State::ncomp components, no ghost cells
-    amrex::MultiFab m_bed;   //!< bed elevation, m, no ghost cells
+    amrex::MultiFab m_state; //!< State::ncomp components, one ghost layer in x and y
+    amrex::MultiFab m_bed;   //!< bed elevation, m, one ghost layer in x and y
+    //! Fluxes on the faces across x and across y, State::ncomp components
+    amrex::Array<amrex::MultiFab, 2> m_flux;
     //! Time, s. In double precision in every build: a single-precision sum of
     //! steps stops growing after about 2^24 steps.
     double m_time = 0.0;
