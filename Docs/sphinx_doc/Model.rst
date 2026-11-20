@@ -178,6 +178,13 @@ away as the cells get smaller. Water at rest is not affected.
 HLLC flux
 ---------
 
+The flux has the two-wave form of Harten, Lax and van Leer (HLL). The form,
+the wave speeds and the dry-bed speeds used here are written out for the
+shallow-water equations by Satyaprasad et al. (2024, section 3.4). The
+tangential momentum is carried by the mass flux from the upwind side, as in
+the solver of Delestre et al. (2014, section 4.4), which follows the HLLC
+extension of Toro and co-workers.
+
 At a face, let L and R be the low and high sides, :math:`u_n` the velocity
 normal to the face, :math:`u_t` the velocity along it, and
 :math:`c = \sqrt{g h^{*}}`. The fastest waves to the two sides are estimated
@@ -235,6 +242,9 @@ This last choice is what the C of HLLC adds: it keeps a shear layer that lies
 along a face as sharp as upwinding allows. For the shallow-water equations
 the middle wave of the HLLC flux moves with the sign of the HLL mass flux, so
 the flux above is the HLLC flux written without the speed of that wave.
+Delestre et al. (2014) pick the side by the sign of
+:math:`u_{n,L} + u_{n,R}`; here it is picked by the sign of the mass flux,
+so the tangential momentum always moves with the water that crosses the face.
 
 **Limit.** The two speeds are exact when both waves are rarefactions. For a
 shock that runs into much shallower water they are below the exact shock
@@ -326,5 +336,14 @@ References
   the hydrostatic reconstruction technique for Shallow Water equations.
   *Comptes Rendus Mathematique* 350(13-14), 677-681.
   https://doi.org/10.1016/j.crma.2012.08.004
-* A. Ritter (1892). Die Fortpflanzung der Wasserwellen. *Zeitschrift des
-  Vereines Deutscher Ingenieure* 36(33), 947-954.
+* O. Delestre, C. Lucas, P.-A. Ksinant, F. Darboux, C. Laguerre, T.-N.-T. Vo,
+  F. James and S. Cordier (2013). SWASHES: a compilation of shallow water
+  analytic solutions for hydraulic and environmental studies. *International
+  Journal for Numerical Methods in Fluids* 72(3), 269-300.
+  https://doi.org/10.1002/fld.3741 (open copy: https://arxiv.org/abs/1110.0288)
+* O. Delestre, F. Darboux, F. James, C. Lucas, C. Laguerre and S. Cordier
+  (2014). FullSWOF: A free software package for the simulation of shallow
+  water flows. arXiv:1401.4125. https://arxiv.org/abs/1401.4125
+* D. Satyaprasad, S. N. Kuiry and S. Sundar (2024). A meshless geometric
+  conservation weighted least square method for solving the shallow water
+  equations. arXiv:2410.05968. https://arxiv.org/abs/2410.05968

@@ -133,7 +133,8 @@ Current tests
 ``dam_break_x_np1``, ``dam_break_x_np2``, ``dam_break_x_np4``, ``dam_break_y``
    ``Tests/DamBreak/inputs``: still water 2 m and 1 m deep on a flat bed on
    the two sides of a dam, 400 cells of 0.25 m along the flow, compared at
-   5 s with the exact solution by ``Tests/check_dam_break.py``. The solution
+   5 s with the exact solution by ``Tests/check_dam_break.py`` (the dam break
+   on a wet domain of Delestre et al., 2013, section 4.1.1). The solution
    is a rarefaction into the deep water, a constant state and a shock into
    the shallow water. With :math:`h_1` and :math:`h_0` the deep and shallow
    depths, :math:`c = \sqrt{g h}`, and :math:`h_m`, :math:`u_m` the constant
@@ -157,7 +158,8 @@ Current tests
 
 ``dam_break_dry_x``, ``dam_break_dry_y``
    The same deck with no water on the low side of the dam, compared at 5 s
-   with the solution of Ritter (1892), whose front has run 44.3 m and has not
+   with Ritter's solution (the dam break on a dry domain of Delestre et al.,
+   2013, section 4.1.2), whose front has run 44.3 m and has not
    reached the wall. These runs use the dry-bed wave speeds of the flux. The
    check bounds the L1 error of the depth, as a fraction of 2 m, and of the
    discharge, as a fraction of 2 m times 4.43 m/s (1 %; the run gives 0.46 %

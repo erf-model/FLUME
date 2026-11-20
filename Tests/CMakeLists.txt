@@ -288,8 +288,8 @@ flume_add_regtest(dam_break_y NPROCS 2
          flume.init.surface_elevation=1 flume.init.dam_surface_elevation=2
     CHECK ${check_dam_break} dam --time 5 --direction y --position 50
           --surface-lo 1 --surface-hi 2 ${wet_bed_bounds})
-# Over a dry bed (the low side has no water): the solution of Ritter (1892),
-# whose front is at 94.3 m (x) or 5.7 m (y) at 5 s, short of the wall. This is
+# Over a dry bed (the low side has no water): Ritter's solution (Delestre et
+# al., 2013), whose front is at 94.3 m (x) or 5.7 m (y) at 5 s, short of the wall. This is
 # the test of the dry-bed wave speeds and of the depth staying non-negative.
 # The L1 error is 0.46 % of the depth and 0.39 % of the discharge scale
 # (bound 1 %); beyond the exact front the depth stays below 1e-11 of 2 m (the

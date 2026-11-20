@@ -49,7 +49,8 @@ hm solves the middle equation (bisection here). Checked:
     P um of um;
   * shock: the depth crosses (hm + h0) / 2 within C cells of X + S T.
 
-When the shallower side is dry (h0 = 0) the solution is that of Ritter (1892):
+When the shallower side is dry (h0 = 0) the solution is Ritter's (Delestre et
+al., 2013, section 4.1.2):
 the rarefaction above reaches down to h = 0 at xi = 2 c1, and beyond it the bed
 is dry. Then --front-max F is given in place of --plateau-rtol and
 --shock-cells, and the checks are:
