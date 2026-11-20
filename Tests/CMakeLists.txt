@@ -1027,9 +1027,11 @@ flume_add_abort_test(abort_plot_file_two    EXPECT "flume\\.plot_file needs exac
 flume_add_abort_test(abort_unknown_key      EXPECT "Unknown key\\(s\\) in the flume namespace:[^a-z]*flume\\.n_cel "
     ARGS ${ok} flume.n_cel=8\ 8)
 # A key outside the flume namespace that nothing reads: reported when the run
-# ends (amrex.abort_on_unused_inputs, which main() turns on).
+# ends (amrex.abort_on_unused_inputs, which main() turns on). The list of keys
+# goes to stdout and the abort message to stderr, which reach the pipe in
+# either order, so the pattern asks for both in any order.
 flume_add_abort_test(abort_unused_key_other_namespace
-    EXPECT "flum\\.n_cell[\\s\\S]*unused ParmParse variables"
+    EXPECT "^(?=[\\s\\S]*flum\\.n_cell)[\\s\\S]*unused ParmParse variables"
     ARGS ${ok} flum.n_cell=8\ 8)
 
 # --- Time loop, bed and initial state ------------------------------------------

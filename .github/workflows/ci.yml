@@ -49,10 +49,6 @@ jobs:
             compiler: clang
             build_type: Release
             flags: ""
-          - name: gcc Release OpenMP
-            compiler: gcc
-            build_type: Release
-            flags: "-DFLUME_OMP=ON"
           - name: gcc Debug with AMReX testing
             compiler: gcc
             build_type: Debug
@@ -71,7 +67,7 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends \
-            build-essential clang libomp-dev cmake ninja-build ccache \
+            build-essential clang cmake ninja-build ccache \
             libopenmpi-dev openmpi-bin
 
       - name: Set up ccache
@@ -103,8 +99,6 @@ jobs:
         run: cmake --build build-ci --parallel
 
       - name: Tests
-        env:
-          OMP_NUM_THREADS: "2"
         run: ctest --test-dir build-ci --output-on-failure
 
       # Tests write only under build-ci/, which is ignored; anything else

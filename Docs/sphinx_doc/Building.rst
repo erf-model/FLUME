@@ -48,6 +48,9 @@ boxes are one cell thick, so the same code can later link with ERF.
 CMake options
 -------------
 
+FLUME builds without OpenMP: parallel runs use MPI ranks, and GPUs through
+AMReX. ``FLUME_OMP=ON`` stops the configure step with a message.
+
 .. list-table::
    :header-rows: 1
    :widths: 30 14 56
@@ -58,9 +61,6 @@ CMake options
    * - ``FLUME_MPI``
      - ``ON``
      - Build with MPI.
-   * - ``FLUME_OMP``
-     - ``OFF``
-     - Build with OpenMP. Cannot be combined with a GPU backend.
    * - ``FLUME_PRECISION``
      - ``DOUBLE``
      - Floating-point precision: ``DOUBLE`` or ``SINGLE``.

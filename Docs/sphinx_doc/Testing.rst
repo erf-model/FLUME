@@ -754,7 +754,7 @@ Three workflows run on every pull request to ``development``.
    * - Workflow
      - Jobs
    * - ``ci.yml``
-     - GCC and Clang with MPI, GCC with OpenMP, and GCC Debug with AMReX's
+     - GCC and Clang with MPI, and GCC Debug with AMReX's
        testing mode: build with warnings as errors, then every test. No MPI
        with single precision: build and the 1-rank tests. CUDA, HIP and SYCL:
        compile only, because the hosted runners have no GPU.
