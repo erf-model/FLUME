@@ -21,11 +21,12 @@ struct WaveRate
  * The largest rate at which gravity waves cross a cell, over all ranks:
  * max over cells of (|u| + c) / dx + (|v| + c) / dy, with u = hu / h,
  * v = hv / h and c = sqrt(g h). The two directions are added, which is the
- * limit an unsplit two-dimensional scheme needs. A cell with h = 0 has no
- * wave and counts as zero. The CFL time step is cfl / rate.
+ * limit an unsplit two-dimensional scheme needs. A cell with h <= dry_depth
+ * is dry: it has no wave and counts as zero, so a thin film does not set the
+ * time step. The CFL time step is cfl / rate.
  */
 WaveRate max_wave_rate (const amrex::MultiFab& state, const amrex::Geometry& geom,
-                        amrex::Real gravity);
+                        amrex::Real gravity, amrex::Real dry_depth);
 
 } // namespace flume
 

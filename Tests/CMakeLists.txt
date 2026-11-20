@@ -215,10 +215,17 @@ flume_add_regtest(dry_stop_time NPROCS 1
 # The same with a stop time near the largest number: the step of a dry domain
 # is not bounded, and a state update with it would give 0 times infinity. The
 # run only advances the time, and the plotfile holds zeros, not NaN.
+# The plotfile holds the time in the precision of the build: 2^127 is near
+# the largest single-precision number and is held exactly.
+if(FLUME_PRECISION STREQUAL "SINGLE")
+    set(huge_time 170141183460469231731687303715884105728)
+else()
+    set(huge_time 1e308)
+endif()
 flume_add_regtest(dry_stop_time_huge NPROCS 2
     INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/Skeleton/inputs
-    ARGS flume.stop_time=1e308
-    CHECK ${check_plotfile} skel --steps 0 1 --times 0 1e308 ${skel_grid} --n-files 2)
+    ARGS flume.stop_time=${huge_time}
+    CHECK ${check_plotfile} skel --steps 0 1 --times 0 ${huge_time} ${skel_grid} --n-files 2)
 
 # --- Lake at rest --------------------------------------------------------------
 # Tests/SlopingBed/inputs: a plane bed that rises through a level surface, on
@@ -263,6 +270,31 @@ flume_add_regtest(lake_at_rest_islands NPROCS 2
     ARGS flume.init.surface_elevation=10.2
     CHECK ${check_plotfile} lake --steps 0 50 --times 0 6.078990464567538 --time-rtol 1e-6
           ${lake_grid} --n-files 2 --surface 10.2)
+# The islands with a dry tolerance of 0.05 m, which many cells at the shores
+# are below. The tolerance acts on the depth a cell presents to a face, which
+# is the same on both sides of a face under a level surface, so the two sides
+# are cut together and the water stays at rest. The deepest cell still sets
+# the step.
+flume_add_regtest(lake_at_rest_islands_dry_depth NPROCS 2
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/LakeAtRest/inputs
+    ARGS flume.init.surface_elevation=10.2 flume.dry_depth=0.05
+    CHECK ${check_plotfile} lake --steps 0 50 --times 0 6.078990464567538 --time-rtol 1e-6
+          ${lake_grid} --n-files 2 --surface 10.2)
+# The same lake near elevation zero (bed 0.3 m at the corner, surface 0.7 m),
+# where the depths the two cells of a face present differ in the last digit
+# on 468 of 3000 faces, with a tolerance equal to one of those depths in
+# double precision. The cut is decided once for a face; decided for each side
+# alone, one side of that face is cut and the lake moves by 0.34 m in 50 steps.
+# The depths that differ in the last digit leave discharges of 16 epsilons of
+# the scale; the check allows 64.
+flume_add_regtest(lake_at_rest_dry_depth_at_a_face NPROCS 2
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/LakeAtRest/inputs
+    ARGS flume.bed.elevation=0.3 flume.init.surface_elevation=0.7
+         flume.dry_depth=0.94279296875
+    CHECK ${check_plotfile} lake --steps 0 50 --times 0 5.754374485 --time-rtol 1e-6
+          --n-cell 50 30 --prob-lo 1000 -60 --prob-hi 1100 0 --dx 2 2
+          --max-grid-size 16 --n-boxes 8 --bed-elevation 0.3 --bed-slope 0.01 -0.02
+          --bed-noise 0.5 --tol-eps 64 --n-files 2 --surface 0.7)
 
 # --- Dam break -------------------------------------------------------------------
 # Tests/DamBreak/inputs: still water 2 m and 1 m deep on a flat bed, 400 cells
@@ -292,14 +324,21 @@ flume_add_regtest(dam_break_y NPROCS 2
 # al., 2013), whose front is at 94.3 m (x) or 5.7 m (y) at 5 s, short of the wall. This is
 # the test of the dry-bed wave speeds and of the depth staying non-negative.
 # The L1 error is 0.46 % of the depth and 0.39 % of the discharge scale
-# (bound 1 %); beyond the exact front the depth stays below 1e-11 of 2 m (the
-# run gives 6.5e-14 of 2 m).
-set(ritter_bounds --l1-max 0.01 --front-max 1e-11)
+# (bound 1 %). Beyond the exact front the depth is zero: a cell no deeper
+# than flume.dry_depth passes no water on. With flume.dry_depth = 0
+# (dam_break_dry_x_no_tolerance) the scheme carries a trace one cell per
+# step, 1.3e-13 m there: above zero and below 1e-11 of 2 m.
+set(ritter_bounds --l1-max 0.01 --front-max 0)
 flume_add_regtest(dam_break_dry_x NPROCS 2
     INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/DamBreak/inputs
     ARGS flume.init.dam_surface_elevation=0
     CHECK ${check_dam_break} dam --time 5 --direction x --position 50
           --surface-lo 2 --surface-hi 0 ${ritter_bounds})
+flume_add_regtest(dam_break_dry_x_no_tolerance NPROCS 2
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/DamBreak/inputs
+    ARGS flume.init.dam_surface_elevation=0 flume.dry_depth=0
+    CHECK ${check_dam_break} dam --time 5 --direction x --position 50
+          --surface-lo 2 --surface-hi 0 --l1-max 0.01 --front-max 1e-11 --front-min 1e-30)
 flume_add_regtest(dam_break_dry_y NPROCS 4
     INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/DamBreak/inputs
     ARGS flume.n_cell=4\ 400 flume.prob_hi=1\ 100 flume.init.dam_direction=y
@@ -310,8 +349,8 @@ flume_add_regtest(dam_break_dry_y NPROCS 4
 # dry-bed wave speeds (-c and 2 c, c = sqrt(g h)): the face at the dam passes
 # 2 c h / 3 of mass and g h^2 / 3 of momentum, and the step is
 # cfl / (c / dx + c / dy). With cfl = 0.5, square cells and h = 2 m the first
-# dry cell ends 1/3 m deep and the last wet cell 5/3 m deep. Later steps hardly use these speeds (the bed ahead of the
-# front is then thinly wet), so the 5 s runs do not test them.
+# dry cell ends 1/3 m deep and the last wet cell 5/3 m deep. The 5 s runs
+# bound errors only; this one pins the speeds.
 flume_add_regtest(dam_break_dry_first_step_x NPROCS 2
     INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/DamBreak/inputs
     ARGS flume.init.dam_surface_elevation=0 flume.max_step=1
@@ -323,6 +362,141 @@ flume_add_regtest(dam_break_dry_first_step_y NPROCS 1
          flume.init.surface_elevation=0 flume.init.dam_surface_elevation=2 flume.max_step=1
     CHECK ${check_dam_break} dam --first-step-cfl 0.5 --direction y --position 50
           --surface-lo 0 --surface-hi 2)
+
+# --- Wetting and drying ------------------------------------------------------------
+# Water 2 m deep in the one column of cells below the dam, with a dry bed
+# beyond it and across the periodic side. The column loses water through both
+# faces: 4 cfl / 3 of its depth in the first step without the limit on the
+# outflow, more than it holds for flume.cfl above 0.75
+# (Docs/sphinx_doc/Model.rst). The run reaches 5 s with no negative depth (the
+# run stops on one) and the same mass.
+foreach(cfl 0.8 1.0)
+    flume_add_regtest(draining_column_cfl_${cfl} NPROCS 2
+        INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/DamBreak/inputs
+        ARGS flume.periodic=1\ 0 flume.prob_hi=100\ 1000 flume.init.dam_position=0.3
+             flume.init.dam_surface_elevation=0 flume.cfl=${cfl}
+        CHECK ${check_dam_break} dam --time 5 --direction x --position 0.3
+              --surface-lo 2 --surface-hi 0 --mass-only --min-change 1.9 --dry-depth 1e-6)
+endforeach()
+# The first step of the column at flume.cfl = 1 has a closed form. With
+# c = sqrt(g h) and n = cfl dy / (dx + dy) = 0.999 the column would lose
+# 4 n h / 3, so its two faces are scaled by 3 / (4 n): the column ends empty
+# and each neighbour holds h / 2 = 1 m and, the momentum flux g h^2 / 3 being
+# scaled with the mass flux, a discharge of c h / 4 = 2.2147 m2/s away from
+# the column. Cells of 0.25 m by 250 m; the column is cell 0, its neighbours
+# cells 1 and 399 (across the periodic side).
+set(check_cells ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/check_cells.py)
+set(column_cells "")
+foreach(j 0 1 2 3)
+    list(APPEND column_cells --cell 0 ${j} 0 0 0 --cell 1 ${j} 1 2.2147234590350102 0
+                             --cell 399 ${j} 1 -2.2147234590350102 0)
+endforeach()
+flume_add_regtest(draining_column_first_step NPROCS 2
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/DamBreak/inputs
+    ARGS flume.periodic=1\ 0 flume.prob_hi=100\ 1000 flume.init.dam_position=0.3
+         flume.init.dam_surface_elevation=0 flume.cfl=1 flume.max_step=1
+    CHECK ${check_cells} dam00001 ${column_cells} --others-unchanged dam00000)
+# Tests/Film/inputs: a tilted surface over a flat bed, on 8 x 4 cells of 1 m: along x the first
+# two cells are dry, the third holds a film of 5e-7 m (below the default
+# flume.dry_depth) and the others 0.5 m and more. After one step the two dry
+# cells hold exactly nothing: the film passes no water on. With the face
+# depth cut at zero the second cell would receive 4e-11 m.
+set(film_cells "")
+foreach(j 0 1 2 3)
+    list(APPEND film_cells --cell 0 ${j} 0 0 0 --cell 1 ${j} 0 0 0)
+endforeach()
+flume_add_regtest(film_passes_no_water NPROCS 2
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/Film/inputs
+    CHECK ${check_cells} film00001 ${film_cells} --tol-eps 0)
+# The same with a bed that falls by 0.0009995 m per cell along x: the third
+# cell holds 1 mm of water, above the tolerance, but only 5e-7 m of it stands
+# above the bed of the second cell. The tolerance acts on that depth, and the
+# two dry cells again hold exactly nothing after the step. A cut on the depth
+# of the cell would let water through.
+flume_add_regtest(film_behind_a_bed_step NPROCS 2
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/Film/inputs
+    ARGS flume.bed.slope=-0.0009995\ 0 flume.init.surface_elevation=0.74850125
+    CHECK ${check_cells} film00001 ${film_cells} --tol-eps 0)
+# A column 9.987529 m deep on a slightly rough bed, periodic both ways, at
+# flume.cfl = 0.9332. In double precision the first step leaves two cells
+# that the limit empties a rounding error below zero (found by a search over
+# random decks); the step sets such a depth to zero and the run goes on.
+flume_add_regtest(draining_column_round_off NPROCS 1
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/DamBreak/inputs
+    ARGS flume.periodic=1\ 1 flume.n_cell=400\ 7 flume.prob_hi=100\ 1000
+         flume.init.dam_position=0.3 flume.init.surface_elevation=9.987529
+         flume.init.dam_surface_elevation=0 flume.cfl=0.9332 flume.bed.noise=0.001
+         flume.stop_time=1
+    CHECK ${check_dam_break} dam --time 1 --direction x --position 0.3
+          --surface-lo 9.987529 --surface-hi 0 --mass-only --min-change 5 --dry-depth 1e-6)
+# A film of 1e-8 m that starts at 1e4 m/s beside still water 1 m deep. The
+# film is below the default flume.dry_depth (1e-6 m): it does not enter the
+# time step, which the deep water sets at 0.019955 s (2 steps to 0.03125 s,
+# a time single precision holds exactly; 1130 with flume.dry_depth = 0), and after the run its cells hold no discharge.
+flume_add_regtest(thin_film_time_step NPROCS 1
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/DamBreak/inputs
+    ARGS flume.init.surface_elevation=1 flume.init.dam_surface_elevation=1e-8
+         flume.init.dam_velocity=1e4\ 0 flume.stop_time=0.03125
+    OUTPUT "FLUME: 2 step\\(s\\)"
+    CHECK ${check_dam_break} dam --time 0.03125 --direction x --position 50
+          --surface-lo 1 --surface-hi 1e-8 --velocity-hi 1e4 0
+          --mass-only --min-change 0.05 --dry-depth 1e-6)
+
+# Tests/Bowl/inputs: water in a paraboloid bowl with a moving shoreline,
+# against Thacker's periodic solutions (Delestre et al., 2013, section 4.2.2;
+# Docs/sphinx_doc/Testing.rst). Planar: a tilted plane surface that turns
+# about the axis. The scheme is first order and damps the motion: after half
+# a period the L1 error of the depth is 13.5 % of the mean depth on 100 x 100
+# cells and 7.3 % on 200 x 200 (discharge 19.7 % and 10.8 %); the bounds of
+# the fine run are below the errors of the coarse one. After three periods on
+# 100 x 100 cells it is 57 % (discharge 77 %), in 1798 steps.
+set(check_bowl ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/check_bowl.py)
+set(planar bowl --shape planar --bowl-depth 0.1 --bowl-radius 1 --eta 0.5
+           --time-rtol 1e-6 --dry-depth 1e-6)
+flume_add_regtest(bowl_planar_half NPROCS 1
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/Bowl/inputs
+    ARGS flume.stop_time=2.242850732733187
+    CHECK ${check_bowl} ${planar} --periods 0.5 --l1-max 0.15 0.22 --l1-min 0.05)
+flume_add_regtest(bowl_planar_half_fine NPROCS 4
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/Bowl/inputs
+    ARGS flume.stop_time=2.242850732733187 flume.n_cell=200\ 200 flume.max_grid_size=64
+    CHECK ${check_bowl} ${planar} --periods 0.5 --l1-max 0.085 0.125 --l1-min 0.03)
+flume_add_regtest(bowl_planar NPROCS 2
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/Bowl/inputs
+    CHECK ${check_bowl} ${planar} --periods 3 --l1-max 0.62 0.85 --max-steps 2000)
+# Radial: a paraboloid surface that rises and falls, period
+# 2 pi / sqrt(8 g h0) = 2.2429 s, with r0 = 0.8 m: surface 0.025 m at the
+# centre, curvature -0.05625 1/m, at rest. Errors after half a period: 4.2 %
+# and 2.8 % on 100 x 100 cells, 2.2 % and 1.8 % on 200 x 200; after three
+# periods on 100 x 100 cells 20.7 % and 4.5 %, in 668 steps.
+set(radial_deck flume.init.surface_elevation=0.025 flume.init.surface_slope=0\ 0
+                flume.init.surface_curvature=-0.05625 flume.init.velocity=0\ 0)
+set(radial bowl --shape radial --bowl-depth 0.1 --bowl-radius 1 --r0 0.8
+           --time-rtol 1e-6 --dry-depth 1e-6)
+flume_add_regtest(bowl_radial_half NPROCS 2
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/Bowl/inputs
+    ARGS ${radial_deck} flume.stop_time=1.1214253663665935
+    CHECK ${check_bowl} ${radial} --periods 0.5 --l1-max 0.048 0.033 --l1-min 0.015)
+flume_add_regtest(bowl_radial_half_fine NPROCS 4
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/Bowl/inputs
+    ARGS ${radial_deck} flume.stop_time=1.1214253663665935 flume.n_cell=200\ 200
+         flume.max_grid_size=64
+    CHECK ${check_bowl} ${radial} --periods 0.5 --l1-max 0.026 0.021 --l1-min 0.008)
+flume_add_regtest(bowl_radial NPROCS 2
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/Bowl/inputs
+    ARGS ${radial_deck} flume.stop_time=6.72855219819956
+    CHECK ${check_bowl} ${radial} --periods 3 --l1-max 0.23 0.055 --max-steps 750)
+# A mound in place of the bowl (a negative depth) on cells of 0.04 by 0.05 m
+# away from the origin, not advanced: the initial state against the closed
+# form a quarter of a period on, when the surface is tilted along y.
+flume_add_regtest(bowl_mound_initial NPROCS 2
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/Bowl/inputs
+    ARGS flume.bed.bowl_depth=-0.1 flume.bed.bowl_radius=2 flume.n_cell=50\ 80
+         flume.prob_lo=10\ -3 flume.prob_hi=12\ 1
+         flume.init.surface_elevation=0.00625 flume.init.surface_slope=0\ -0.025
+         flume.init.velocity=-0.3501785258978626\ 0 flume.max_step=0
+    CHECK ${check_bowl} bowl --shape planar --bowl-depth -0.1 --bowl-radius 2 --eta 0.5
+          --initial-only --initial-phase 0.25)
 
 # --- Shear layer -------------------------------------------------------------------
 # Tests/Shear/inputs: a uniform, subcritical flow at 2 m/s along x carries a jump of the
@@ -400,24 +574,24 @@ flume_add_regtest(sloping_bed_initial NPROCS 2
 set(ok flume.n_cell=8\ 8 flume.prob_hi=8\ 8)
 flume_add_abort_test(abort_n_cell_missing   EXPECT "flume\\.n_cell is required"
     ARGS flume.prob_hi=8\ 8)
-flume_add_abort_test(abort_n_cell_zero      EXPECT "flume\\.n_cell must be >= 1 and <= 1073741824 in x and y; it is 0"
+flume_add_abort_test(abort_n_cell_zero      EXPECT "flume\\.n_cell must be >= 1 and <= 1073741824 in x and y. it is 0"
     ARGS flume.n_cell=8\ 0 flume.prob_hi=8\ 8)
-flume_add_abort_test(abort_n_cell_negative  EXPECT "flume\\.n_cell must be >= 1 and <= 1073741824 in x and y; it is -8"
+flume_add_abort_test(abort_n_cell_negative  EXPECT "flume\\.n_cell must be >= 1 and <= 1073741824 in x and y. it is -8"
     ARGS flume.n_cell=-8\ 8 flume.prob_hi=8\ 8)
 # 2^30 + 1, and 2^32 + 8, which an int would wrap to 8.
 flume_add_abort_test(abort_n_cell_above_max EXPECT "flume\\.n_cell must be .* it is 1073741825"
     ARGS flume.n_cell=8\ 1073741825 flume.prob_hi=8\ 8)
 flume_add_abort_test(abort_n_cell_wraps     EXPECT "flume\\.n_cell must be .* it is 4294967304"
     ARGS flume.n_cell=4294967304\ 8 flume.prob_hi=8\ 8)
-flume_add_abort_test(abort_n_cell_three     EXPECT "flume\\.n_cell needs exactly 2 values \\(x and y\\); it has 3"
+flume_add_abort_test(abort_n_cell_three     EXPECT "flume\\.n_cell needs exactly 2 values \\(x and y\\). it has 3"
     ARGS flume.n_cell=8\ 8\ 1 flume.prob_hi=8\ 8)
-flume_add_abort_test(abort_prob_lo_one      EXPECT "flume\\.prob_lo needs exactly 2 values \\(x and y\\); it has 1"
+flume_add_abort_test(abort_prob_lo_one      EXPECT "flume\\.prob_lo needs exactly 2 values \\(x and y\\). it has 1"
     ARGS ${ok} flume.prob_lo=0)
 flume_add_abort_test(abort_prob_lo_nan      EXPECT "flume\\.prob_lo must be finite"
     ARGS ${ok} flume.prob_lo=nan\ 0)
 flume_add_abort_test(abort_prob_hi_missing  EXPECT "flume\\.prob_hi is required"
     ARGS flume.n_cell=8\ 8)
-flume_add_abort_test(abort_prob_hi_one      EXPECT "flume\\.prob_hi needs exactly 2 values \\(x and y\\); it has 1"
+flume_add_abort_test(abort_prob_hi_one      EXPECT "flume\\.prob_hi needs exactly 2 values \\(x and y\\). it has 1"
     ARGS flume.n_cell=8\ 8 flume.prob_hi=8)
 flume_add_abort_test(abort_prob_hi_inf      EXPECT "flume\\.prob_hi must be finite"
     ARGS flume.n_cell=8\ 8 flume.prob_hi=inf\ 8)
@@ -433,6 +607,7 @@ if(FLUME_PRECISION STREQUAL "SINGLE")
     set(tiny_extent 4e-30)
     set(huge_extent 4e18)
     set(tiny_depth 1e-44)
+    set(tiny_radius 1e-20)
     set(near_max 3e38)
 else()
     set(one_step 1.0000000000000002)
@@ -440,6 +615,7 @@ else()
     set(tiny_extent 4e-300)
     set(huge_extent 4e155)
     set(tiny_depth 1e-320)
+    set(tiny_radius 1e-160)
     set(near_max 1.7e308)
 endif()
 flume_add_abort_test(abort_cell_size_unresolved
@@ -448,16 +624,16 @@ flume_add_abort_test(abort_cell_size_unresolved
 flume_add_abort_test(abort_prob_too_large
     EXPECT "flume\\.prob_lo and flume\\.prob_hi must be at most .* in magnitude"
     ARGS flume.n_cell=8\ 8 flume.prob_lo=-${too_big}\ 0 flume.prob_hi=8\ 8)
-flume_add_abort_test(abort_max_grid_size_zero  EXPECT "flume\\.max_grid_size must be >= 1 and <= 2147483647; it is 0"
+flume_add_abort_test(abort_max_grid_size_zero  EXPECT "flume\\.max_grid_size must be >= 1 and <= 2147483647. it is 0"
     ARGS ${ok} flume.max_grid_size=0)
 # 2^32 + 1, which an int would wrap to 1.
 flume_add_abort_test(abort_max_grid_size_wraps EXPECT "flume\\.max_grid_size must be .* it is 4294967297"
     ARGS ${ok} flume.max_grid_size=4294967297)
-flume_add_abort_test(abort_max_grid_size_two   EXPECT "flume\\.max_grid_size needs exactly 1 value; it has 2"
+flume_add_abort_test(abort_max_grid_size_two   EXPECT "flume\\.max_grid_size needs exactly 1 value. it has 2"
     ARGS ${ok} flume.max_grid_size=4\ 2)
 flume_add_abort_test(abort_plot_file_empty  EXPECT "flume\\.plot_file must not be empty"
     ARGS ${ok} flume.plot_file=\"\")
-flume_add_abort_test(abort_plot_file_two    EXPECT "flume\\.plot_file needs exactly 1 value; it has 2"
+flume_add_abort_test(abort_plot_file_two    EXPECT "flume\\.plot_file needs exactly 1 value. it has 2"
     ARGS ${ok} flume.plot_file=a\ b)
 flume_add_abort_test(abort_unknown_key      EXPECT "Unknown key\\(s\\) in the flume namespace:[^a-z]*flume\\.n_cel "
     ARGS ${ok} flume.n_cel=8\ 8)
@@ -468,30 +644,30 @@ flume_add_abort_test(abort_unused_key_other_namespace
     ARGS ${ok} flum.n_cell=8\ 8)
 
 # --- Time loop, bed and initial state ------------------------------------------
-flume_add_abort_test(abort_plot_int_negative EXPECT "flume\\.plot_int must be >= 0 and <= 2147483647; it is -1"
+flume_add_abort_test(abort_plot_int_negative EXPECT "flume\\.plot_int must be >= 0 and <= 2147483647. it is -1"
     ARGS ${ok} flume.plot_int=-1)
-flume_add_abort_test(abort_stop_time_negative EXPECT "flume\\.stop_time must be >= 0; it is -1"
+flume_add_abort_test(abort_stop_time_negative EXPECT "flume\\.stop_time must be >= 0. it is -1"
     ARGS ${ok} flume.stop_time=-1)
 flume_add_abort_test(abort_stop_time_inf    EXPECT "flume\\.stop_time must be finite"
     ARGS ${ok} flume.stop_time=inf)
-flume_add_abort_test(abort_stop_time_two    EXPECT "flume\\.stop_time needs exactly 1 value; it has 2"
+flume_add_abort_test(abort_stop_time_two    EXPECT "flume\\.stop_time needs exactly 1 value. it has 2"
     ARGS ${ok} flume.stop_time=1\ 2)
-flume_add_abort_test(abort_max_step_negative EXPECT "flume\\.max_step must be >= 0 and <= 2147483647; it is -1"
+flume_add_abort_test(abort_max_step_negative EXPECT "flume\\.max_step must be >= 0 and <= 2147483647. it is -1"
     ARGS ${ok} flume.max_step=-1)
 # 2^32 + 2, which an int would wrap to 2.
 flume_add_abort_test(abort_max_step_wraps   EXPECT "flume\\.max_step must be .* it is 4294967298"
     ARGS ${ok} flume.max_step=4294967298)
-flume_add_abort_test(abort_cfl_zero         EXPECT "flume\\.cfl must be > 0 and <= 1; it is 0"
+flume_add_abort_test(abort_cfl_zero         EXPECT "flume\\.cfl must be > 0 and <= 1. it is 0"
     ARGS ${ok} flume.cfl=0)
-flume_add_abort_test(abort_cfl_above_one    EXPECT "flume\\.cfl must be > 0 and <= 1; it is 1\\.5"
+flume_add_abort_test(abort_cfl_above_one    EXPECT "flume\\.cfl must be > 0 and <= 1. it is 1\\.5"
     ARGS ${ok} flume.cfl=1.5)
-flume_add_abort_test(abort_cfl_negative     EXPECT "flume\\.cfl must be > 0 and <= 1; it is -0\\.5"
+flume_add_abort_test(abort_cfl_negative     EXPECT "flume\\.cfl must be > 0 and <= 1. it is -0\\.5"
     ARGS ${ok} flume.cfl=-0.5)
 flume_add_abort_test(abort_cfl_nan          EXPECT "flume\\.cfl must be finite"
     ARGS ${ok} flume.cfl=nan)
-flume_add_abort_test(abort_gravity_zero     EXPECT "flume\\.gravity must be > 0; it is 0"
+flume_add_abort_test(abort_gravity_zero     EXPECT "flume\\.gravity must be > 0. it is 0"
     ARGS ${ok} flume.gravity=0)
-flume_add_abort_test(abort_gravity_negative EXPECT "flume\\.gravity must be > 0; it is -9\\.8"
+flume_add_abort_test(abort_gravity_negative EXPECT "flume\\.gravity must be > 0. it is -9\\.8"
     ARGS ${ok} flume.gravity=-9.81)
 flume_add_abort_test(abort_gravity_inf      EXPECT "flume\\.gravity must be finite"
     ARGS ${ok} flume.gravity=inf)
@@ -499,7 +675,7 @@ flume_add_abort_test(abort_gravity_nan      EXPECT "flume\\.gravity must be fini
     ARGS ${ok} flume.gravity=nan)
 flume_add_abort_test(abort_bed_elevation_nan EXPECT "flume\\.bed\\.elevation must be finite"
     ARGS ${ok} flume.bed.elevation=nan)
-flume_add_abort_test(abort_bed_slope_one    EXPECT "flume\\.bed\\.slope needs exactly 2 values \\(x and y\\); it has 1"
+flume_add_abort_test(abort_bed_slope_one    EXPECT "flume\\.bed\\.slope needs exactly 2 values \\(x and y\\). it has 1"
     ARGS ${ok} flume.bed.slope=0.1)
 flume_add_abort_test(abort_bed_slope_inf    EXPECT "flume\\.bed\\.slope must be finite in x and y"
     ARGS ${ok} flume.bed.slope=0\ inf)
@@ -507,9 +683,9 @@ flume_add_abort_test(abort_bed_slope_x_nan  EXPECT "flume\\.bed\\.slope must be 
     ARGS ${ok} flume.bed.slope=nan\ 0)
 flume_add_abort_test(abort_surface_nan      EXPECT "flume\\.init\\.surface_elevation must be finite"
     ARGS ${ok} flume.init.surface_elevation=nan)
-flume_add_abort_test(abort_surface_two      EXPECT "flume\\.init\\.surface_elevation needs exactly 1 value; it has 2"
+flume_add_abort_test(abort_surface_two      EXPECT "flume\\.init\\.surface_elevation needs exactly 1 value. it has 2"
     ARGS ${ok} flume.init.surface_elevation=1\ 2)
-flume_add_abort_test(abort_velocity_one     EXPECT "flume\\.init\\.velocity needs exactly 2 values \\(x and y\\); it has 1"
+flume_add_abort_test(abort_velocity_one     EXPECT "flume\\.init\\.velocity needs exactly 2 values \\(x and y\\). it has 1"
     ARGS ${ok} flume.init.surface_elevation=1 flume.init.velocity=1)
 flume_add_abort_test(abort_velocity_nan     EXPECT "flume\\.init\\.velocity must be finite in x and y"
     ARGS ${ok} flume.init.surface_elevation=1 flume.init.velocity=nan\ 0)
@@ -537,15 +713,6 @@ flume_add_abort_test(abort_initial_state_overflows
 flume_add_abort_test(abort_wave_speed_overflows
     EXPECT "the wave speed is not finite, in 64 cell\\(s\\) at step 0"
     ARGS ${ok} flume.init.surface_elevation=${too_big} flume.gravity=100 flume.max_step=1)
-# A step too long for the flow. Water 2 m deep in the one column of cells
-# below the dam, with a dry bed beyond it and across the periodic side: the
-# column loses water through both faces and ends near h (1 - 4 cfl / 3),
-# which is negative for flume.cfl = 0.8 (Docs/sphinx_doc/Model.rst).
-flume_add_abort_test(abort_depth_negative
-    EXPECT "The depth is negative or not finite, or the wave speed is not finite, in 4 cell\\(s\\) at step 1: .*lower flume\\.cfl"
-    ARGS ${CMAKE_CURRENT_SOURCE_DIR}/DamBreak/inputs flume.periodic=1\ 0
-         flume.prob_hi=100\ 1000 flume.init.dam_position=0.3
-         flume.init.dam_surface_elevation=0 flume.cfl=0.8 flume.max_step=3)
 # A time step that cannot advance the run. Cells so small that cfl / rate
 # underflows to zero, and water so shallow on cells so large that it
 # overflows. The numbers depend on the precision.
@@ -556,25 +723,84 @@ flume_add_abort_test(abort_time_step_zero
 flume_add_abort_test(abort_time_step_not_finite
     EXPECT "The time step, inf s, is zero, not finite or too small to advance the time, 0 s, at step 0:"
     ARGS flume.n_cell=4\ 4 flume.prob_hi=${huge_extent}\ ${huge_extent}
-         flume.init.surface_elevation=${tiny_depth} flume.max_step=3)
+         flume.init.surface_elevation=${tiny_depth} flume.dry_depth=0 flume.max_step=3)
+
+# --- Wetting and drying, bowl and curved surface ---------------------------------
+flume_add_abort_test(abort_dry_depth_negative EXPECT "flume\\.dry_depth must be >= 0. it is -0\\.5"
+    ARGS ${ok} flume.dry_depth=-0.5)
+flume_add_abort_test(abort_dry_depth_nan    EXPECT "flume\\.dry_depth must be finite"
+    ARGS ${ok} flume.dry_depth=nan)
+flume_add_abort_test(abort_dry_depth_two    EXPECT "flume\\.dry_depth needs exactly 1 value. it has 2"
+    ARGS ${ok} flume.dry_depth=1e-6\ 1e-6)
+# Water that is all below the tolerance is a dry domain.
+flume_add_abort_test(abort_all_below_dry_depth
+    EXPECT "no depth is above flume\\.dry_depth.*set flume\\.stop_time"
+    ARGS ${ok} flume.init.surface_elevation=0.5 flume.dry_depth=0.5 flume.max_step=3)
+flume_add_abort_test(abort_bowl_depth_inf   EXPECT "flume\\.bed\\.bowl_depth must be finite"
+    ARGS ${ok} flume.bed.bowl_depth=inf flume.bed.bowl_radius=1)
+flume_add_abort_test(abort_bowl_radius_zero EXPECT "flume\\.bed\\.bowl_radius must be > 0. it is 0"
+    ARGS ${ok} flume.bed.bowl_depth=1 flume.bed.bowl_radius=0)
+flume_add_abort_test(abort_bowl_radius_negative EXPECT "flume\\.bed\\.bowl_radius must be > 0. it is -2"
+    ARGS ${ok} flume.bed.bowl_depth=1 flume.bed.bowl_radius=-2)
+flume_add_abort_test(abort_bowl_radius_tiny
+    EXPECT "flume\\.bed\\.bowl_radius must have a square that is a normal number. it is "
+    ARGS ${ok} flume.bed.bowl_depth=1 flume.bed.bowl_radius=${tiny_radius})
+flume_add_abort_test(abort_bowl_radius_nan  EXPECT "flume\\.bed\\.bowl_radius must be finite"
+    ARGS ${ok} flume.bed.bowl_depth=1 flume.bed.bowl_radius=nan)
+flume_add_abort_test(abort_bowl_depth_without_radius
+    EXPECT "flume\\.bed\\.bowl_depth needs flume\\.bed\\.bowl_radius"
+    ARGS ${ok} flume.bed.bowl_depth=1)
+flume_add_abort_test(abort_bowl_radius_without_depth
+    EXPECT "flume\\.bed\\.bowl_radius needs flume\\.bed\\.bowl_depth"
+    ARGS ${ok} flume.bed.bowl_radius=1)
+flume_add_abort_test(abort_bowl_radius_with_depth_zero
+    EXPECT "flume\\.bed\\.bowl_radius needs flume\\.bed\\.bowl_depth"
+    ARGS ${ok} flume.bed.bowl_radius=1 flume.bed.bowl_depth=0)
+# A radius so small that the bowl overflows at the cell centres.
+flume_add_abort_test(abort_bowl_overflows
+    EXPECT "The bed elevation is not finite in [0-9]+ cell\\(s\\): check .*flume\\.bed\\.bowl_radius"
+    ARGS ${ok} flume.bed.bowl_depth=${near_max} flume.bed.bowl_radius=1e-3)
+flume_add_abort_test(abort_surface_slope_one
+    EXPECT "flume\\.init\\.surface_slope needs exactly 2 values \\(x and y\\). it has 1"
+    ARGS ${ok} flume.init.surface_elevation=1 flume.init.surface_slope=0.1)
+flume_add_abort_test(abort_surface_slope_nan
+    EXPECT "flume\\.init\\.surface_slope must be finite in x and y"
+    ARGS ${ok} flume.init.surface_elevation=1 flume.init.surface_slope=0\ nan)
+flume_add_abort_test(abort_surface_curvature_inf
+    EXPECT "flume\\.init\\.surface_curvature must be finite"
+    ARGS ${ok} flume.init.surface_elevation=1 flume.init.surface_curvature=inf)
+flume_add_abort_test(abort_surface_slope_without_surface
+    EXPECT "flume\\.init\\.surface_slope needs flume\\.init\\.surface_elevation"
+    ARGS ${ok} flume.init.surface_slope=0.1\ 0)
+flume_add_abort_test(abort_surface_curvature_without_surface
+    EXPECT "flume\\.init\\.surface_curvature needs flume\\.init\\.surface_elevation"
+    ARGS ${ok} flume.init.surface_curvature=0.1)
+flume_add_abort_test(abort_surface_slope_with_dam
+    EXPECT "flume\\.init\\.surface_slope cannot be used with flume\\.init\\.dam_position"
+    ARGS ${ok} flume.init.surface_elevation=2 flume.init.dam_position=4
+         flume.init.dam_surface_elevation=1 flume.init.surface_slope=0.1\ 0)
+flume_add_abort_test(abort_surface_curvature_with_dam
+    EXPECT "flume\\.init\\.surface_curvature cannot be used with flume\\.init\\.dam_position"
+    ARGS ${ok} flume.init.surface_elevation=2 flume.init.dam_position=4
+         flume.init.dam_surface_elevation=1 flume.init.surface_curvature=0.1)
 
 # --- Boundaries, rough bed and dam -----------------------------------------------
-flume_add_abort_test(abort_periodic_one     EXPECT "flume\\.periodic needs exactly 2 values \\(x and y\\); it has 1"
+flume_add_abort_test(abort_periodic_one     EXPECT "flume\\.periodic needs exactly 2 values \\(x and y\\). it has 1"
     ARGS ${ok} flume.periodic=1)
-flume_add_abort_test(abort_periodic_two     EXPECT "flume\\.periodic must be >= 0 and <= 1 in x and y; it is 2"
+flume_add_abort_test(abort_periodic_two     EXPECT "flume\\.periodic must be >= 0 and <= 1 in x and y. it is 2"
     ARGS ${ok} flume.periodic=0\ 2)
-flume_add_abort_test(abort_periodic_negative EXPECT "flume\\.periodic must be >= 0 and <= 1 in x and y; it is -1"
+flume_add_abort_test(abort_periodic_negative EXPECT "flume\\.periodic must be >= 0 and <= 1 in x and y. it is -1"
     ARGS ${ok} flume.periodic=-1\ 0)
-flume_add_abort_test(abort_bed_noise_negative EXPECT "flume\\.bed\\.noise must be >= 0; it is -0\\.5"
+flume_add_abort_test(abort_bed_noise_negative EXPECT "flume\\.bed\\.noise must be >= 0. it is -0\\.5"
     ARGS ${ok} flume.bed.noise=-0.5)
 flume_add_abort_test(abort_bed_noise_nan    EXPECT "flume\\.bed\\.noise must be finite"
     ARGS ${ok} flume.bed.noise=nan)
-flume_add_abort_test(abort_bed_noise_two    EXPECT "flume\\.bed\\.noise needs exactly 1 value; it has 2"
+flume_add_abort_test(abort_bed_noise_two    EXPECT "flume\\.bed\\.noise needs exactly 1 value. it has 2"
     ARGS ${ok} flume.bed.noise=0.1\ 0.2)
 # A bed and a roughness that are each finite and whose sum is not, in the
 # cells that the roughness raises. ${near_max} is 1.7e308 or 3e38.
 flume_add_abort_test(abort_bed_noise_overflows
-    EXPECT "The bed elevation is not finite in [0-9]+ cell\\(s\\): check flume\\.bed\\.elevation, flume\\.bed\\.slope and flume\\.bed\\.noise"
+    EXPECT "The bed elevation is not finite in [0-9]+ cell\\(s\\): check flume\\.bed\\.elevation, flume\\.bed\\.slope, flume\\.bed\\.bowl_depth, flume\\.bed\\.bowl_radius and flume\\.bed\\.noise"
     ARGS ${ok} flume.bed.elevation=${near_max} flume.bed.noise=${near_max})
 set(dam ${ok} flume.init.surface_elevation=2 flume.init.dam_position=4 flume.init.dam_surface_elevation=1)
 flume_add_abort_test(abort_dam_without_surface
@@ -593,16 +819,16 @@ flume_add_abort_test(abort_dam_velocity_without_dam
     EXPECT "flume\\.init\\.dam_velocity needs flume\\.init\\.dam_position"
     ARGS ${ok} flume.init.surface_elevation=2 flume.init.dam_velocity=1\ 0)
 flume_add_abort_test(abort_dam_velocity_one
-    EXPECT "flume\\.init\\.dam_velocity needs exactly 2 values \\(x and y\\); it has 1"
+    EXPECT "flume\\.init\\.dam_velocity needs exactly 2 values \\(x and y\\). it has 1"
     ARGS ${dam} flume.init.dam_velocity=1)
 flume_add_abort_test(abort_dam_velocity_nan
     EXPECT "flume\\.init\\.dam_velocity must be finite in x and y"
     ARGS ${dam} flume.init.dam_velocity=0\ nan)
 flume_add_abort_test(abort_dam_direction_unknown
-    EXPECT "flume\\.init\\.dam_direction must be x or y; it is z"
+    EXPECT "flume\\.init\\.dam_direction must be x or y. it is z"
     ARGS ${dam} flume.init.dam_direction=z)
 flume_add_abort_test(abort_dam_direction_two
-    EXPECT "flume\\.init\\.dam_direction needs exactly 1 value; it has 2"
+    EXPECT "flume\\.init\\.dam_direction needs exactly 1 value. it has 2"
     ARGS ${dam} flume.init.dam_direction=x\ y)
 flume_add_abort_test(abort_dam_position_nan
     EXPECT "flume\\.init\\.dam_position must be finite"
@@ -618,22 +844,22 @@ flume_add_abort_test(abort_dam_surface_inf
 # domain of 8 m by 32 m only along y.
 set(dam_range "flume\\.init\\.dam_position must leave a cell centre on each side of the dam: it must be > 0\\.5 and <= 7\\.5 in")
 flume_add_abort_test(abort_dam_position_at_corner
-    EXPECT "${dam_range} x .*; it is 8"
+    EXPECT "${dam_range} x .*. it is 8"
     ARGS ${dam} flume.init.dam_position=8)
 flume_add_abort_test(abort_dam_position_first_centre
-    EXPECT "${dam_range} x .*; it is 0\\.5"
+    EXPECT "${dam_range} x .*. it is 0\\.5"
     ARGS ${dam} flume.init.dam_position=0.5)
 flume_add_abort_test(abort_dam_position_past_last_centre
-    EXPECT "${dam_range} x .*; it is 7\\.75"
+    EXPECT "${dam_range} x .*. it is 7\\.75"
     ARGS ${dam} flume.init.dam_position=7.75)
 flume_add_abort_test(abort_dam_position_below
-    EXPECT "${dam_range} y .*; it is -1"
+    EXPECT "${dam_range} y .*. it is -1"
     ARGS ${dam} flume.init.dam_position=-1 flume.init.dam_direction=y)
 # A misspelled key is reported as unknown, not as the key another one needs.
 flume_add_abort_test(abort_dam_key_misspelled
     EXPECT "Unknown key\\(s\\) in the flume namespace:[^a-z]*flume\\.init\\.dam_positon "
     ARGS ${ok} flume.init.surface_elevation=2 flume.init.dam_positon=4 flume.init.dam_surface_elevation=1)
 flume_add_abort_test(abort_dam_position_other_direction
-    EXPECT "${dam_range} x .*; it is 20"
+    EXPECT "${dam_range} x .*. it is 20"
     ARGS flume.n_cell=8\ 8 flume.prob_hi=8\ 32 flume.init.surface_elevation=2
          flume.init.dam_position=20 flume.init.dam_surface_elevation=1)

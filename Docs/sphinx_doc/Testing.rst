@@ -90,7 +90,8 @@ Current tests
    of 5 s: one step, to 5 s.
 
 ``dry_stop_time_huge``
-   A dry domain with a stop time of 10\ :sup:`308` s, on 2 ranks: one step
+   A dry domain with a stop time of 10\ :sup:`308` s (2\ :sup:`127` s in
+   single precision), on 2 ranks: one step
    to that time. No kernel runs on a dry domain, so nothing is multiplied by
    the step.
 
@@ -130,6 +131,161 @@ Current tests
    surface to 10.2 m, so that the high parts of the bed are dry and wet and
    dry cells lie side by side over the whole domain.
 
+``lake_at_rest_islands_dry_depth``
+   The islands with ``flume.dry_depth`` = 0.05 m, which many cells along the
+   shores are below. The same bounds hold: the dry depth acts on the depth a
+   cell presents to a face, which is the same on the two sides of a face
+   under a level surface.
+
+``lake_at_rest_dry_depth_at_a_face``
+   The same lake near elevation zero (bed 0.3 m at the corner, surface
+   0.7 m). There the depths that the two cells of a face present differ in
+   the last digit on 468 of the 3000 faces. ``flume.dry_depth`` is set to one
+   of those depths (0.94279296875 m, in double precision), so one side of
+   that face is above it and the other is not. The cut is decided once for
+   the face, and the lake stays at rest (discharges within 64 machine
+   epsilons of the scale; the depths that differ in the last digit leave
+   16). Decided for each side alone, the lake moves by 0.34 m in 50 steps.
+   In single precision the value is not at a face and the test only repeats
+   the lake at rest.
+
+``draining_column_cfl_0.8``, ``draining_column_cfl_1.0``
+   ``Tests/DamBreak/inputs`` with the dam 0.3 m from a periodic side: one
+   column of cells holds 2 m of water, with a dry bed on both sides. Without
+   the outflow limit the column would lose 4/3 of ``flume.cfl`` times its
+   depth in the first step, more than it holds for both values. The runs
+   reach 5 s (about 130 steps); the run stops on a negative depth, the sum of
+   the depth must not change by more than 16 machine epsilons of itself, and
+   no cell at or below ``flume.dry_depth`` may hold a discharge.
+
+``draining_column_first_step``
+   The first step of the column at ``flume.cfl`` = 1, which has a closed
+   form, checked by ``Tests/check_cells.py`` within 64 machine epsilons. The
+   column would lose :math:`4 n h / 3` with :math:`n` = 0.999, so the fluxes
+   on its two faces are scaled by :math:`3 / (4 n)`: the column ends empty,
+   and each neighbour holds half its water (1 m) and a discharge of
+   :math:`c h / 4` = 2.2147 m\ :sup:`2`/s away from it. Every other cell is
+   unchanged. The test fails if the momentum flux is not scaled with the
+   mass flux, or if the factor is taken from the wrong cell.
+
+``film_passes_no_water``
+   ``Tests/Film/inputs``: a tilted surface over a flat bed on 8 x 4 cells.
+   Along x there are two dry cells, a
+   cell with a film of 5 x 10\ :sup:`-7` m (below the default
+   ``flume.dry_depth``), then water of 0.5 m and more. After one step the two
+   dry cells hold exactly nothing: the film presents no depth to its faces.
+   With the cut at zero the second cell would receive
+   4 x 10\ :sup:`-11` m.
+
+``film_behind_a_bed_step``
+   The same with a bed that falls by 0.0009995 m per cell along x. The third
+   cell then holds 1 mm of water, above the tolerance, of which only
+   5 x 10\ :sup:`-7` m stands above the bed of the second cell. The two dry
+   cells hold exactly nothing after the step: the tolerance acts on the
+   depth at the face, not on the depth of the cell.
+
+``draining_column_round_off``
+   A column 9.987529 m deep on a slightly rough bed at ``flume.cfl`` =
+   0.9332, to 1 s. In double precision the first step leaves two cells that
+   the outflow limit empties a rounding error below zero. The step sets such
+   a depth to zero; without that the run stops at step 1. The deck was found
+   by a search over 60 random decks, 7 of which need this.
+
+``thin_film_time_step``
+   Still water 1 m deep beside a film of 10\ :sup:`-8` m that starts at
+   10\ :sup:`4` m/s, to 0.03125 s. The film is below the default
+   ``flume.dry_depth``: the deep water sets the step (0.019955 s, so 2
+   steps; 1130 with ``flume.dry_depth`` = 0), and after the run the film cells hold no
+   discharge and the mass is unchanged. This pins the default of
+   ``flume.dry_depth``.
+
+``bowl_planar_half``, ``bowl_planar_half_fine``, ``bowl_planar``
+   ``Tests/Bowl/inputs``: water in a paraboloid bowl
+   (``flume.bed.bowl_depth`` :math:`h_0` = 0.1 m, ``flume.bed.bowl_radius``
+   :math:`a` = 1 m) in a 4 m square, with a shoreline that moves over the dry
+   bed, checked by ``Tests/check_bowl.py`` against Thacker's solutions as
+   written by Delestre et al. (2013, section 4.2.2). With :math:`X`,
+   :math:`Y` measured from the centre, :math:`r^2 = X^2 + Y^2` and the bed
+   :math:`z = -h_0 (1 - r^2 / a^2)`, the planar solution is a plane surface
+   that turns about the axis of the bowl:
+
+   .. math::
+
+      h = \max\left(\frac{\eta h_0}{a^2}\left(2 X \cos\omega t
+          + 2 Y \sin\omega t - \eta\right) - z,\; 0\right) , \qquad
+      (u, v) = \eta\,\omega\,(-\sin\omega t,\; \cos\omega t) , \qquad
+      \omega = \frac{\sqrt{2 g h_0}}{a} ,
+
+   with :math:`\eta` = 0.5 m and a period of 4.4857 s. The check compares the
+   bed and the first plotfile with the closed form (8 machine epsilons),
+   requires that no depth is negative, that the mass is kept (64 epsilons)
+   and that dry cells hold no discharge, and bounds the L1 errors of the
+   depth and of the discharge over the cells that hold water at the start or
+   at the end, in the run or in the solution,
+   divided by the mean initial depth (times :math:`\sqrt{g h_0}` for the
+   discharge). The scheme is first order and damps this motion:
+
+   .. list-table::
+      :header-rows: 1
+      :widths: 30 20 15 15 20
+
+      * - Run
+        - Cells
+        - Depth
+        - Discharge
+        - Bounds
+      * - half a period
+        - 100 x 100
+        - 13.5 %
+        - 19.7 %
+        - 15 %, 22 %
+      * - half a period
+        - 200 x 200
+        - 7.3 %
+        - 10.8 %
+        - 8.5 %, 12.5 %
+      * - three periods
+        - 100 x 100
+        - 57 %
+        - 77 %
+        - 62 %, 85 %
+
+   The error halves when the cell size halves (6.4 % of the depth after one
+   period on 400 x 400 cells; 12.3 % on 200 x 200), and the bounds of the
+   fine run are below the errors of the coarse one. The three-period run is
+   a test of the shoreline over 1798 steps (at most 2000): depth
+   non-negative and mass kept. Its error bound and its step limit only guard
+   against a change (``thin_film_time_step`` is the test of the time step:
+   in the bowl the films are slow, and the step count is the same with
+   ``flume.dry_depth = 0``).
+
+``bowl_radial_half``, ``bowl_radial_half_fine``, ``bowl_radial``
+   The same bowl with Thacker's radially symmetric solution: a paraboloid
+   surface that rises and falls, starting at rest
+   (``flume.init.surface_curvature``). With
+   :math:`A = (a^2 - r_0^2) / (a^2 + r_0^2)`, :math:`r_0` = 0.8 m and
+   :math:`D = 1 - A \cos\omega t`,
+
+   .. math::
+
+      h = \max\left(h_0\left[\frac{\sqrt{1 - A^2}}{D} - 1
+          - \frac{r^2}{a^2}\left(\frac{1 - A^2}{D^2} - 1\right)\right] - z,\; 0\right) ,
+      \qquad
+      (u, v) = \frac{\omega A \sin\omega t}{2 D}\,(X, Y) , \qquad
+      \omega = \frac{\sqrt{8 g h_0}}{a} ,
+
+   with a period of 2.2429 s. Errors as above: 4.2 % (depth) and 2.8 %
+   (discharge) after half a period on 100 x 100 cells (bounds 4.8 % and
+   3.3 %), 2.2 % and 1.8 % on 200 x 200 (2.6 % and 2.1 %), and 20.7 % and
+   4.5 % after three periods on 100 x 100 cells in 668 steps (23 % and
+   5.5 %; at most 750 steps).
+
+``bowl_mound_initial``
+   A mound (a negative ``flume.bed.bowl_depth``) under a tilted surface on
+   cells of 0.04 m by 0.05 m away from the origin, not advanced: the bed and
+   the initial state against the closed form a quarter of a period on, when
+   the surface is tilted along y.
+
 ``dam_break_x_np1``, ``dam_break_x_np2``, ``dam_break_x_np4``, ``dam_break_y``
    ``Tests/DamBreak/inputs``: still water 2 m and 1 m deep on a flat bed on
    the two sides of a dam, 400 cells of 0.25 m along the flow, compared at
@@ -164,10 +320,17 @@ Current tests
    check bounds the L1 error of the depth, as a fraction of 2 m, and of the
    discharge, as a fraction of 2 m times 4.43 m/s (1 %; the run gives 0.46 %
    and 0.39 %), requires that no depth is negative and that mass is kept as
-   above, and requires that the depth beyond the exact front stays below
-   10\ :sup:`-11` of 2 m (the run gives 10\ :sup:`-13` m: the scheme carries a
-   trace of water one cell per step). The thin front of the run lags the exact
+   above, and requires that the depth beyond the exact front is zero: a cell
+   no deeper than ``flume.dry_depth`` passes no water on. The thin front of the run lags the exact
    one, as is usual at first order: the depth passes 1 mm about 7 m behind it.
+
+``dam_break_dry_x_no_tolerance``
+   ``dam_break_dry_x`` with ``flume.dry_depth = 0``, the scheme without a
+   tolerance. The errors are the same (0.46 %, 0.39 %). The scheme then
+   carries a trace of water one cell per step: the depth beyond the exact
+   front must be above zero and below 10\ :sup:`-11` of 2 m (the run gives
+   10\ :sup:`-13` m). With ``dam_break_dry_x`` this shows that the value of
+   the input reaches the fluxes.
 
 ``dam_break_dry_first_step_x``, ``dam_break_dry_first_step_y``
    The first step of the two runs above, which has a closed form. With still
@@ -179,9 +342,8 @@ Current tests
    2 m of water the first dry cell ends 1/3 m deep and the last wet cell
    5/3 m deep, with discharges :math:`c h / 12` and :math:`c h / 24`; every
    other cell is unchanged. The
-   check allows 64 machine epsilons. After the first step the bed ahead of the
-   front is thinly wet and these wave speeds have little effect, so the 5 s
-   runs do not test them; this one does.
+   check allows 64 machine epsilons. The 5 s runs bound errors only; this one pins the
+   wave speeds.
 
 ``shear_x_np1``, ``shear_x_np4``, ``shear_x_reversed``, ``shear_y``
    ``Tests/Shear/inputs``: a uniform flow at 2 m/s (Froude number 0.5, so
@@ -213,8 +375,10 @@ Current tests
    initial-state keys, the keys a dam needs, and a misspelled dam key, which
    is reported as unknown before any key that needs it; a dry domain with a
    step limit and no stop time; finite inputs that give a bed, an initial
-   state or a wave speed that is not finite; a depth that goes negative
-   with ``flume.cfl`` = 0.8 (a column of wet cells between dry ones); and a
+   state or a wave speed that is not finite; the ranges of
+   ``flume.dry_depth``, of the bowl and of the tilted and curved surface, the
+   keys these need and the keys they cannot be used with; water that is all
+   below ``flume.dry_depth`` with a step limit and no stop time; and a
    time step that is zero or not finite. The wrong-type values that AMReX's parser
    stops are not tested.
 

@@ -24,8 +24,8 @@ namespace flume {
  * cells in x and y (FLUME_Boundary.H). The bed does not change, so its ghost
  * cells are filled once; those of the state are filled at the start of each
  * step. A step is first order in space and time: HLLC fluxes on the faces
- * from the hydrostatic reconstruction, then a forward-Euler update
- * (FLUME_Advance.H).
+ * from the hydrostatic reconstruction, scaled where a cell would give away
+ * more water than it holds, then a forward-Euler update (FLUME_Advance.H).
  */
 class Flood
 {
@@ -71,6 +71,10 @@ private:
     amrex::MultiFab m_bed;   //!< bed elevation, m, one ghost layer in x and y
     //! Fluxes on the faces across x and across y, State::ncomp components
     amrex::Array<amrex::MultiFab, 2> m_flux;
+    //! Work space of limit_outflow: one component, one ghost layer in x and y
+    amrex::MultiFab m_outflow_factor;
+    //! Bed-slope term in x and in y (compute_bed_source), no ghost cells
+    amrex::MultiFab m_bed_source;
     //! Time, s. In double precision in every build: a single-precision sum of
     //! steps stops growing after about 2^24 steps.
     double m_time = 0.0;

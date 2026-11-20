@@ -1,0 +1,13 @@
+# A tilted water surface over a flat bed at 0, between walls: 8 x 4 cells of
+# 1 m in 2 boxes. The surface is 0.7500005 m at the centre and rises by 0.5
+# per metre along x, so along x the first two cells are dry, the third holds
+# a film of 5e-7 m (below the default flume.dry_depth of 1e-6 m) and the
+# others hold 0.5 m and more. One step is taken.
+flume.n_cell        = 8 4
+flume.prob_hi       = 8.0 4.0
+flume.max_grid_size = 4
+flume.plot_file     = film
+flume.max_step      = 1
+
+flume.init.surface_elevation = 0.7500005
+flume.init.surface_slope     = 0.5 0.0

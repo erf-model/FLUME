@@ -255,6 +255,12 @@ read_inputs ()
         amrex::Abort("flume.gravity must be > 0; it is " + all_digits(in.gravity));
     }
 
+    // dry_depth: optional, one finite real >= 0
+    query_finite(pp, "dry_depth", in.dry_depth);
+    if (!(in.dry_depth >= amrex::Real(0.0))) {
+        amrex::Abort("flume.dry_depth must be >= 0; it is " + all_digits(in.dry_depth));
+    }
+
     // bed.elevation, bed.slope: optional, finite
     query_finite(pp, "bed.elevation", in.bed_elevation);
     query_finite_pair(pp, "bed.slope", in.bed_slope);
@@ -276,6 +282,41 @@ read_inputs ()
     // first such message.
     std::string needs;
     const auto defer = [&needs] (const char* msg) { if (needs.empty()) { needs = msg; } };
+
+    // bed.bowl_depth: optional, finite; bed.bowl_radius: finite, > 0, and
+    // each needs the other (a depth of 0 is no bowl, and reads no radius).
+    const bool bowl_depth = query_finite(pp, "bed.bowl_depth", in.bed_bowl_depth);
+    const bool bowl_radius = query_finite(pp, "bed.bowl_radius", in.bed_bowl_radius);
+    if (bowl_radius && !(in.bed_bowl_radius > amrex::Real(0.0))) {
+        amrex::Abort("flume.bed.bowl_radius must be > 0; it is " + all_digits(in.bed_bowl_radius));
+    }
+    // The bed uses 1 / radius^2.
+    if (bowl_radius && !(in.bed_bowl_radius * in.bed_bowl_radius
+                         >= std::numeric_limits<amrex::Real>::min())) {
+        amrex::Abort("flume.bed.bowl_radius must have a square that is a normal number; it is "
+                     + all_digits(in.bed_bowl_radius));
+    }
+    const bool bowl = bowl_depth && in.bed_bowl_depth != amrex::Real(0.0);
+    if (bowl && !bowl_radius) {
+        defer("flume.bed.bowl_depth needs flume.bed.bowl_radius: the distance from the centre"
+              " of the domain at which the bowl crosses the plane bed");
+    }
+    if (bowl_radius && !bowl) {
+        defer("flume.bed.bowl_radius needs flume.bed.bowl_depth (not 0)");
+    }
+
+    // init.surface_slope, init.surface_curvature: optional, finite
+    const bool surface_slope = query_finite_pair(pp, "init.surface_slope", in.init_surface_slope);
+    const bool surface_curvature = query_finite(pp, "init.surface_curvature",
+                                                in.init_surface_curvature);
+    if (surface_slope && !in.init_surface_elevation.has_value()) {
+        defer("flume.init.surface_slope needs flume.init.surface_elevation: the elevation of"
+              " the surface at the centre of the domain");
+    }
+    if (surface_curvature && !in.init_surface_elevation.has_value()) {
+        defer("flume.init.surface_curvature needs flume.init.surface_elevation: the elevation"
+              " of the surface at the centre of the domain");
+    }
     if (query_finite_pair(pp, "init.velocity", in.init_velocity)
         && !in.init_surface_elevation.has_value()) {
         defer("flume.init.velocity needs flume.init.surface_elevation: without a water"
@@ -319,6 +360,14 @@ read_inputs ()
     if (dam && !dam_surface) {
         defer("flume.init.dam_position needs flume.init.dam_surface_elevation: the"
               " water surface on the high-coordinate side of the dam");
+    }
+    if (dam && surface_slope) {
+        defer("flume.init.surface_slope cannot be used with flume.init.dam_position: the"
+              " surface on each side of a dam is level");
+    }
+    if (dam && surface_curvature) {
+        defer("flume.init.surface_curvature cannot be used with flume.init.dam_position: the"
+              " surface on each side of a dam is level");
     }
 
     // A key in the flume namespace that nothing above read is an error.

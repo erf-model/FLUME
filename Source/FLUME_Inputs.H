@@ -62,12 +62,26 @@ struct Inputs
     //! Acceleration of gravity, m/s2 (flume.gravity; default 9.81; finite, > 0)
     amrex::Real gravity = amrex::Real(9.81);
 
+    //! Depth at or below which a cell, or the depth a cell presents to a
+    //! face, counts as dry, m (flume.dry_depth; default 1e-6; finite, >= 0)
+    amrex::Real dry_depth = amrex::Real(1.0e-6);
+
     //! Bed elevation at the lower corner of the domain, m, on the absolute
     //! vertical datum (flume.bed.elevation; default 0; finite)
     amrex::Real bed_elevation = amrex::Real(0.0);
 
     //! Bed slope dz_b/dx and dz_b/dy (flume.bed.slope; default 0 0; finite)
     amrex::Array<amrex::Real, 2> bed_slope{{amrex::Real(0.0), amrex::Real(0.0)}};
+
+    //! Depth of a paraboloid bowl added to the bed, m (flume.bed.bowl_depth;
+    //! default 0: no bowl; finite; needs flume.bed.bowl_radius): the bed moves
+    //! by -bowl_depth (1 - r^2 / bowl_radius^2), r the distance from the centre
+    //! of the domain. A negative value makes a mound.
+    amrex::Real bed_bowl_depth = amrex::Real(0.0);
+
+    //! Radius at which the bowl crosses the plane bed, m (flume.bed.bowl_radius;
+    //! finite, > 0; required with flume.bed.bowl_depth and only read with it)
+    amrex::Real bed_bowl_radius = amrex::Real(0.0);
 
     //! Amplitude of a rough bed, m (flume.bed.noise; default 0; finite, >= 0):
     //! each cell's bed is moved by a fixed pseudo-random amount in
@@ -77,6 +91,16 @@ struct Inputs
     //! Elevation of the initial, level water surface, m, on the same datum
     //! (flume.init.surface_elevation; no default: the domain starts dry; finite)
     std::optional<amrex::Real> init_surface_elevation;
+
+    //! Slope of the initial water surface in x and y (flume.init.surface_slope;
+    //! default 0 0; finite; needs flume.init.surface_elevation; not with a
+    //! dam). The surface is surface_elevation + slope . (x - centre)
+    //! + surface_curvature r^2, measured from the centre of the domain.
+    amrex::Array<amrex::Real, 2> init_surface_slope{{amrex::Real(0.0), amrex::Real(0.0)}};
+
+    //! Curvature of the initial water surface, 1/m (flume.init.surface_curvature;
+    //! default 0; finite; needs flume.init.surface_elevation; not with a dam)
+    amrex::Real init_surface_curvature = amrex::Real(0.0);
 
     //! Initial velocity in x and y where there is water, m/s (flume.init.velocity;
     //! default 0 0; finite; needs flume.init.surface_elevation)
