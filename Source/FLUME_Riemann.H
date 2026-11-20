@@ -40,8 +40,9 @@ face_depth (amrex::Real h, amrex::Real z, amrex::Real z_other) noexcept
  * its low side (L) and on its high side (R): depth h (>= 0), velocity normal
  * to the face un and along it ut. `g` is the acceleration of gravity.
  *
- * The wave speeds are the estimates of Toro (2001) from the two-rarefaction
- * star state, with the dry-bed speeds when one side has no water. Mass and
+ * The wave speeds are estimated from the middle state that two rarefactions
+ * would leave (Docs/sphinx_doc/Model.rst), with the speeds of a front on a
+ * dry bed when one side has no water. Mass and
  * normal momentum take the HLL flux. The tangential momentum is carried by
  * the mass flux from its upwind side, which restores the contact wave.
  * A face that is dry on both sides has no flux.

@@ -133,9 +133,21 @@ Current tests
 ``dam_break_x_np1``, ``dam_break_x_np2``, ``dam_break_x_np4``, ``dam_break_y``
    ``Tests/DamBreak/inputs``: still water 2 m and 1 m deep on a flat bed on
    the two sides of a dam, 400 cells of 0.25 m along the flow, compared at
-   5 s with the solution of Stoker (1957) by ``Tests/check_dam_break.py``.
-   The constant state between the rarefaction and the shock is 1.4538 m deep
-   and moves at 1.3058 m/s, and the shock moves at 4.1831 m/s. The check
+   5 s with the exact solution by ``Tests/check_dam_break.py``. The solution
+   is a rarefaction into the deep water, a constant state and a shock into
+   the shallow water. With :math:`h_1` and :math:`h_0` the deep and shallow
+   depths, :math:`c = \sqrt{g h}`, and :math:`h_m`, :math:`u_m` the constant
+   state, :math:`u + 2c` keeps its value across the rarefaction, and mass and
+   momentum are kept across the shock, which moves at :math:`S`:
+
+   .. math::
+
+      u_m = 2\,(c_1 - c_m) = (h_m - h_0)\sqrt{\frac{g\,(h_m + h_0)}{2\,h_m h_0}} ,
+      \qquad S = \frac{h_m u_m}{h_m - h_0} .
+
+   The script solves the first relation for :math:`h_m` by bisection. Here
+   the constant state is 1.4538 m deep and moves at 1.3058 m/s, and the
+   shock moves at 4.1831 m/s. The check
    bounds the L1 error of the depth and of the discharge (2 %; the run gives
    0.8 % and 1.6 %), the constant state (0.5 %; 0.2 %) and the place of the
    shock (1 cell; 0.2), requires that nothing varies along the dam, and

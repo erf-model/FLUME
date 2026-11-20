@@ -168,10 +168,12 @@ of the momentum fluxes of a cell, and the water stays at rest, to round-off,
 whatever the bed (a well-balanced scheme). A cell next to a dry cell whose bed is above
 the surface presents no water to that face, and nothing flows.
 
-**Limit.** Where the bed rises at a face by more than the depth of the lower
+**Limit.** Where the bed rises at a face by at least the depth of the lower
 cell, :math:`h^{*}` is zero and the face sees less of the bed step than there
 is. On a steep bed under shallow moving water the scheme then underestimates
-the pull of the slope (Delestre et al., 2012). Water at rest is not affected.
+the slope: the velocity comes out too low and the depth too high (Delestre et
+al., 2012). The bed step is the slope times the cell size, so the effect goes
+away as the cells get smaller. Water at rest is not affected.
 
 HLLC flux
 ---------
@@ -179,7 +181,7 @@ HLLC flux
 At a face, let L and R be the low and high sides, :math:`u_n` the velocity
 normal to the face, :math:`u_t` the velocity along it, and
 :math:`c = \sqrt{g h^{*}}`. The fastest waves to the two sides are estimated
-(Toro, 2001) as
+as
 
 .. math::
 
@@ -192,7 +194,17 @@ normal to the face, :math:`u_t` the velocity along it, and
    c^{\star} = \max\bigl(0,\; \tfrac{1}{2}(c_L + c_R)
                + \tfrac{1}{4}(u_{n,L} - u_{n,R})\bigr) .
 
-When one side has no water the speeds are those of a front on a dry bed:
+These follow from taking both waves as rarefactions. Across the wave on the
+low side :math:`u_n + 2c` keeps its value, and across the wave on the high
+side :math:`u_n - 2c` does. The state between the two waves then has
+:math:`u^{\star} + 2 c^{\star} = u_{n,L} + 2 c_L` and
+:math:`u^{\star} - 2 c^{\star} = u_{n,R} - 2 c_R`, which gives
+:math:`u^{\star}` and :math:`c^{\star}` above. Each estimate is the faster
+of the edge of the wave in the cell's own state and its edge in the middle
+state.
+
+When one side has no water the middle state is dry, :math:`c^{\star} = 0`,
+and the speeds are those of a front on a dry bed:
 :math:`s_L = u_{n,L} - c_L`, :math:`s_R = u_{n,L} + 2 c_L` with the high side
 dry, and :math:`s_L = u_{n,R} - 2 c_R`, :math:`s_R = u_{n,R} + c_R` with the
 low side dry. A face that is dry on both sides has no flux.
@@ -231,7 +243,7 @@ the celerity of the deep side where the exact front moves at about 1.7
 times. In a check over random pairs of wet states, 13 % had an estimated
 speed inside the exact wave fan by more than 1 %. The tests of
 :doc:`Testing` pass with these speeds. Speeds built from the depth ratio
-across the shock (Toro, 2001) remove the gap but need a depth below which a
+across the shock remove the gap but need a depth below which a
 cell counts as dry, which this version does not have.
 
 The velocity of a cell is :math:`hu / h` where :math:`h > 0` and zero in a dry
@@ -316,7 +328,3 @@ References
   https://doi.org/10.1016/j.crma.2012.08.004
 * A. Ritter (1892). Die Fortpflanzung der Wasserwellen. *Zeitschrift des
   Vereines Deutscher Ingenieure* 36(33), 947-954.
-* J. J. Stoker (1957). *Water Waves: The Mathematical Theory with
-  Applications*. Interscience, New York.
-* E. F. Toro (2001). *Shock-Capturing Methods for Free-Surface Shallow
-  Flows*. Wiley, Chichester.

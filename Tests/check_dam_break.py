@@ -25,8 +25,8 @@ reader) and checked:
     The sums are exact sums of the stored numbers.
 
 Without --mass-only the bed must be flat at 0 with still water on both sides
-of the dam, and the last plotfile is compared with the solution of Stoker
-(1957) for a dam break over a wet bed. With xi = (x - X) / T measured from the
+of the dam, and the last plotfile is compared with the exact solution
+of a dam break over a wet bed (a rarefaction, a constant state and a shock). With xi = (x - X) / T measured from the
 high water towards the low water, h1 the deeper depth, h0 the shallower,
 c = sqrt(G h):
 
@@ -109,7 +109,7 @@ def read(plotfile):
     return h, cells, real_size
 
 
-def stoker_middle(h1, h0, g):
+def wet_bed_middle(h1, h0, g):
     """hm and um of the constant state between the rarefaction and the shock."""
     c1 = math.sqrt(g * h1)
 
@@ -126,7 +126,7 @@ def stoker_middle(h1, h0, g):
     return hm, 2.0 * (c1 - math.sqrt(g * hm))
 
 
-def stoker(xi, h1, h0, hm, um, g):
+def wet_bed(xi, h1, h0, hm, um, g):
     """Depth and velocity at xi = (x - X) / T; the deep water is at xi < 0."""
     c1 = math.sqrt(g * h1)
     cm = math.sqrt(g * hm)
@@ -294,7 +294,7 @@ def main():
         dry = h0 == 0.0
         c1 = math.sqrt(g * h1)
         # Over a dry bed the "constant state" is empty: hm = 0 at um = 2 c1.
-        hm, um = (0.0, 2.0 * c1) if dry else stoker_middle(h1, h0, g)
+        hm, um = (0.0, 2.0 * c1) if dry else wet_bed_middle(h1, h0, g)
         shock = um if dry else hm * um / (hm - h0)
         sign = 1.0 if deep_is_lo else -1.0
 
@@ -328,7 +328,7 @@ def main():
         for m in range(n):
             x = head["prob_lo"][d] + (m + 0.5) * dx
             xi = sign * (x - a.position) / a.time
-            h_ex, u_ex = ritter(xi, h1, g) if dry else stoker(xi, h1, h0, hm, um, g)
+            h_ex, u_ex = ritter(xi, h1, g) if dry else wet_bed(xi, h1, h0, hm, um, g)
             h = cell(m, 0)[0]
             q = sign * cell(m, 0)[1 + d]  # discharge towards the low water
             l1_h += abs(h - h_ex)
