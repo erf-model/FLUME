@@ -1066,8 +1066,11 @@ flume_add_regtest(outflow_split_side NPROCS 3
     OUTPUT "cells 0 to 3 in y"
     CHECK ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/compare_plotfiles.py dam
           ${FLUME_TEST_RUN_DIR}/outflow_whole_side)
-set_tests_properties(outflow_whole_side PROPERTIES FIXTURES_SETUP outflow_whole)
-set_tests_properties(outflow_split_side PROPERTIES FIXTURES_REQUIRED outflow_whole)
+# A build without MPI registers no test on more than one rank.
+if(TEST outflow_whole_side AND TEST outflow_split_side)
+    set_tests_properties(outflow_whole_side PROPERTIES FIXTURES_SETUP outflow_whole)
+    set_tests_properties(outflow_split_side PROPERTIES FIXTURES_REQUIRED outflow_whole)
+endif()
 # A dry-bed dam break, 2 m deep at x < 50 m, on 200 x 40 cells of 0.5 m. The
 # side at x = 100 m is an outflow for y >= 10 m and a wall below: away from
 # y = 10 m the open rows follow Ritter's solution, and the wall rows hold the
@@ -1109,8 +1112,10 @@ flume_add_regtest(outflow_boxes_one_cell NPROCS 2
     ARGS ${boxes_deck} flume.max_grid_size=1
     CHECK ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/compare_plotfiles.py basin
           ${FLUME_TEST_RUN_DIR}/outflow_boxes_one_box --cells)
-set_tests_properties(outflow_boxes_one_box PROPERTIES FIXTURES_SETUP outflow_one_box)
-set_tests_properties(outflow_boxes_one_cell PROPERTIES FIXTURES_REQUIRED outflow_one_box)
+if(TEST outflow_boxes_one_box AND TEST outflow_boxes_one_cell)
+    set_tests_properties(outflow_boxes_one_box PROPERTIES FIXTURES_SETUP outflow_one_box)
+    set_tests_properties(outflow_boxes_one_cell PROPERTIES FIXTURES_REQUIRED outflow_one_box)
+endif()
 # The cells of a segment: those whose centre is at the first coordinate of
 # flume.bc.<name>.range or above, and below the second. The cell centres are
 # at 0.125 + 0.25 j; both ends of segment lo and the start of hi fall on a
