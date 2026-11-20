@@ -1129,6 +1129,138 @@ flume_add_regtest(boundary_segment_cells NPROCS 1
     CHECK ${check_dam_break} dam --initial-only --direction x --position 50
           --surface-lo 2 --surface-hi 1)
 
+# --- Raster input: bed, buildings and Manning map ----------------------------
+# ESRI ASCII grids written by Tests/Raster/make_rasters.py (synthetic, no
+# downloaded data; Tests/Raster/README.md). Every file key is passed on the
+# command line, as an absolute path. Tests/Raster/check_raster.py computes the
+# expected bed from the files in double precision. All on one rank.
+set(raster ${CMAKE_CURRENT_SOURCE_DIR}/Raster)
+set(check_raster ${Python3_EXECUTABLE} ${raster}/check_raster.py)
+# A plane z = 2 + 0.03 x - 0.02 y + 0.001 x y given at the centres of 5 m
+# cells (xllcenter): bilinear interpolation reproduces it at every cell
+# centre. Largest error 8.9e-16 m. The raster reaches beyond the domain, and
+# its NODATA cell lies outside the cells the domain reads.
+flume_add_regtest(raster_bed_plane NPROCS 1
+    INPUTS ${raster}/inputs_bed
+    ARGS flume.bed.file=${raster}/bed_plane.asc
+    OUTPUT "FLUME: bed from .*bed_plane\\.asc"
+    CHECK ${check_raster} bed --plane 2 0.03 -0.02 0.001)
+# A coarse raster of 8 x 4 m cells (dx and dy) that holds the domain exactly:
+# the cells within half a raster cell of the sides take the edge values.
+# Largest error 0.
+flume_add_regtest(raster_bed_coarse NPROCS 1
+    INPUTS ${raster}/inputs_bed
+    ARGS flume.bed.file=${raster}/bed_coarse.asc
+    CHECK ${check_raster} bed --bed ${raster}/bed_coarse.asc)
+# A dam break into streets between blocks of 3, 5 and 8 m (a height raster
+# with NODATA -1 in no cell, its corner a quarter of a raster cell off the
+# grid's edges): the bed is the raster falling to the east plus the
+# heights, the 256 building cells stay dry (depth exactly 0) in every
+# plotfile, the total depth does not change (walls), and water reaches the
+# streets beyond x = 14 m (observed: 0.381 m deep at most at 8 s at order 1,
+# 0.371 m at order 2; largest bed error 1.4e-17 m).
+set(streets flume.bed.file=${raster}/streets_bed.asc
+            flume.buildings.file=${raster}/streets_heights.asc)
+set(streets_check --bed ${raster}/streets_bed.asc --buildings ${raster}/streets_heights.asc
+                  --dry-buildings --wet-beyond 14)
+flume_add_regtest(raster_streets NPROCS 1
+    INPUTS ${raster}/inputs_streets
+    ARGS ${streets}
+    OUTPUT "FLUME: buildings from .*streets_heights\\.asc: 256 cell"
+    CHECK ${check_raster} str ${streets_check})
+flume_add_regtest(raster_streets_second_order NPROCS 1
+    INPUTS ${raster}/inputs_streets
+    ARGS ${streets} flume.order=2
+    CHECK ${check_raster} str ${streets_check})
+# The same footprints as a 0/1 mask, raised by buildings.height.
+flume_add_regtest(raster_streets_mask NPROCS 1
+    INPUTS ${raster}/inputs_streets
+    ARGS flume.bed.file=${raster}/streets_bed.asc
+         flume.buildings.file=${raster}/streets_mask.asc flume.buildings.height=5
+    OUTPUT "FLUME: buildings from .*streets_mask\\.asc: 256 cell"
+    CHECK ${check_raster} str --bed ${raster}/streets_bed.asc
+          --buildings ${raster}/streets_mask.asc --building-height 5 --dry-buildings --wet-beyond 14)
+# The lake at rest among the same buildings, the surface at 4 m: the blocks
+# of 3 m are under 1 m of water, those of 5 and 8 m stand dry. Every cell
+# keeps the depth max(4 - bed, 0) and no discharge, to round-off (observed:
+# 160 dry cells, depth error 8.9e-16 m and discharge 1.6e-14 m^2/s at most).
+foreach(order 1 2)
+    flume_add_regtest(raster_lake_at_rest_order_${order} NPROCS 1
+        INPUTS ${raster}/inputs_lake
+        ARGS ${streets} flume.order=${order}
+        CHECK ${check_raster} lake --bed ${raster}/streets_bed.asc
+              --buildings ${raster}/streets_heights.asc --surface 4 --conserved)
+endforeach()
+# Buildings of 0.3 m (the mask, raised by buildings.height) under the 1 m
+# dam break: water goes over them (observed: 0.189 m deep at most on a
+# building cell), and the total depth does not change.
+flume_add_regtest(raster_streets_overtop NPROCS 1
+    INPUTS ${raster}/inputs_streets
+    ARGS flume.bed.file=${raster}/streets_bed.asc
+         flume.buildings.file=${raster}/streets_mask.asc flume.buildings.height=0.3
+    CHECK ${check_raster} str --bed ${raster}/streets_bed.asc
+          --buildings ${raster}/streets_mask.asc --building-height 0.3 --wet-buildings --conserved)
+# A file name relative to the directory the run starts in.
+file(RELATIVE_PATH bed_relative ${FLUME_TEST_RUN_DIR}/raster_bed_relative_path ${raster}/bed_coarse.asc)
+flume_add_regtest(raster_bed_relative_path NPROCS 1
+    INPUTS ${raster}/inputs_bed
+    ARGS flume.bed.file=${bed_relative}
+    CHECK ${check_raster} bed --bed ${raster}/bed_coarse.asc)
+# 100 boxes of 4 x 4 cells give the same cells as 9 boxes of up to 16 x 16:
+# the rasters are sampled per cell, not per box.
+flume_add_regtest(raster_streets_small_boxes NPROCS 1
+    INPUTS ${raster}/inputs_streets
+    ARGS ${streets} flume.max_grid_size=4
+    CHECK ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/compare_plotfiles.py str
+          ${FLUME_TEST_RUN_DIR}/raster_streets --cells)
+if(TEST raster_streets AND TEST raster_streets_small_boxes)
+    set_tests_properties(raster_streets PROPERTIES FIXTURES_SETUP raster_streets)
+    set_tests_properties(raster_streets_small_boxes PROPERTIES FIXTURES_REQUIRED raster_streets)
+endif()
+# The friction channel with a Manning map: one coefficient per row of 1 m
+# (0.02, 0.03, 0.045, 0.06 from the south). Each row follows the closed form
+# with its own coefficient. Largest relative error 5.63e-4 at order 1 (as
+# friction_channel) and 1.91e-4 at order 2.
+# The smallest and largest coefficient as the run prints them: in single
+# precision 0.02 is 0.01999999955.
+set(n_lo "0\\.0(2|1999999[0-9]*)")
+set(n_hi "0\\.0(6|5999999[0-9]*)")
+set(manning_rows --depth 1 --slope -0.001 0 --manning-rows 0.02 0.03 0.045 0.06)
+flume_add_regtest(raster_manning_rows NPROCS 1
+    INPUTS ${raster}/inputs_manning
+    ARGS flume.friction.manning_file=${raster}/manning_rows.asc
+    OUTPUT "FLUME: Manning friction from .*manning_rows\\.asc, n from ${n_lo} to ${n_hi}"
+    CHECK ${check_friction} fric --time 100 ${manning_rows} --q-rtol 6e-4)
+flume_add_regtest(raster_manning_rows_second_order NPROCS 1
+    INPUTS ${raster}/inputs_manning
+    ARGS flume.order=2 flume.friction.manning_file=${raster}/manning_rows.asc
+    CHECK ${check_friction} fric --time 100 ${manning_rows} --q-rtol 2e-4 --q-rtol-eps 1024)
+# A uniform map of 0.03 gives the plotfiles of flume.friction.manning = 0.03,
+# bit for bit.
+flume_add_regtest(raster_manning_uniform_value NPROCS 1
+    INPUTS ${raster}/inputs_manning
+    ARGS flume.friction.manning=0.03
+    CHECK ${check_friction} fric --time 100 ${fric_x} --q-rtol 6e-4)
+flume_add_regtest(raster_manning_uniform_file NPROCS 1
+    INPUTS ${raster}/inputs_manning
+    ARGS flume.friction.manning_file=${raster}/manning_uniform.asc
+    CHECK ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/compare_plotfiles.py fric
+          ${FLUME_TEST_RUN_DIR}/raster_manning_uniform_value)
+# Ties: every grid centre lies on the edge between two rows of a raster of
+# 0.1 m rows, and computed from the part kept its position is a whole
+# number less a few epsilons. The row above holds the coefficient of the
+# grid row; the row below holds 0.09. Each row follows the closed form with
+# its own coefficient, as raster_manning_rows.
+flume_add_regtest(raster_manning_ties NPROCS 1
+    INPUTS ${raster}/inputs_manning
+    ARGS flume.friction.manning_file=${raster}/manning_ties.asc
+    OUTPUT "FLUME: Manning friction from .*manning_ties\\.asc, n from ${n_lo} to ${n_hi}"
+    CHECK ${check_friction} fric --time 100 ${manning_rows} --q-rtol 6e-4)
+if(TEST raster_manning_uniform_value AND TEST raster_manning_uniform_file)
+    set_tests_properties(raster_manning_uniform_value PROPERTIES FIXTURES_SETUP raster_manning_value)
+    set_tests_properties(raster_manning_uniform_file PROPERTIES FIXTURES_REQUIRED raster_manning_value)
+endif()
+
 # --- Inputs that must abort ---------------------------------------------------
 # Every check in Source/FLUME_Inputs.cpp has at least one test.
 set(ok flume.n_cell=8\ 8 flume.prob_hi=8\ 8)
@@ -1580,3 +1712,103 @@ flume_add_abort_test(abort_segment_not_listed
 flume_add_abort_test(abort_segment_no_list
     EXPECT "Unknown key\\(s\\) in the flume namespace:[^a-z]*flume\\.bc\\.a\\.side "
     ARGS ${ok} flume.bc.a.side=xlo)
+
+# --- Raster files ---------------------------------------------------------------
+# The bad files are in Tests/Raster/bad, each on the domain [0, 40]^2 of
+# 8 x 8 cells of 5 m. nodata.asc has 2 x 2 cells of 20 m, the south-west one
+# NODATA: bilinear interpolation gives it a weight in every cell whose centre
+# is below 30 m in x and in y (6 x 6 cells); the Manning map takes the cell
+# holding the centre (4 x 4 cells). ParmParse takes an empty value only in
+# quotes.
+set(rok flume.n_cell=8\ 8 flume.prob_hi=40\ 40)
+set(bad ${CMAKE_CURRENT_SOURCE_DIR}/Raster/bad)
+set(rfile "flume\\.bed\\.file \\([^)]*\\): ")
+foreach(case
+        "unknown_key|unknown header keyword cellsise"
+        "twice|header keyword ncols is given twice"
+        "no_ncols|the header has no ncols"
+        "ncols_fraction|ncols must be a whole number from 1 to 2\\^30; it is 2\\.5"
+        "corner_and_center|the header needs exactly one of xllcorner and xllcenter"
+        "cellsize_and_dx|the header needs cellsize, or dx and dy, but not both"
+        "cellsize_zero|the cell size \\(cellsize, or dx and dy\\) must be > 0"
+        "not_a_number|value 4 is not a finite number: \"x\""
+        "too_few|the file holds 3 values; the header says"
+        "too_many|the file holds 5 values; the header says"
+        "small|the raster covers 0 to 38 in x, which does not hold the domain, 0 to 40"
+        "short_y|the raster covers 0 to 38 in y, which does not hold the domain, 0 to 40"
+        "header_not_number|header keyword cellsize needs a finite number; it has \"twenty\""
+        "dx_no_dy|the header needs cellsize, or dx and dy, but not both"
+        "y_corner_and_center|the header needs exactly one of yllcorner and yllcenter"
+        "no_nrows|the header has no nrows"
+        "extent_inf|the raster's extent is not finite"
+        "huge_header|the header says 1073741824 x 1073741824 = 1152921504606846976 values, more than a file of 78 bytes can hold"
+        "nodata|36 cell\\(s\\) of the domain read a NODATA_value cell of the raster")
+    string(REPLACE "|" ";" pair "${case}")
+    list(GET pair 0 file)
+    list(GET pair 1 expect)
+    flume_add_abort_test(abort_raster_${file} EXPECT "${rfile}${expect}"
+        ARGS ${rok} flume.bed.file=${bad}/${file}.asc)
+endforeach()
+flume_add_abort_test(abort_raster_missing
+    EXPECT "flume\\.bed\\.file \\([^)]*no_such_file\\.asc\\): the file cannot be opened"
+    ARGS ${rok} flume.bed.file=${bad}/no_such_file.asc)
+flume_add_abort_test(abort_raster_directory
+    EXPECT "flume\\.bed\\.file \\([^)]*bad\\): the path is not a regular file"
+    ARGS ${rok} flume.bed.file=${bad})
+# A value beyond the range of single precision (1e39) is read as it is in a
+# double build; in a single build the run aborts. Columns and rows count
+# from 0.
+if(FLUME_PRECISION STREQUAL "SINGLE")
+    flume_add_abort_test(abort_raster_beyond_float
+        EXPECT "${rfile}value 3 \\(column 0 from the west, row 0 from the south\\) is (1e\\+39|9\\.99+[0-9]*e\\+38), beyond the range of the build's precision"
+        ARGS ${rok} flume.bed.file=${bad}/beyond_float.asc)
+endif()
+foreach(key buildings.file friction.manning_file)
+    string(REPLACE "." "\\." key_re "${key}")
+    string(REPLACE "." "_" key_name "${key}")
+    flume_add_abort_test(abort_raster_${key_name}_empty
+        EXPECT "flume\\.${key_re} must not be empty: the name of an ESRI ASCII grid file"
+        ARGS ${rok} "flume.${key}=\"\"")
+endforeach()
+# Each key of the analytic bed with a bed file. continue_slope = 0 is given
+# but does nothing, and still aborts. bowl_radius alone aborts first because
+# it needs bowl_depth; with bowl_depth the message names bowl_depth.
+foreach(case "elevation|1" "continue_slope|0" "bowl_depth|1 flume.bed.bowl_radius=10")
+    string(REPLACE "|" ";" pair "${case}")
+    list(GET pair 0 name)
+    list(GET pair 1 value)
+    separate_arguments(value)
+    flume_add_abort_test(abort_raster_bed_file_with_${name}
+        EXPECT "flume\\.bed\\.file cannot be used with flume\\.bed\\.${name}: the file gives the bed of every cell"
+        ARGS ${rok} flume.bed.file=${raster}/streets_bed.asc flume.bed.${name}=${value})
+endforeach()
+flume_add_abort_test(abort_raster_buildings_nodata
+    EXPECT "flume\\.buildings\\.file \\([^)]*\\): 16 cell\\(s\\) of the domain read a NODATA_value cell"
+    ARGS ${rok} flume.buildings.file=${bad}/nodata.asc)
+flume_add_abort_test(abort_raster_bed_file_empty
+    EXPECT "flume\\.bed\\.file must not be empty: the name of an ESRI ASCII grid file"
+    ARGS ${rok} "flume.bed.file=\"\"")
+flume_add_abort_test(abort_raster_bed_file_with_slope
+    EXPECT "flume\\.bed\\.file cannot be used with flume\\.bed\\.slope: the file gives the bed of every cell"
+    ARGS ${rok} flume.bed.file=${raster}/streets_bed.asc flume.bed.slope=0.001\ 0)
+flume_add_abort_test(abort_raster_bed_file_with_noise
+    EXPECT "flume\\.bed\\.file cannot be used with flume\\.bed\\.noise"
+    ARGS ${rok} flume.bed.file=${raster}/streets_bed.asc flume.bed.noise=0.01)
+flume_add_abort_test(abort_raster_manning_file_with_manning
+    EXPECT "flume\\.friction\\.manning_file cannot be used with flume\\.friction\\.manning"
+    ARGS ${rok} flume.friction.manning_file=${raster}/manning_uniform.asc flume.friction.manning=0.03)
+flume_add_abort_test(abort_raster_manning_negative
+    EXPECT "flume\\.friction\\.manning_file \\([^)]*\\): 16 cell\\(s\\) of the domain take a Manning coefficient below 0"
+    ARGS ${rok} flume.friction.manning_file=${bad}/negative.asc)
+flume_add_abort_test(abort_raster_manning_nodata
+    EXPECT "flume\\.friction\\.manning_file \\([^)]*\\): 16 cell\\(s\\) of the domain read a NODATA_value cell"
+    ARGS ${rok} flume.friction.manning_file=${bad}/nodata.asc)
+flume_add_abort_test(abort_raster_buildings_height_no_file
+    EXPECT "flume\\.buildings\\.height needs flume\\.buildings\\.file"
+    ARGS ${rok} flume.buildings.height=5)
+flume_add_abort_test(abort_raster_buildings_height_zero
+    EXPECT "flume\\.buildings\\.height must be > 0; it is 0"
+    ARGS ${rok} flume.buildings.file=${raster}/streets_mask.asc flume.buildings.height=0)
+flume_add_abort_test(abort_raster_buildings_negative
+    EXPECT "flume\\.buildings\\.file \\([^)]*\\): 16 cell\\(s\\) of the domain take a building height below 0"
+    ARGS ${rok} flume.buildings.file=${bad}/negative.asc)

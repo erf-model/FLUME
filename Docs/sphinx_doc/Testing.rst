@@ -770,6 +770,83 @@ Current tests
    centre on the first coordinate is in the segment, a centre on the second
    is not.
 
+``raster_bed_plane``, ``raster_bed_coarse``
+   ``Tests/Raster/inputs_bed``: 48 by 32 cells of 1 m in boxes of 8, no
+   step. ``raster_bed_plane`` reads a plane
+   :math:`z = 2 + 0.03 x - 0.02 y + 0.001 x y` given at the centres of 5 m
+   cells (``xllcenter``), with columns beyond the domain and a
+   ``NODATA_value`` cell that no cell reads; bilinear interpolation
+   reproduces the plane (observed largest error 8.9e-16 m).
+   ``raster_bed_coarse`` reads 6 by 8 cells of 8 by 4 m (``dx`` and ``dy``)
+   that hold the domain exactly, with values that hold no plane; the cells
+   within half a raster cell of the sides take the edge values (observed
+   largest error 0). ``raster_bed_relative_path`` reads the same file by a
+   name relative to the directory the run starts in.
+   ``Tests/Raster/check_raster.py`` computes the bed from the file, in
+   double precision, and allows 64 epsilons of the largest bed plus 1 m.
+   The numbers in brackets here are what the runs give, not bounds.
+
+``raster_streets``, ``_second_order``, ``_mask``, ``_small_boxes``
+   ``Tests/Raster/inputs_streets``: a dam break on 40 by 40 cells of 1 m
+   with walls, water 1 m deep west of x = 8 m, run to 8 s. A bed falling to
+   the east (0.075 to 0.025 m between raster centres) from a raster of 20 m
+   cells, and blocks of about 4 by 4 m with 4 m streets east of x = 12 m,
+   3, 5 or 8 m high, from a raster of 2 m cells whose corner is at
+   (-0.75, -0.75): every grid centre lies a quarter or three quarters of a
+   raster cell from a raster edge, so a shift of half a raster cell in the
+   sampling moves the footprints. 256 building cells (checked in the
+   output). In every plotfile the bed is the raster plus the heights, every
+   building cell holds no water (depth exactly 0), and the sum of the depth
+   is the same within 64 epsilons; at 8 s a street cell beyond x = 14 m
+   holds more than 1 cm (0.381 m at order 1). ``_mask`` gives the same
+   footprints as a 0/1 mask with ``flume.buildings.height = 5``.
+   ``_small_boxes`` runs in 100 boxes of 4 by 4 cells and gives the same
+   cells as ``raster_streets`` in 9 boxes (``compare_plotfiles.py --cells``).
+
+``raster_lake_at_rest_order_1``, ``_order_2``, ``raster_streets_overtop``
+   ``Tests/Raster/inputs_lake``: the streets with the surface at 4 m and no
+   dam, run to 4 s. The blocks of 3 m are under 1 m of water and those of 5
+   and 8 m stand dry (160 cells). In every plotfile every cell holds the
+   depth :math:`\max(4 - z_b, 0)` and no discharge, within 64 epsilons
+   (observed: depth error 8.9e-16 m, discharge 1.6e-14 m\ :sup:`2`/s).
+   ``raster_streets_overtop`` runs the dam break over the mask raised by
+   0.3 m: water goes over the buildings (0.189 m deep at most on a building
+   cell) and the sum of the depth does not change.
+
+``raster_manning_rows``, ``_second_order``, ``raster_manning_uniform_*``
+   The friction channel (``friction_channel*``) with the Manning coefficient
+   from a map, one value per row of 1 m: 0.02, 0.03, 0.045 and 0.06 from the
+   south. The water in a row does not exchange momentum with its neighbours
+   (no velocity across the rows), so each row follows :math:`q(t)` with its
+   own :math:`n` (``check_friction.py --manning-rows``). Largest relative
+   error 5.63e-4 at order 1 (bound 6e-4) and 1.91e-4 at order 2 (bound
+   2e-4), as for :math:`n` = 0.03 alone. A uniform map of 0.03 gives the
+   plotfiles of ``flume.friction.manning = 0.03`` to the last bit.
+   ``raster_manning_ties`` reads a map of 0.1 m rows starting at y = -2 m:
+   every grid centre lies on the edge between two rows, and its position
+   computed from the part of the raster kept is a whole number less a few
+   epsilons. The row above holds the coefficient of the grid row and the
+   row below 0.09; each grid row follows :math:`q(t)` with its own
+   :math:`n`, so every centre took the row above.
+
+``abort_raster_*``
+   Each check of the reader, on files in ``Tests/Raster/bad``: an unknown
+   or repeated header keyword, no ``ncols`` or ``nrows``, a fraction for
+   ``ncols``, a header value that is not a number, both a corner and a
+   centre in x and in y, both ``cellsize`` and ``dx``, ``dx`` without
+   ``dy``, a cell size of 0, an extent that is not finite, a header that
+   asks for more values than the file can hold, a value that is not a
+   number, too few and too many values, a raster that does not hold the
+   domain in x and in y, a cell that reads ``NODATA_value`` (the count: 36
+   cells for the bed, which reads it with a weight, and 16 for the Manning
+   map and the buildings), a file that cannot be opened, a directory, and an
+   empty name for each of the three keys. Then the keys ``flume.bed.file``
+   cannot be used with, ``flume.friction.manning`` with
+   ``flume.friction.manning_file``, a negative Manning coefficient or
+   building height, and ``flume.buildings.height`` of 0 or without
+   ``flume.buildings.file``. In a single-precision build,
+   ``abort_raster_beyond_float`` reads a value of 1e39.
+
 ``abort_*``
    At least one test per check in :doc:`Inputs`: missing keys, wrong numbers
    of values, values outside the range (including integers that would wrap),

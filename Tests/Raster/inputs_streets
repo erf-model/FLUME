@@ -1,0 +1,15 @@
+# Dam break into a street grid: 40 x 40 cells of 1 m on [0, 40]^2 m, walls
+# on every side. The bed (flume.bed.file) is flat at 0 m and the buildings
+# (flume.buildings.file) are blocks of 4 x 4 m, 3 to 8 m high, with 4 m
+# streets east of x = 12 m; both files are given on the command line by
+# Tests/CMakeLists.txt. Water 1 m deep west of x = 8 m, dry east of it.
+flume.n_cell        = 40 40
+flume.prob_hi       = 40.0 40.0
+flume.max_grid_size = 16
+flume.plot_file     = str
+flume.stop_time     = 8.0
+flume.plot_int      = 40
+
+flume.init.surface_elevation     = 1.0
+flume.init.dam_position          = 8.0
+flume.init.dam_surface_elevation = -1.0

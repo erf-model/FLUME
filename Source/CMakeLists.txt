@@ -3,11 +3,13 @@
 add_library(flume_lib STATIC
     FLUME_Advance.cpp
     FLUME_Boundary.cpp
+    FLUME_Buildings.cpp
     FLUME_Flood.cpp
     FLUME_Friction.cpp
     FLUME_IO.cpp
     FLUME_Init.cpp
     FLUME_Inputs.cpp
+    FLUME_Raster.cpp
     FLUME_Source.cpp
     FLUME_TimeStep.cpp)
 

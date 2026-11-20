@@ -11,6 +11,7 @@
 #include <limits>
 #include <sstream>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace flume {
@@ -115,6 +116,19 @@ query_int (const amrex::ParmParse& pp, const std::string& key, long long lo, lon
     long long v = 0;
     pp.get(key, v);
     value = checked_int(v, lo, hi, key, "");
+    return true;
+}
+
+//! Read one file name, not empty, if the key is given. Returns whether it was.
+bool
+query_file (const amrex::ParmParse& pp, const std::string& key, std::string& value)
+{
+    if (!pp.contains(key)) { return false; }
+    require_count(pp, key, 1);
+    pp.get(key, value);
+    if (value.empty()) {
+        amrex::Abort("flume." + key + " must not be empty: the name of an ESRI ASCII grid file");
+    }
     return true;
 }
 
@@ -433,16 +447,24 @@ read_inputs ()
                      + all_digits(in.friction_manning));
     }
 
+    // friction.manning_file: optional, one file name, not empty; not with
+    // friction.manning, which would be read and not used
+    const bool manning_value = pp.contains("friction.manning");
+    if (query_file(pp, "friction.manning_file", in.friction_manning_file) && manning_value) {
+        defer("flume.friction.manning_file cannot be used with flume.friction.manning: the file"
+              " gives the coefficient of every cell");
+    }
+
     // bed.elevation, bed.slope: optional, finite
-    query_finite(pp, "bed.elevation", in.bed_elevation);
-    query_finite_pair(pp, "bed.slope", in.bed_slope);
+    const bool bed_elevation = query_finite(pp, "bed.elevation", in.bed_elevation);
+    const bool bed_slope = query_finite_pair(pp, "bed.slope", in.bed_slope);
 
     // bed.continue_slope: optional, one integer, 0 or 1
     const bool continue_slope = query_int(pp, "bed.continue_slope", 0, 1,
                                           in.bed_continue_slope);
 
     // bed.noise: optional, one finite real >= 0
-    query_finite(pp, "bed.noise", in.bed_noise);
+    const bool bed_noise = query_finite(pp, "bed.noise", in.bed_noise);
     if (!(in.bed_noise >= amrex::Real(0.0))) {
         amrex::Abort("flume.bed.noise must be >= 0; it is " + all_digits(in.bed_noise));
     }
@@ -482,6 +504,38 @@ read_inputs ()
     }
     if (bowl_radius && !bowl) {
         defer("flume.bed.bowl_radius needs flume.bed.bowl_depth (not 0)");
+    }
+
+    // bed.file: optional, one file name, not empty. It is the whole bed, so
+    // the keys of the analytic bed would be read and not used.
+    if (query_file(pp, "bed.file", in.bed_file)) {
+        const std::pair<bool, const char*> others[] = {
+            {bed_elevation, "bed.elevation"}, {bed_slope, "bed.slope"},
+            {continue_slope, "bed.continue_slope"}, {bowl_depth, "bed.bowl_depth"},
+            {bowl_radius, "bed.bowl_radius"}, {bed_noise, "bed.noise"}};
+        for (const auto& [given, name] : others) {
+            if (given) {
+                defer(std::string("flume.bed.file cannot be used with flume.") + name
+                      + ": the file gives the bed of every cell");
+            }
+        }
+    }
+
+    // buildings.file: optional, one file name, not empty; buildings.height:
+    // optional, finite, > 0, needs buildings.file
+    const bool buildings = query_file(pp, "buildings.file", in.buildings_file);
+    {
+        amrex::Real v = amrex::Real(0.0);
+        if (query_finite(pp, "buildings.height", v)) {
+            if (!(v > amrex::Real(0.0))) {
+                amrex::Abort("flume.buildings.height must be > 0; it is " + all_digits(v));
+            }
+            in.buildings_height = v;
+            if (!buildings) {
+                defer("flume.buildings.height needs flume.buildings.file: the footprints the"
+                      " height is given to");
+            }
+        }
     }
 
     // init.surface_slope, init.surface_curvature: optional, finite

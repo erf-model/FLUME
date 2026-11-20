@@ -144,7 +144,41 @@ a valid number.
        values: 0.01 to 0.02 for smooth concrete, about 0.03 for a natural
        channel, 0.05 to 0.1 for a floodplain with vegetation. The update is
        implicit in the discharge and sets no limit on the time step
-       (:doc:`Model`).
+       (:doc:`Model`). Not with ``flume.friction.manning_file``.
+   * - ``flume.friction.manning_file``
+     - string
+     - none
+     - ESRI ASCII grid of the Manning coefficient, in s/m\ :sup:`1/3`
+       (`Raster files`_). Must not be empty. Each cell takes the value of the
+       raster cell that holds its centre; every value read must be at least
+       0. Not with ``flume.friction.manning``. The run prints the smallest
+       and the largest coefficient.
+   * - ``flume.bed.file``
+     - string
+     - none
+     - ESRI ASCII grid of the bed elevation, in metres on the vertical datum
+       (`Raster files`_). Must not be empty. Each cell takes the raster
+       interpolated bilinearly between raster cell centres at its centre.
+       Not with ``flume.bed.elevation``, ``flume.bed.slope``,
+       ``flume.bed.continue_slope``, ``flume.bed.bowl_depth``,
+       ``flume.bed.bowl_radius`` or ``flume.bed.noise``: the file gives the
+       whole bed.
+   * - ``flume.buildings.file``
+     - string
+     - none
+     - ESRI ASCII grid of building heights above the bed, in metres, or a
+       mask with ``flume.buildings.height`` (`Raster files`_). Must not be
+       empty. Each cell takes the value of the raster cell that holds its
+       centre; every value read must be at least 0. A cell with a value
+       above 0 has a building: the bed is raised by the value (or by
+       ``flume.buildings.height``), and water enters it only over the top
+       (:doc:`Model`). The run prints the number of building cells.
+   * - ``flume.buildings.height``
+     - real
+     - none
+     - Height, in metres, given to every cell whose ``flume.buildings.file``
+       value is above 0: the file is then a mask (0 or 1, say). Must be
+       finite and greater than 0. Needs ``flume.buildings.file``.
    * - ``flume.bed.elevation``
      - real
      - ``0``
@@ -276,7 +310,8 @@ inputs can give a number that is not finite:
 
 * The bed elevation must be finite in every cell (``flume.bed.slope`` times
   the size of the domain, ``flume.bed.noise`` added to the bed, or a bowl of
-  a small radius can pass the largest floating-point number).
+  a small radius can pass the largest floating-point number; in single
+  precision so can a value of ``flume.bed.file`` or ``flume.buildings.file``).
 * The initial depth and discharges must be finite in every cell.
 * Before every step and before every plotfile the depth must be finite and
   not negative, and the wave speed finite, in every cell. The step limits
@@ -300,6 +335,65 @@ The integer keys have no joint limit on the number of boxes. A very large
 ``flume.n_cell`` with a small ``flume.max_grid_size`` can ask for more boxes
 than memory holds.
 
+Raster files
+------------
+
+``flume.bed.file``, ``flume.buildings.file`` and ``flume.friction.manning_file``
+name ESRI ASCII grids (``.asc``), the plain-text raster format that GIS tools
+such as QGIS and ArcGIS write. A relative name is taken from the directory the
+run starts in. A name with spaces goes in double quotes in the inputs file
+(``flume.bed.file = "survey 2024/bed.asc"``). The name must be a regular file,
+not a directory. The file is a header followed by the values:
+
+.. code-block:: text
+
+   ncols         4
+   nrows         3
+   xllcorner     500000.0
+   yllcorner     4100000.0
+   cellsize      10.0
+   NODATA_value  -9999
+   12.1 12.4 12.9 13.3
+   11.8 12.0 12.5 12.8
+   11.6 11.7 12.1 12.4
+
+* The header keywords may be in any case and in any order, each once.
+  ``ncols`` and ``nrows`` are whole numbers from 1 to 2\ :sup:`30`. The lower
+  left corner is ``xllcorner`` and ``yllcorner``, or the centre of the lower
+  left cell, ``xllcenter`` and ``yllcenter``. The cell size is ``cellsize``,
+  or ``dx`` and ``dy`` for cells that are not square; it must be greater
+  than 0. ``NODATA_value`` is optional. Any other keyword stops the run.
+* The values follow, ``ncols`` per row, the northern row first. There must be
+  exactly ``ncols`` times ``nrows`` of them, each a finite number: ``nan``
+  and ``inf`` stop the run with the position of the value. Mark missing
+  data with ``NODATA_value`` instead.
+* The raster must be on the coordinates of the run, in metres, and must hold
+  the whole domain (``flume.prob_lo`` to ``flume.prob_hi``, within one
+  millionth of a raster cell). FLUME does not reproject or change units.
+  Only the raster cells that hold the domain, and one more on each side, are
+  kept; the rest of the file may be much larger than the domain. The I/O
+  rank reads the whole file and holds it as text while it parses it, so the
+  file must fit in the memory of one rank; the part kept, at most
+  2\ :sup:`31` - 1 cells, is then sent to every rank.
+* The bed is interpolated bilinearly between raster cell centres. Within half
+  a raster cell of the raster's edges the values of the edge cells are held.
+  A plane given at the raster cell centres is reproduced exactly.
+* Buildings and the Manning coefficient take the raster cell that holds the
+  cell centre. A centre on a raster cell edge takes the cell above it, in x
+  and in y. "On the edge" allows for round-off: a position, in raster cells,
+  within 16 epsilons of the build's precision of a whole number counts as
+  that number.
+* On a periodic domain the raster is not wrapped: the bed is what the file
+  gives on each side, so a raster that is not periodic itself leaves a step
+  in the bed across the periodic seam.
+* A cell that reads a ``NODATA_value`` cell (with a weight above 0, for the
+  bed) stops the run with the number of such cells.
+
+Each message about a file names the key and the file. A value beyond the
+range of the build's precision (above about 3.4e38 in single precision) stops
+the run with its position. Rasters through GDAL (GeoTIFF and other formats)
+are kept for a later version.
+
 Single precision and large coordinates
 --------------------------------------
 
@@ -307,7 +401,13 @@ The corners are stored in the precision of the build. In single precision a
 corner at UTM-size coordinates is rounded to the nearest representable number,
 which is 0.5 m apart at 4.4e6 m: ``4400123.37`` becomes ``4400123.5``. The cell
 size then differs from the one requested. Use double precision, or corners near
-the origin, when this matters.
+the origin, when this matters. Raster files are read in double precision; the
+position of each cell in the raster is formed from the difference between the
+domain corner, as the build stores it, and the raster's corner in double
+precision before it is rounded to the precision of the build, so map
+coordinates do not cost digits in the sampling. In single precision the
+domain corner itself is rounded as above, and the cells sit where the rounded
+corner puts them.
 
 Output
 ------

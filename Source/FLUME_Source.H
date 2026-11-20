@@ -62,10 +62,12 @@ public:
 
 /**
  * The sources the inputs switch on, in the order they act. Today the list is
- * empty or holds Manning friction (flume.friction.manning > 0). Prints the
+ * empty or holds Manning friction (flume.friction.manning > 0 or
+ * flume.friction.manning_file). Prints the
  * names, or "none", at start-up.
  */
-std::vector<std::unique_ptr<Source>> make_sources (const Inputs& in, const amrex::BoxArray& ba,
+std::vector<std::unique_ptr<Source>> make_sources (const Inputs& in, const amrex::Geometry& geom,
+                                                   const amrex::BoxArray& ba,
                                                    const amrex::DistributionMapping& dm);
 
 } // namespace flume

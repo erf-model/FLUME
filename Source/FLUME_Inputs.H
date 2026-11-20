@@ -100,6 +100,12 @@ struct Inputs
     //! default 0: no friction; finite, >= 0). The same in every cell.
     amrex::Real friction_manning = amrex::Real(0.0);
 
+    //! ESRI ASCII grid of the Manning coefficient, s/m^(1/3)
+    //! (flume.friction.manning_file; default none; not empty; not with
+    //! flume.friction.manning). Each cell takes the raster cell that holds
+    //! its centre; every value a cell takes must be >= 0.
+    std::string friction_manning_file;
+
     //! Bed elevation at the lower corner of the domain, m, on the absolute
     //! vertical datum (flume.bed.elevation; default 0; finite)
     amrex::Real bed_elevation = amrex::Real(0.0);
@@ -129,6 +135,26 @@ struct Inputs
     //! each cell's bed is moved by a fixed pseudo-random amount in
     //! [-noise, noise), the same on any number of ranks.
     amrex::Real bed_noise = amrex::Real(0.0);
+
+    //! ESRI ASCII grid of the bed elevation, m, on the run's vertical datum
+    //! (flume.bed.file; default none: the plane bed above; not empty; not
+    //! with flume.bed.elevation, .slope, .continue_slope, .bowl_depth,
+    //! .bowl_radius or .noise). Bilinear between the raster's cell centres at
+    //! each cell centre; the raster must hold the domain.
+    std::string bed_file;
+
+    //! ESRI ASCII grid of building heights above the bed, m
+    //! (flume.buildings.file; default none: no buildings; not empty). Each
+    //! cell takes the raster cell that holds its centre; a value > 0 raises
+    //! the bed of the cell by that height (or by flume.buildings.height), 0
+    //! leaves it; a value below 0 aborts.
+    std::string buildings_file;
+
+    //! Height given to every building cell, m (flume.buildings.height;
+    //! default none: the heights of the file; finite, > 0; needs
+    //! flume.buildings.file). With it, the file is a footprint mask: any
+    //! value > 0 is a building.
+    std::optional<amrex::Real> buildings_height;
 
     //! Elevation of the initial, level water surface, m, on the same datum
     //! (flume.init.surface_elevation; no default: the domain starts dry; finite)
