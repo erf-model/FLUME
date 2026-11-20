@@ -10,21 +10,17 @@
 
 namespace flume {
 
-void
-Friction::define (const amrex::BoxArray& ba, const amrex::DistributionMapping& dm,
-                  amrex::Real manning, amrex::Real gravity, amrex::Real dry_depth)
+Friction::Friction (const amrex::BoxArray& ba, const amrex::DistributionMapping& dm,
+                    amrex::Real manning, amrex::Real gravity, amrex::Real dry_depth)
+    : m_manning(ba, dm, 1, 0), m_gravity(gravity), m_dry_depth(dry_depth)
 {
-    m_gravity = gravity;
-    m_dry_depth = dry_depth;
-    m_active = manning > amrex::Real(0.0);
-    if (!m_active) { return; }
-    m_manning.define(ba, dm, 1, 0);
+    AMREX_ALWAYS_ASSERT(manning > amrex::Real(0.0));
     m_manning.setVal(manning);
     amrex::Print() << "FLUME: Manning friction, n = " << manning << " s/m^(1/3)\n";
 }
 
 void
-Friction::apply (amrex::MultiFab& state, amrex::Real dt) const
+Friction::apply (amrex::MultiFab& state, const SourceContext& /*ctx*/, amrex::Real dt)
 {
     apply_manning_friction(state, m_manning, m_gravity, m_dry_depth, dt);
 }

@@ -3,9 +3,9 @@ Model
 
 This page describes what the code holds and computes today: the
 shallow-water equations over a fixed bed, advanced by a first-order or a second-order
-finite-volume scheme with wetting and drying, between walls or periodic
-sides, with Manning friction on the bed. Rainfall and open boundaries are
-not written yet.
+finite-volume scheme with wetting and drying, between walls, outflow sides
+or periodic sides, with Manning friction on the bed. Rainfall and inflow
+boundaries are not written yet.
 
 Equations
 ---------
@@ -353,7 +353,8 @@ The three components of the flux on a face are multiplied by the
 :math:`\phi` of the cell the mass flux leaves. A face with no mass flux is
 not changed. The new depth is then at least
 :math:`h_{ij} - \phi_{ij}\, o_{ij} \ge 0`, for any ``flume.cfl``. Each face
-still has one flux, so mass is conserved. The sum :math:`o_{ij}` counts the
+still has one flux, so mass is conserved, apart from the flux through an
+outflow side (`Sides of the domain`_). The sum :math:`o_{ij}` counts the
 water that leaves and not the water that arrives in the same step, so a cell
 can be limited that the plain step would have left with water. The bed-slope
 term is not scaled; water at rest has no mass flux and is not limited. A depth that the rounding of this
@@ -502,7 +503,8 @@ the outflow limit and the dry-cell rule,
 This is Heun's method. The step :math:`\Delta t` is computed once, from
 :math:`U^{n}`. Each stage keeps the depth non-negative (the outflow limit
 uses the cell depth and applies to any flux), and a mean of two non-negative
-depths is non-negative. Each stage conserves mass, so the mean does. The
+depths is non-negative. Each stage conserves mass, apart from the flux
+through an outflow side, so the mean does. The
 discharges of a cell whose mean depth is at or below
 :math:`h_{\mathrm{dry}}` are set to zero.
 
@@ -513,6 +515,22 @@ cell size in the largest norm (:doc:`Testing` gives the measured rates).
 Next to a dry cell the depth difference is limited by the neighbour's depth
 and the cell is close to first order. The outflow limit and the cut at the
 dry depth are those of the first-order scheme.
+
+Source terms
+------------
+
+A source term changes the state in a cell without a flux between cells.
+Each source is a class with a name and one step of :math:`\Delta t`
+(``Source/FLUME_Source.H``). The run builds the list of sources its inputs
+switch on and prints their names at start-up (``FLUME: sources: ...``, or
+``none``). Each source acts once per step, after the fluxes and the bed slope
+of all the stages of the step, on the state at the end of the step, in the
+order of the list. Today the list is empty or holds Manning friction (next
+section). Rain, infiltration and drains are to be added as further sources.
+
+The bed-slope term is not one of these sources: it is part of each explicit
+stage, where it balances the fluxes of still water exactly (`Hydrostatic
+reconstruction`_).
 
 Manning friction
 ----------------
@@ -600,16 +618,63 @@ fill.
 Sides of the domain
 -------------------
 
-Each direction is periodic or closed by walls (``flume.periodic``). The state
-and the bed carry one layer of ghost cells at first order and two at second
-order. Between boxes and across a
-periodic side a ghost cell holds the value of the cell it covers. Outside a
-wall the first layer mirrors the first cell inside and the second layer the
-second cell: same depth and bed, same discharge
-along the wall, and the discharge normal to the wall with its sign changed.
-Every box whose ghost layers reach outside a wall is filled this way, also a
-box that ends one cell short of it.
-The mass flux through a wall is then exactly zero.
+Each direction is periodic or not (``flume.periodic``). The state and the
+bed carry one layer of ghost cells at first order and two at second order.
+Between boxes and across a periodic side a ghost cell holds the value of the
+cell it covers.
+
+A side that is not periodic is made of segments (``flume.bc.segments``):
+each a run of boundary cells along the side, with one type. A boundary cell
+belongs to a segment when its centre is at the first coordinate of
+``flume.bc.<name>.range`` or above, and below the second; the run prints
+the cells of each segment. The cells no segment covers are walls, so
+without ``flume.bc.segments`` every side that is not periodic is a wall.
+Two types exist:
+
+**Wall.** The first ghost layer mirrors the first cell inside and the second
+layer the second cell: same depth and bed, same discharge along the wall,
+and the discharge normal to the wall with its sign changed. The mass flux
+through a wall is then exactly zero.
+
+**Outflow.** Every ghost layer takes the boundary cell next to it, the bed
+included (zero gradient). Water leaves, or enters, as the flow at the side
+carries it. Where the flow leaving is
+supercritical the boundary sets nothing the flow inside depends on, and a
+dry-bed front leaves the domain as the exact solution says (:doc:`Testing`).
+Where it is subcritical, zero gradient is an approximation: a shock that
+leaves sends a weak wave back. In the dam-break test the wave changes the
+depth by 0.2 % and the velocity by 0.3 % at first order, 0.7 % and 2 % at
+second order. The wave does not get smaller as the cells get smaller, and
+it grows with the Froude number of the flow leaving. No discharge or level
+is prescribed at an outflow side.
+
+Still water next to an outflow side stays still to round-off over a single
+step, since the surface of the ghost cells is that of the boundary cell. It
+is not stable where the bed of a boundary cell is lower than that of the
+cell inside it. With the hydrostatic reconstruction the face to the inside
+then sees the boundary cell :math:`h^*` deep, :math:`h^* < h`, while the
+face to the ghost cell sees it :math:`h` deep and carries all of its
+discharge. A disturbance of still water grows from round-off. In the lake
+at rest over the rough bed (``lake_at_rest_segments``, :doc:`Testing`) the
+largest discharge grows from 10\ :sup:`-13` to 10\ :sup:`-3` m\ :sup:`2`/s
+in 8000 steps at both orders; with islands it reaches 30 m\ :sup:`2`/s
+within 4000 steps. A 1-D model of the same scheme gives growth factors per step up
+to 1.09 over rough beds and 1.002 to 1.007 over uniform slopes of 0.001 to
+0.1. Manning friction acts on the square of the discharge and does not damp
+it. Runs whose water comes to rest next to an outflow side over a bed that
+steps down to the side should not run for thousands of steps in that state.
+Scaling the discharge of the ghost cell by :math:`h^*/h` removes the growth,
+but makes the side act as a weir the height of the last step of the bed:
+in the same 1-D model, flow near critical on a slope of 0.01 leaves the
+side 48 % too deep. That scaling is not used.
+
+Every box whose ghost layers reach outside a side is filled, also a box that
+ends one cell short of it. The flux of the outflow limit (`Wetting and
+drying`_) leaves a cell through an outflow side as through any face; water
+entering from a ghost cell is not limited. The names ``discharge`` and
+``stage`` are kept for a prescribed inflow discharge and a prescribed water
+level from a time series, which later versions add; today they stop the run
+with a message.
 
 By default a sloping bed is taken as it is at a periodic side: the bed
 repeats, and has a step of the slope times the length of the domain there.

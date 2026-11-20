@@ -51,7 +51,34 @@ a valid number.
      - 2 integers
      - ``0 0``
      - Whether the domain is periodic in x and in y. Each must be 0 or 1. A
-       direction with 0 has a wall on both of its sides.
+       direction with 0 has two sides made of the segments below, walls where
+       no segment covers them.
+   * - ``flume.bc.segments``
+     - strings
+     - none
+     - Names of the segments of the sides that are not periodic, at least
+       one. A name holds only letters, digits and ``_`` and is listed once.
+       Without this key every side that is not periodic is a wall
+       (:doc:`Model`). The keys of a name that is not listed are unknown.
+   * - ``flume.bc.<name>.side``
+     - string
+     - required
+     - The side of segment ``<name>``: ``xlo``, ``xhi``, ``ylo`` or ``yhi``.
+       Must not be a side of a periodic direction.
+   * - ``flume.bc.<name>.type``
+     - string
+     - required
+     - ``wall`` or ``outflow`` (zero gradient: :doc:`Model`). ``discharge``
+       and ``stage`` are kept for later versions and stop the run.
+   * - ``flume.bc.<name>.range``
+     - 2 reals
+     - the whole side
+     - From and to, in metres, along the side (y on ``xlo`` and ``xhi``, x
+       on ``ylo`` and ``yhi``). Must be finite, the first below the second,
+       both within ``flume.prob_lo`` and ``flume.prob_hi``. The segment takes
+       the boundary cells whose centre is at the first value or above and
+       below the second; it must hold at least one, and no cell may belong
+       to two segments. The run prints the cells of each segment.
    * - ``flume.max_grid_size``
      - integer
      - ``64``

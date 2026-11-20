@@ -8,6 +8,7 @@ add_library(flume_lib STATIC
     FLUME_IO.cpp
     FLUME_Init.cpp
     FLUME_Inputs.cpp
+    FLUME_Source.cpp
     FLUME_TimeStep.cpp)
 
 target_include_directories(flume_lib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

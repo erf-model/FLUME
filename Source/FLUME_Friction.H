@@ -1,6 +1,8 @@
 #ifndef FLUME_FRICTION_H_
 #define FLUME_FRICTION_H_
 
+#include "FLUME_Source.H"
+
 #include <AMReX_BoxArray.H>
 #include <AMReX_DistributionMapping.H>
 #include <AMReX_MultiFab.H>
@@ -28,34 +30,29 @@ namespace flume {
  * of all its stages (Docs/sphinx_doc/Model.rst).
  *
  * The coefficient is a per-cell field (s/m^(1/3)), filled from
- * flume.friction.manning. With a coefficient of 0 the class allocates
- * nothing and apply() is not called.
+ * flume.friction.manning. make_sources() builds this source only when that
+ * coefficient is above 0.
  */
-class Friction
+class Friction : public Source
 {
 public:
-    Friction () = default;
+    //! Allocate the coefficient field on the boxes of the state and fill it
+    //! with `manning` (> 0).
+    Friction (const amrex::BoxArray& ba, const amrex::DistributionMapping& dm,
+              amrex::Real manning, amrex::Real gravity, amrex::Real dry_depth);
 
-    //! Allocate the coefficient field on the boxes of the state when
-    //! `manning` is above 0, and fill it with that value.
-    void define (const amrex::BoxArray& ba, const amrex::DistributionMapping& dm,
-                 amrex::Real manning, amrex::Real gravity, amrex::Real dry_depth);
-
-    //! Whether any cell has a coefficient above 0.
-    [[nodiscard]] bool active () const { return m_active; }
+    [[nodiscard]] std::string name () const override { return "manning_friction"; }
 
     //! One implicit friction step of `dt` on the valid cells of `state`.
-    void apply (amrex::MultiFab& state, amrex::Real dt) const;
+    void apply (amrex::MultiFab& state, const SourceContext& ctx, amrex::Real dt) override;
 
     //! The coefficient field, s/m^(1/3): one component, no ghost cells.
-    //! Empty when the friction is not active.
     [[nodiscard]] const amrex::MultiFab& manning () const { return m_manning; }
 
 private:
     amrex::MultiFab m_manning;
     amrex::Real m_gravity = amrex::Real(0.0);
     amrex::Real m_dry_depth = amrex::Real(0.0);
-    bool m_active = false;
 };
 
 /**
