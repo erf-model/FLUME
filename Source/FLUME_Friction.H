@@ -5,6 +5,7 @@
 
 #include <AMReX_BoxArray.H>
 #include <AMReX_DistributionMapping.H>
+#include <AMReX_Geometry.H>
 #include <AMReX_MultiFab.H>
 #include <AMReX_REAL.H>
 
@@ -30,8 +31,10 @@ namespace flume {
  * of all its stages (Docs/sphinx_doc/Model.rst).
  *
  * The coefficient is a per-cell field (s/m^(1/3)), filled from
- * flume.friction.manning. make_sources() builds this source only when that
- * coefficient is above 0.
+ * flume.friction.manning or from the map flume.friction.manning_file.
+ * make_sources() builds this source for flume.friction.manning above 0, and
+ * for any map (a map of zeros builds it and changes nothing: the update with
+ * n = 0 keeps the discharge).
  */
 class Friction : public Source
 {
@@ -40,6 +43,13 @@ public:
     //! with `manning` (> 0).
     Friction (const amrex::BoxArray& ba, const amrex::DistributionMapping& dm,
               amrex::Real manning, amrex::Real gravity, amrex::Real dry_depth);
+
+    //! Allocate the coefficient field and fill it from the ESRI ASCII grid
+    //! `file` (flume.friction.manning_file): each cell takes the raster cell
+    //! that holds its centre. Aborts if a cell takes NODATA or a value below 0.
+    Friction (const amrex::BoxArray& ba, const amrex::DistributionMapping& dm,
+              const amrex::Geometry& geom, const std::string& file, amrex::Real gravity,
+              amrex::Real dry_depth);
 
     [[nodiscard]] std::string name () const override { return "manning_friction"; }
 

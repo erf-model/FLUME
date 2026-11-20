@@ -1,0 +1,14 @@
+# Lake at rest among the buildings: the streets domain of inputs_streets
+# (40 x 40 cells of 1 m on [0, 40]^2 m, walls on every side) with the
+# surface at 4 m everywhere: the blocks of 3 m are under water and those of
+# 5 and 8 m stand out of it. The bed (flume.bed.file) and the buildings
+# (flume.buildings.file) are given on the command line by
+# Tests/CMakeLists.txt.
+flume.n_cell        = 40 40
+flume.prob_hi       = 40.0 40.0
+flume.max_grid_size = 16
+flume.plot_file     = lake
+flume.stop_time     = 4.0
+flume.plot_int      = 20
+
+flume.init.surface_elevation = 4.0

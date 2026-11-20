@@ -1,4 +1,6 @@
 #include "FLUME_Friction.H"
+#include "FLUME_Buildings.H"
+#include "FLUME_Raster.H"
 #include "FLUME_State.H"
 
 #include <AMReX_GpuDevice.H>
@@ -17,6 +19,22 @@ Friction::Friction (const amrex::BoxArray& ba, const amrex::DistributionMapping&
     AMREX_ALWAYS_ASSERT(manning > amrex::Real(0.0));
     m_manning.setVal(manning);
     amrex::Print() << "FLUME: Manning friction, n = " << manning << " s/m^(1/3)\n";
+}
+
+Friction::Friction (const amrex::BoxArray& ba, const amrex::DistributionMapping& dm,
+                    const amrex::Geometry& geom, const std::string& file, amrex::Real gravity,
+                    amrex::Real dry_depth)
+    : m_manning(ba, dm, 1, 0), m_gravity(gravity), m_dry_depth(dry_depth)
+{
+    const Raster r = read_raster("friction.manning_file", file, geom);
+    sample_nearest(m_manning, 0, r, geom);
+    const amrex::Long below = count_below_zero(m_manning);
+    if (below > 0) {
+        amrex::Abort("flume.friction.manning_file (" + file + "): " + std::to_string(below)
+                     + " cell(s) of the domain take a Manning coefficient below 0");
+    }
+    amrex::Print() << "FLUME: Manning friction from " << file << ", n from "
+                   << m_manning.min(0) << " to " << m_manning.max(0) << " s/m^(1/3)\n";
 }
 
 void

@@ -2,7 +2,8 @@
 """Check a FLUME run of uniform flow down an inclined periodic channel with
 Manning friction against its closed-form solution.
 
-    check_friction.py <prefix> --time T --depth H --slope SX SY --manning N
+    check_friction.py <prefix> --time T --depth H --slope SX SY
+        (--manning N | --manning-rows N0 N1 ...)
         --q-rtol R [--q-rtol-eps E] [--q-rtol-min R0] [--speed0 U0] [--gravity G]
         [--depth-tol-eps K] [--time-rtol R]
 
@@ -20,6 +21,12 @@ and T_r = q_n / (g H |S|), from q(0) = q_0 = H U0:
 
     q_0 < q_n:  q = q_n tanh(t / T_r + atanh(q_0 / q_n)) ,
     q_0 > q_n:  q = q_n coth(t / T_r + acoth(q_0 / q_n)) .
+
+With --manning-rows the coefficient is a map (flume.friction.manning_file)
+with one value per row of cells, row 0 the southern one: there must be one
+value per row. The slope must then be along x. The water in each row then
+moves along x only, the flux across y of each row's discharge is zero, and
+each row follows the closed form with its own coefficient.
 
 The run directory must hold exactly two plotfiles of the prefix: <prefix>00000
 and the one of the last step. Checked, in every cell:
@@ -58,7 +65,9 @@ def main():
     p.add_argument("--time", type=float, required=True)
     p.add_argument("--depth", type=float, required=True)
     p.add_argument("--slope", type=float, nargs=2, required=True)
-    p.add_argument("--manning", type=float, required=True)
+    m = p.add_mutually_exclusive_group(required=True)
+    m.add_argument("--manning", type=float)
+    m.add_argument("--manning-rows", type=float, nargs="+")
     p.add_argument("--q-rtol", type=float, required=True)
     p.add_argument("--q-rtol-eps", type=float, default=0.0)
     p.add_argument("--q-rtol-min", type=float)
@@ -83,23 +92,30 @@ def main():
     g = a.gravity
     h = a.depth
     s = math.hypot(*a.slope)
-    if not (s > 0.0 and a.manning > 0.0 and h > 0.0):
+    rows = a.manning_rows if a.manning_rows else [a.manning]
+    if not (s > 0.0 and min(rows) > 0.0 and h > 0.0):
         sys.exit("FAIL: the check needs a slope, a Manning coefficient and a depth above 0")
+    ny = head["domain_hi"][1] + 1
+    if a.manning_rows and (len(rows) != ny or a.slope[1] != 0.0):
+        sys.exit(f"FAIL: --manning-rows needs {ny} values (one per row) and a slope along x")
     if not a.speed0 >= 0.0:
         sys.exit("FAIL: the closed form needs --speed0 >= 0 (water starting down the slope)")
     down = [-a.slope[0] / s, -a.slope[1] / s]
-    qn = h ** (5.0 / 3.0) * math.sqrt(s) / a.manning
-    tr = qn / (g * h * s)
     q0 = h * a.speed0
-    qt = exact(a.time, q0, qn, tr)
-    print(f"normal discharge {qn:.9g} m2/s, time scale {tr:.9g} s, "
-          f"q(0) {q0:.9g}, q(T) {qt:.9g} m2/s")
+    q_end = []
+    for n in rows:
+        qn = h ** (5.0 / 3.0) * math.sqrt(s) / n
+        tr = qn / (g * h * s)
+        q_end.append(exact(a.time, q0, qn, tr))
+        print(f"n = {n}: normal discharge {qn:.9g} m2/s, time scale {tr:.9g} s, "
+              f"q(0) {q0:.9g}, q(T) {q_end[-1]:.9g} m2/s")
 
     q0_tol = a.depth_tol_eps * eps * (q0 + h)
     q_rtol = a.q_rtol + a.q_rtol_eps * eps
     worst = 0.0
-    for name, cells, q_want in (("first", first, q0), ("last", last, qt)):
+    for name, cells in (("first", first), ("last", last)):
         for (i, j), v in sorted(cells.items()):
+            q_want = q0 if name == "first" else q_end[j if a.manning_rows else 0]
             h_tol = a.depth_tol_eps * eps * (h + abs(v[3]))
             if not abs(v[0] - h) <= h_tol:
                 errors.append(f"{name} plotfile, cell ({i}, {j}): depth {v[0]!r}, expected {h!r}")

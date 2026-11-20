@@ -1,0 +1,18 @@
+# The channel of Tests/Friction/inputs with the Manning coefficient from a
+# map (flume.friction.manning_file, given on the command line by
+# Tests/CMakeLists.txt) instead of flume.friction.manning: 8 x 4 cells of
+# 1 m in 8 boxes, periodic both ways, bed falling 1 mm per metre along x,
+# water 1 m deep starting at rest, stop at 100 s.
+flume.n_cell        = 8 4
+flume.prob_hi       = 8.0 4.0
+flume.periodic      = 1 1
+flume.max_grid_size = 2
+flume.plot_file     = fric
+flume.stop_time     = 100.0
+flume.cfl           = 0.5
+
+flume.bed.elevation          = 10.0
+flume.bed.slope              = -0.001 0.0
+flume.bed.continue_slope     = 1
+flume.init.surface_elevation = 10.996
+flume.init.surface_slope     = -0.001 0.0

@@ -4,7 +4,8 @@ Model
 This page describes what the code holds and computes today: the
 shallow-water equations over a fixed bed, advanced by a first-order or a second-order
 finite-volume scheme with wetting and drying, between walls, outflow sides
-or periodic sides, with Manning friction on the bed. Rainfall and inflow
+or periodic sides, with Manning friction on the bed. The bed, buildings and
+the Manning coefficient can come from raster files. Rainfall and inflow
 boundaries are not written yet.
 
 Equations
@@ -155,6 +156,71 @@ along the wave, where :math:`u_0` is the component of
 ``flume.init.velocity`` along it; the velocity across it is the other
 component. Over a flat bed this is a simple wave, whose exact solution is
 known until it breaks (:doc:`Testing`).
+
+Bed from a raster file
+~~~~~~~~~~~~~~~~~~~~~~
+
+``flume.bed.file`` replaces the plane, the bowl and the rough bed by an ESRI
+ASCII grid (:doc:`Inputs`). Let the raster have :math:`N_x \times N_y` cells
+of size :math:`\delta_x \times \delta_y`, lower left corner
+:math:`(X_0, Y_0)` and values :math:`Z_{ab}` (column :math:`a` from the
+west, row :math:`b` from the south, both from 0). At a cell centre
+:math:`(x, y)` the position in raster cells from the first raster cell centre
+is, clamped to the raster cell centres,
+
+.. math::
+
+   f_x = \min\Bigl(\max\Bigl(\frac{x - X_0}{\delta_x} - \frac{1}{2},\; 0\Bigr),\;
+         N_x - 1\Bigr) ,
+
+and :math:`f_y` in the same way. With
+:math:`a = \min(\lfloor f_x \rfloor, \max(N_x - 2, 0))`, :math:`w_x = f_x - a`,
+the column :math:`a + 1` replaced by :math:`\min(a + 1, N_x - 1)`, and
+:math:`b`, :math:`w_y` likewise, the bed is
+
+.. math::
+
+   z_b = (1 - w_x)(1 - w_y)\, Z_{a,b} + w_x (1 - w_y)\, Z_{a+1,b}
+       + (1 - w_x)\, w_y\, Z_{a,b+1} + w_x w_y\, Z_{a+1,b+1} .
+
+**Why bilinear.** It is continuous across raster cells, so a coarse
+raster on a fine grid gives no steps in the bed, and it reproduces a plane
+(and :math:`x y`) exactly, which the tests use. The clamp holds the edge
+values within half a raster cell of the raster's edges. A raster of one cell
+in a direction is constant in it.
+
+**Large coordinates.** :math:`x - X_0` is formed as
+:math:`(x_{lo} - X_0) + (i + 1/2)\,\Delta x`, the first part in double
+precision from the corners, so map coordinates of millions of metres keep
+their digits in the sampling. In a single-precision build :math:`x_{lo}` is
+the domain corner as the build stores it, already rounded (:doc:`Inputs`).
+
+Buildings
+~~~~~~~~~
+
+``flume.buildings.file`` gives each cell the value :math:`H` of the raster
+cell that holds its centre (no interpolation: a building has sharp walls).
+Where :math:`H > 0` the bed is raised,
+
+.. math::
+
+   z_b \leftarrow z_b + H \qquad \text{or} \qquad z_b \leftarrow z_b + H_b
+
+with :math:`H_b` = ``flume.buildings.height`` when the file is a mask. A
+building is a block of raised bed. The hydrostatic reconstruction
+(`Hydrostatic reconstruction`_) lets water into it only when the surface
+beside it is above its top; below that the face of the building acts as a
+wall. A building starts dry when its top is above the initial surface.
+
+**What is not in the model.** The water does not exert a drag on the
+building walls other than through the pressure of the raised bed; there is no
+porosity, and a building narrower than a cell is lost or widened to a cell.
+On a face between a wet cell of depth :math:`h` and a dry building whose top
+is above the surface, both reconstructed depths are 0: the cell feels the
+pressure :math:`\tfrac{1}{2} g h^2` of its own depth (through the
+reconstruction's correction term) whatever its velocity. A wall boundary
+reflects the cell instead, and water running into it adds the pressure of
+the reflection. The two agree at rest and differ in moving water.
 
 Finite-volume step
 ------------------
@@ -536,7 +602,8 @@ Manning friction
 ----------------
 
 With the Manning coefficient :math:`n` (``flume.friction.manning``, in
-s/m\ :sup:`1/3`) and the discharge :math:`\mathbf{q} = (hu, hv)`, the two
+s/m\ :sup:`1/3`, or the cell's value from ``flume.friction.manning_file``,
+the raster cell that holds the cell centre) and the discharge :math:`\mathbf{q} = (hu, hv)`, the two
 momentum equations gain the term
 
 .. math::

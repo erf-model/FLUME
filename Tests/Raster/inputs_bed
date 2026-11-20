@@ -1,0 +1,8 @@
+# Bed from an ESRI ASCII grid (flume.bed.file, given on the command line by
+# Tests/CMakeLists.txt): 48 x 32 cells of 1 m on [0, 48] x [0, 32] m in
+# boxes of at most 8 cells (24 boxes). Dry, no stop: the run takes no step
+# and writes one plotfile, whose bed_elevation the check reads.
+flume.n_cell        = 48 32
+flume.prob_hi       = 48.0 32.0
+flume.max_grid_size = 8
+flume.plot_file     = bed

@@ -1,7 +1,9 @@
 #include "FLUME_Flood.H"
 #include "FLUME_Advance.H"
 #include "FLUME_Boundary.H"
+#include "FLUME_Buildings.H"
 #include "FLUME_Init.H"
+#include "FLUME_Raster.H"
 #include "FLUME_State.H"
 #include "FLUME_TimeStep.H"
 
@@ -60,17 +62,41 @@ Flood::Flood (const Inputs& in) : m_in(in), m_boundary(in, make_geometry(in))
 
     // The bed is checked before the state is built from it: a depth from a
     // bed that is not finite gives inf * 0 in the discharge.
-    fill_plane_bed(m_bed, m_geom, in.bed_elevation, in.bed_slope);
-    if (in.bed_bowl_depth != amrex::Real(0.0)) {
-        add_bed_bowl(m_bed, m_geom, in.bed_bowl_depth, in.bed_bowl_radius);
+    if (!in.bed_file.empty()) {
+        const Raster dem = read_raster("bed.file", in.bed_file, m_geom);
+        sample_bilinear(m_bed, 0, dem, m_geom);
+        amrex::Print() << "FLUME: bed from " << in.bed_file << " (" << dem.nx << " x " << dem.ny
+                       << " raster cells read)\n";
+    } else {
+        fill_plane_bed(m_bed, m_geom, in.bed_elevation, in.bed_slope);
+        if (in.bed_bowl_depth != amrex::Real(0.0)) {
+            add_bed_bowl(m_bed, m_geom, in.bed_bowl_depth, in.bed_bowl_radius);
+        }
+        if (in.bed_noise > amrex::Real(0.0)) { add_bed_noise(m_bed, m_geom, in.bed_noise); }
     }
-    if (in.bed_noise > amrex::Real(0.0)) { add_bed_noise(m_bed, m_geom, in.bed_noise); }
+    if (!in.buildings_file.empty()) {
+        const Raster b = read_raster("buildings.file", in.buildings_file, m_geom);
+        amrex::MultiFab height(m_ba, m_dm, 1, 0);
+        sample_nearest(height, 0, b, m_geom);
+        const amrex::Long below = count_below_zero(height);
+        if (below > 0) {
+            amrex::Abort("flume.buildings.file (" + in.buildings_file + "): "
+                         + std::to_string(below) + " cell(s) of the domain take a building height"
+                         " below 0");
+        }
+        const amrex::Long n_building = in.buildings_height.has_value()
+            ? add_building_footprints(m_bed, height, *in.buildings_height)
+            : add_building_heights(m_bed, height);
+        amrex::Print() << "FLUME: buildings from " << in.buildings_file << ": " << n_building
+                       << " cell(s) raised\n";
+    }
     const amrex::Long bad_bed = count_not_finite(m_bed);
     if (bad_bed > 0) {
         std::string msg = "The bed elevation is not finite in ";
         msg += std::to_string(bad_bed);
         msg += " cell(s): check flume.bed.elevation, flume.bed.slope, flume.bed.bowl_depth,"
-               " flume.bed.bowl_radius and flume.bed.noise against the size of the domain";
+               " flume.bed.bowl_radius and flume.bed.noise against the size of the domain"
+               " (or the values of flume.bed.file and flume.buildings.file)";
         amrex::Abort(msg);
     }
     // The bed does not change: its ghost cells are filled once.
@@ -117,7 +143,7 @@ Flood::Flood (const Inputs& in) : m_in(in), m_boundary(in, make_geometry(in))
     amrex::Print() << "FLUME: " << in.n_cell[0] << " x " << in.n_cell[1] << " cells in "
                    << m_ba.size() << " box(es)\n";
 
-    m_sources = make_sources(in, m_ba, m_dm);
+    m_sources = make_sources(in, m_geom, m_ba, m_dm);
 }
 
 amrex::Real
