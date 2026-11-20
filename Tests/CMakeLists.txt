@@ -266,19 +266,19 @@ flume_add_regtest(lake_at_rest_islands NPROCS 2
 
 # --- Dam break -------------------------------------------------------------------
 # Tests/DamBreak/inputs: still water 2 m and 1 m deep on a flat bed, 400 cells
-# of 0.25 m along the flow, compared at 5 s with the solution of Stoker (1957):
+# of 0.25 m along the flow, compared at 5 s with the exact solution (Docs/sphinx_doc/Testing.rst):
 # hm = 1.4538 m, um = 1.3058 m/s, shock speed 4.1831 m/s. The scheme is first
 # order; at this cell size the L1 error is 0.8 % of the depth step and 1.6 % of
 # the discharge, the constant state is within 0.2 %, and the shock is 0.2 cell
 # from its place. The bounds are 2 %, 0.5 % and 1 cell. The check also sums
 # the depth: mass is conserved to round-off.
 set(check_dam_break ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/check_dam_break.py)
-set(stoker_bounds --l1-max 0.02 --plateau-rtol 0.005 --shock-cells 1)
+set(wet_bed_bounds --l1-max 0.02 --plateau-rtol 0.005 --shock-cells 1)
 foreach(np 1 2 4)
     flume_add_regtest(dam_break_x_np${np} NPROCS ${np}
         INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/DamBreak/inputs
         CHECK ${check_dam_break} dam --time 5 --direction x --position 50
-              --surface-lo 2 --surface-hi 1 ${stoker_bounds})
+              --surface-lo 2 --surface-hi 1 ${wet_bed_bounds})
 endforeach()
 # The same along y, with the deep water on the high side: the shock runs
 # towards low y.
@@ -287,9 +287,9 @@ flume_add_regtest(dam_break_y NPROCS 2
     ARGS flume.n_cell=4\ 400 flume.prob_hi=1\ 100 flume.init.dam_direction=y
          flume.init.surface_elevation=1 flume.init.dam_surface_elevation=2
     CHECK ${check_dam_break} dam --time 5 --direction y --position 50
-          --surface-lo 1 --surface-hi 2 ${stoker_bounds})
-# Over a dry bed (the low side has no water): the solution of Ritter (1892),
-# whose front is at 94.3 m (x) or 5.7 m (y) at 5 s, short of the wall. This is
+          --surface-lo 1 --surface-hi 2 ${wet_bed_bounds})
+# Over a dry bed (the low side has no water): Ritter's solution (Delestre et
+# al., 2013), whose front is at 94.3 m (x) or 5.7 m (y) at 5 s, short of the wall. This is
 # the test of the dry-bed wave speeds and of the depth staying non-negative.
 # The L1 error is 0.46 % of the depth and 0.39 % of the discharge scale
 # (bound 1 %); beyond the exact front the depth stays below 1e-11 of 2 m (the

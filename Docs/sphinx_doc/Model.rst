@@ -168,18 +168,27 @@ of the momentum fluxes of a cell, and the water stays at rest, to round-off,
 whatever the bed (a well-balanced scheme). A cell next to a dry cell whose bed is above
 the surface presents no water to that face, and nothing flows.
 
-**Limit.** Where the bed rises at a face by more than the depth of the lower
+**Limit.** Where the bed rises at a face by at least the depth of the lower
 cell, :math:`h^{*}` is zero and the face sees less of the bed step than there
 is. On a steep bed under shallow moving water the scheme then underestimates
-the pull of the slope (Delestre et al., 2012). Water at rest is not affected.
+the slope: the velocity comes out too low and the depth too high (Delestre et
+al., 2012). The bed step is the slope times the cell size, so the effect goes
+away as the cells get smaller. Water at rest is not affected.
 
 HLLC flux
 ---------
 
+The flux has the two-wave form of Harten, Lax and van Leer (HLL). The form,
+the wave speeds and the dry-bed speeds used here are written out for the
+shallow-water equations by Satyaprasad et al. (2024, section 3.4). The
+tangential momentum is carried by the mass flux from the upwind side, as in
+the solver of Delestre et al. (2014, section 4.4), which follows the HLLC
+extension of Toro and co-workers.
+
 At a face, let L and R be the low and high sides, :math:`u_n` the velocity
 normal to the face, :math:`u_t` the velocity along it, and
 :math:`c = \sqrt{g h^{*}}`. The fastest waves to the two sides are estimated
-(Toro, 2001) as
+as
 
 .. math::
 
@@ -192,7 +201,17 @@ normal to the face, :math:`u_t` the velocity along it, and
    c^{\star} = \max\bigl(0,\; \tfrac{1}{2}(c_L + c_R)
                + \tfrac{1}{4}(u_{n,L} - u_{n,R})\bigr) .
 
-When one side has no water the speeds are those of a front on a dry bed:
+These follow from taking both waves as rarefactions. Across the wave on the
+low side :math:`u_n + 2c` keeps its value, and across the wave on the high
+side :math:`u_n - 2c` does. The state between the two waves then has
+:math:`u^{\star} + 2 c^{\star} = u_{n,L} + 2 c_L` and
+:math:`u^{\star} - 2 c^{\star} = u_{n,R} - 2 c_R`, which gives
+:math:`u^{\star}` and :math:`c^{\star}` above. Each estimate is the faster
+of the edge of the wave in the cell's own state and its edge in the middle
+state.
+
+When one side has no water the middle state is dry, :math:`c^{\star} = 0`,
+and the speeds are those of a front on a dry bed:
 :math:`s_L = u_{n,L} - c_L`, :math:`s_R = u_{n,L} + 2 c_L` with the high side
 dry, and :math:`s_L = u_{n,R} - 2 c_R`, :math:`s_R = u_{n,R} + c_R` with the
 low side dry. A face that is dry on both sides has no flux.
@@ -223,6 +242,9 @@ This last choice is what the C of HLLC adds: it keeps a shear layer that lies
 along a face as sharp as upwinding allows. For the shallow-water equations
 the middle wave of the HLLC flux moves with the sign of the HLL mass flux, so
 the flux above is the HLLC flux written without the speed of that wave.
+Delestre et al. (2014) pick the side by the sign of
+:math:`u_{n,L} + u_{n,R}`; here it is picked by the sign of the mass flux,
+so the tangential momentum always moves with the water that crosses the face.
 
 **Limit.** The two speeds are exact when both waves are rarefactions. For a
 shock that runs into much shallower water they are below the exact shock
@@ -231,7 +253,7 @@ the celerity of the deep side where the exact front moves at about 1.7
 times. In a check over random pairs of wet states, 13 % had an estimated
 speed inside the exact wave fan by more than 1 %. The tests of
 :doc:`Testing` pass with these speeds. Speeds built from the depth ratio
-across the shock (Toro, 2001) remove the gap but need a depth below which a
+across the shock remove the gap but need a depth below which a
 cell counts as dry, which this version does not have.
 
 The velocity of a cell is :math:`hu / h` where :math:`h > 0` and zero in a dry
@@ -314,9 +336,14 @@ References
   the hydrostatic reconstruction technique for Shallow Water equations.
   *Comptes Rendus Mathematique* 350(13-14), 677-681.
   https://doi.org/10.1016/j.crma.2012.08.004
-* A. Ritter (1892). Die Fortpflanzung der Wasserwellen. *Zeitschrift des
-  Vereines Deutscher Ingenieure* 36(33), 947-954.
-* J. J. Stoker (1957). *Water Waves: The Mathematical Theory with
-  Applications*. Interscience, New York.
-* E. F. Toro (2001). *Shock-Capturing Methods for Free-Surface Shallow
-  Flows*. Wiley, Chichester.
+* O. Delestre, C. Lucas, P.-A. Ksinant, F. Darboux, C. Laguerre, T.-N.-T. Vo,
+  F. James and S. Cordier (2013). SWASHES: a compilation of shallow water
+  analytic solutions for hydraulic and environmental studies. *International
+  Journal for Numerical Methods in Fluids* 72(3), 269-300.
+  https://doi.org/10.1002/fld.3741 (open copy: https://arxiv.org/abs/1110.0288)
+* O. Delestre, F. Darboux, F. James, C. Lucas, C. Laguerre and S. Cordier
+  (2014). FullSWOF: A free software package for the simulation of shallow
+  water flows. arXiv:1401.4125. https://arxiv.org/abs/1401.4125
+* D. Satyaprasad, S. N. Kuiry and S. Sundar (2024). A meshless geometric
+  conservation weighted least square method for solving the shallow water
+  equations. arXiv:2410.05968. https://arxiv.org/abs/2410.05968

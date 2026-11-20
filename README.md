@@ -18,7 +18,7 @@ file, builds the grid, the bed and the initial state, and advances the
 shallow-water equations with a first-order finite-volume scheme (HLLC fluxes
 with hydrostatic reconstruction) between walls or periodic sides, writing
 plotfiles. It is tested on a lake at rest over a rough bed, on the dam-break
-solution of Stoker and on mass conservation in a closed basin.
+exact solution and on mass conservation in a closed basin.
 
 ## Planned scope
 
