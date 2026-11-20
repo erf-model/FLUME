@@ -1,0 +1,15 @@
+# A smooth simple wave: one sine wave of 0.1 m on water 1 m deep over a flat
+# bed, 10 m long, on 100 x 4 cells of 0.1 m, periodic in x and y. The water
+# moves at (0.5, -0.3) m/s plus the velocity of the wave, which travels
+# towards high x and does not break before 3.2 s; the run stops at 1 s
+# (Docs/sphinx_doc/Testing.rst).
+flume.n_cell        = 100 4
+flume.prob_hi       = 10.0 0.4
+flume.periodic      = 1 1
+flume.max_grid_size = 32
+flume.plot_file     = wave
+flume.stop_time     = 1.0
+
+flume.init.surface_elevation = 1.0
+flume.init.wave_amplitude    = 0.1
+flume.init.velocity          = 0.5 -0.3

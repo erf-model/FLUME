@@ -249,6 +249,14 @@ read_inputs ()
         amrex::Abort("flume.cfl must be > 0 and <= 1; it is " + all_digits(in.cfl));
     }
 
+    // order: optional, one integer, 1 or 2
+    query_int(pp, "order", 1, 2, in.order);
+    // At second order a side of a cell holds up to 1.5 times its depth, and
+    // the scheme loses its order above half the first-order bound.
+    if (in.order == 2 && !(in.cfl <= amrex::Real(0.5))) {
+        amrex::Abort("flume.cfl must be <= 0.5 with flume.order = 2; it is " + all_digits(in.cfl));
+    }
+
     // gravity: optional, one finite real > 0
     query_finite(pp, "gravity", in.gravity);
     if (!(in.gravity > amrex::Real(0.0))) {
@@ -317,6 +325,34 @@ read_inputs ()
         defer("flume.init.surface_curvature needs flume.init.surface_elevation: the elevation"
               " of the surface at the centre of the domain");
     }
+    // init.wave_amplitude: optional, finite; init.wave_direction: x or y
+    const bool wave_amplitude = query_finite(pp, "init.wave_amplitude", in.init_wave_amplitude);
+    const bool wave = wave_amplitude && in.init_wave_amplitude != amrex::Real(0.0);
+    if (wave_amplitude && !in.init_surface_elevation.has_value()) {
+        defer("flume.init.wave_amplitude needs flume.init.surface_elevation: the elevation"
+              " of the level surface the wave is added to");
+    }
+    if (pp.contains("init.wave_direction")) {
+        require_count(pp, "init.wave_direction", 1);
+        std::string v;
+        pp.get("init.wave_direction", v);
+        if (v == "x") {
+            in.init_wave_direction = 0;
+        } else if (v == "y") {
+            in.init_wave_direction = 1;
+        } else {
+            amrex::Abort("flume.init.wave_direction must be x or y; it is " + v);
+        }
+        if (!wave) { defer("flume.init.wave_direction needs flume.init.wave_amplitude (not 0)"); }
+    }
+    if (wave && (surface_slope || surface_curvature)) {
+        defer("flume.init.wave_amplitude cannot be used with flume.init.surface_slope or"
+              " flume.init.surface_curvature: the wave is added to a level surface");
+    }
+    if (wave && in.periodic[in.init_wave_direction] != 1) {
+        defer("flume.init.wave_amplitude needs flume.periodic = 1 along"
+              " flume.init.wave_direction: one wavelength spans the domain");
+    }
     if (query_finite_pair(pp, "init.velocity", in.init_velocity)
         && !in.init_surface_elevation.has_value()) {
         defer("flume.init.velocity needs flume.init.surface_elevation: without a water"
@@ -363,6 +399,10 @@ read_inputs ()
     }
     if (dam && surface_slope) {
         defer("flume.init.surface_slope cannot be used with flume.init.dam_position: the"
+              " surface on each side of a dam is level");
+    }
+    if (dam && wave) {
+        defer("flume.init.wave_amplitude cannot be used with flume.init.dam_position: the"
               " surface on each side of a dam is level");
     }
     if (dam && surface_curvature) {

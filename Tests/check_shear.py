@@ -2,7 +2,7 @@
 """Check a FLUME run of a shear layer carried by a uniform flow.
 
     check_shear.py <prefix> --time T --direction x|y --position X --depth H
-        --speed U --along-lo A --along-hi B [--cells C]
+        --speed U --along-lo A --along-hi B [--cells C] [--width-max W]
 
 The run is periodic in both directions, on a flat bed at 0. The water is H
 deep and moves at U (not 0; either sign) along the given direction. The velocity along the
@@ -19,11 +19,14 @@ holds the reader):
     within 4 machine epsilons (of the precision of the data) of the value;
   * nothing varies across the flow direction;
   * the velocity across the flow stays between A and B in every cell, within
-    4 epsilons: the first-order upwind transport makes no new extremum;
+    4 epsilons: the transport makes no new extremum;
   * the sum of the discharge across the flow has not changed by more than 16
     epsilons of H (|A| + |B|) times the number of cells;
   * the velocity across the flow passes (A + B) / 2 twice, within C cells
-    (default 1) of X + U T and of the periodic side moved by U T.
+    (default 1) of X + U T and of the periodic side moved by U T;
+  * with --width-max W: along the flow, at most W cells hold a velocity
+    across the flow that is more than a tenth of |B - A| from both A and B
+    (the two layers together). The count is printed in every run.
 """
 import argparse
 import math
@@ -46,6 +49,7 @@ def main():
     p.add_argument("--along-lo", type=float, required=True)
     p.add_argument("--along-hi", type=float, required=True)
     p.add_argument("--cells", type=float, default=1.0)
+    p.add_argument("--width-max", type=int)
     p.add_argument("--time-rtol", type=float, default=1e-12)
     a = p.parse_args()
 
@@ -113,6 +117,10 @@ def main():
         v0, v1 = vel[m], vel[(m + 1) % n]
         if v0 * v1 <= 0.0 and v0 != v1:
             crossings.append((lo + (m + 0.5 + v0 / (v0 - v1)) * dx - lo) % length + lo)
+    margin = 0.1 * (v_max - v_min)
+    width = sum(1 for v in vel if v_min + margin < v + mid < v_max - margin)
+    if a.width_max is not None and not width <= a.width_max:
+        errors.append(f"{width} cells are inside the two shear layers, at most {a.width_max}")
     want = sorted((x + a.speed * a.time - lo) % length + lo for x in (a.position, lo))
     crossings.sort()
     if len(crossings) != 2:
@@ -125,7 +133,8 @@ def main():
                 errors.append(f"shear layer at {got:.6g} m, expected {exact:.6g} m within {a.cells} cell(s)")
 
     report = (f"depth and discharge along the flow within {max(worst['depth'], worst['flow']) / eps:.3g}"
-              f" epsilons; shear layers at {[round(c, 4) for c in crossings]} m (exact {want})")
+              f" epsilons; shear layers at {[round(c, 4) for c in crossings]} m (exact {want}),"
+              f" {width} cells inside them")
     if errors:
         print(f"FAIL: {a.prefix}")
         for e in errors:

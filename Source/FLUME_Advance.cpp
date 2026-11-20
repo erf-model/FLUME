@@ -1,4 +1,5 @@
 #include "FLUME_Advance.H"
+#include "FLUME_Reconstruct.H"
 #include "FLUME_Riemann.H"
 #include "FLUME_State.H"
 
@@ -43,6 +44,42 @@ compute_fluxes (amrex::Array<amrex::MultiFab, 2>& flux, const amrex::MultiFab& s
                 const amrex::Real utR = (hR > dry_depth) ? a(R, i_tang) / hR : zero;
                 const FaceDepths hs = face_depths(hL, zL, hR, zR, dry_depth);
                 const FaceFlux F = hllc_flux(hs.lo, unL, utL, hs.hi, unR, utR, gravity);
+                f[box_no](i, j, k, State::h) = F.mass;
+                f[box_no](i, j, k, i_norm) = F.normal;
+                f[box_no](i, j, k, i_tang) = F.tangent;
+            });
+    }
+    amrex::Gpu::streamSynchronize();
+}
+
+void
+compute_fluxes_second_order (amrex::Array<amrex::MultiFab, 2>& flux, const amrex::MultiFab& state,
+                             const amrex::MultiFab& bed, amrex::Real gravity,
+                             amrex::Real dry_depth)
+{
+    const auto& s = state.const_arrays();
+    const auto& zb = bed.const_arrays();
+    for (int d = 0; d < 2; ++d) {
+        const int i_norm = State::hu + d;
+        const int i_tang = State::hu + 1 - d;
+        const amrex::IntVect e = amrex::IntVect::TheDimensionVector(d);
+        const auto& f = flux[d].arrays();
+        amrex::ParallelFor(flux[d],
+            [=] AMREX_GPU_DEVICE (int box_no, int i, int j, int k) noexcept
+            {
+                const amrex::IntVect R(i, j, k);
+                const amrex::IntVect L = R - e;
+                const auto& a = s[box_no];
+                const auto& z = zb[box_no];
+                // The high side of the cell below the face and the low side
+                // of the cell above it.
+                const CellSides lo = reconstruct(a, z, L, e, i_norm, i_tang, dry_depth);
+                const CellSides hi = reconstruct(a, z, R, e, i_norm, i_tang, dry_depth);
+                // Step of the bed across the face, from differences only.
+                const amrex::Real dz = (z(R) - z(L)) + (hi.z_lo - lo.z_hi);
+                const FaceDepths hs = face_depths(lo.h_hi, amrex::Real(0.0), hi.h_lo, dz, dry_depth);
+                const FaceFlux F = hllc_flux(hs.lo, lo.un_hi, lo.ut_hi, hs.hi, hi.un_lo, hi.ut_lo,
+                                             gravity);
                 f[box_no](i, j, k, State::h) = F.mass;
                 f[box_no](i, j, k, i_norm) = F.normal;
                 f[box_no](i, j, k, i_tang) = F.tangent;
@@ -139,6 +176,45 @@ compute_bed_source (amrex::MultiFab& source, const amrex::MultiFab& state,
 }
 
 void
+compute_bed_source_second_order (amrex::MultiFab& source, const amrex::MultiFab& state,
+                                 const amrex::MultiFab& bed, amrex::Real gravity,
+                                 amrex::Real dry_depth)
+{
+    const auto& s = state.const_arrays();
+    const auto& zb = bed.const_arrays();
+    const auto& src = source.arrays();
+    const amrex::Real half_g = amrex::Real(0.5) * gravity;
+    for (int d = 0; d < 2; ++d) {
+        const int i_norm = State::hu + d;
+        const int i_tang = State::hu + 1 - d;
+        const amrex::IntVect e = amrex::IntVect::TheDimensionVector(d);
+        amrex::ParallelFor(source,
+            [=] AMREX_GPU_DEVICE (int box_no, int i, int j, int k) noexcept
+            {
+                const amrex::IntVect c(i, j, k);
+                const auto& a = s[box_no];
+                const auto& z = zb[box_no];
+                const CellSides below = reconstruct(a, z, c - e, e, i_norm, i_tang, dry_depth);
+                const CellSides here = reconstruct(a, z, c, e, i_norm, i_tang, dry_depth);
+                const CellSides above = reconstruct(a, z, c + e, e, i_norm, i_tang, dry_depth);
+                // The same calls as in compute_fluxes_second_order.
+                const amrex::Real dz_lo = (z(c) - z(c - e)) + (here.z_lo - below.z_hi);
+                const amrex::Real dz_hi = (z(c + e) - z(c)) + (above.z_lo - here.z_hi);
+                const amrex::Real zero = amrex::Real(0.0);
+                const amrex::Real h_lo = face_depths(below.h_hi, zero, here.h_lo, dz_lo, dry_depth).hi;
+                const amrex::Real h_hi = face_depths(here.h_hi, zero, above.h_lo, dz_hi, dry_depth).lo;
+                // The steps of the bed at the two faces and the slope of the
+                // bed inside the cell add up to the first-order term with the
+                // depths of the sides, minus g h d_eta
+                // (Docs/sphinx_doc/Model.rst).
+                src[box_no](c, d) = half_g * ((h_hi - h_lo) * (h_hi + h_lo))
+                                    - gravity * a(c, State::h) * here.d_eta;
+            });
+    }
+    amrex::Gpu::streamSynchronize();
+}
+
+void
 update_state (amrex::MultiFab& state, const amrex::Array<amrex::MultiFab, 2>& flux,
               const amrex::MultiFab& source, const amrex::Geometry& geom,
               amrex::Real dry_depth, amrex::Real dt)
@@ -175,6 +251,26 @@ update_state (amrex::MultiFab& state, const amrex::Array<amrex::MultiFab, 2>& fl
             // A dry cell holds no momentum. A depth that is not finite is
             // kept for the check of the state (or stops here, where invalid
             // operations trap).
+            if (a(i, j, k, State::h) <= dry_depth) {
+                a(i, j, k, State::hu) = amrex::Real(0.0);
+                a(i, j, k, State::hv) = amrex::Real(0.0);
+            }
+        });
+    amrex::Gpu::streamSynchronize();
+}
+
+void
+average_with (amrex::MultiFab& state, const amrex::MultiFab& old, amrex::Real dry_depth)
+{
+    const auto& s = state.arrays();
+    const auto& o = old.const_arrays();
+    amrex::ParallelFor(state,
+        [=] AMREX_GPU_DEVICE (int box_no, int i, int j, int k) noexcept
+        {
+            const auto& a = s[box_no];
+            for (int n = 0; n < State::ncomp; ++n) {
+                a(i, j, k, n) = amrex::Real(0.5) * (o[box_no](i, j, k, n) + a(i, j, k, n));
+            }
             if (a(i, j, k, State::h) <= dry_depth) {
                 a(i, j, k, State::hu) = amrex::Real(0.0);
                 a(i, j, k, State::hv) = amrex::Real(0.0);
