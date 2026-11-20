@@ -1,6 +1,7 @@
 #ifndef FLUME_FLOOD_H_
 #define FLUME_FLOOD_H_
 
+#include "FLUME_Friction.H"
 #include "FLUME_Inputs.H"
 
 #include <AMReX_Array.H>
@@ -29,7 +30,8 @@ namespace flume {
  * (FLUME_Advance.H). With flume.order = 1 a step is one stage from the cell
  * values. With flume.order = 2 the faces take a piecewise-linear
  * reconstruction of the cells, and a step is the mean of the state and of
- * two stages from it.
+ * two stages from it. With Manning friction the step ends with the implicit
+ * friction update of the discharge over the whole step (FLUME_Friction.H).
  */
 class Flood
 {
@@ -84,6 +86,9 @@ private:
     amrex::MultiFab m_outflow_factor;
     //! Bed-slope term in x and in y (compute_bed_source), no ghost cells
     amrex::MultiFab m_bed_source;
+    //! Manning friction (flume.friction.manning), applied at the end of
+    //! each step
+    Friction m_friction;
     //! Time, s. In double precision in every build: a single-precision sum of
     //! steps stops growing after about 2^24 steps.
     double m_time = 0.0;

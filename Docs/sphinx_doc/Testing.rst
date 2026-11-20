@@ -595,6 +595,115 @@ Current tests
    ``draining_column_round_off`` and the draining columns at ``flume.cfl``
    0.8 and 1, which run above the 0.5 that ``flume.order = 2`` allows.
 
+``friction_channel*``, ``friction_thin_film_second_order``
+   ``Tests/Friction/inputs``: water 1 m deep starts at rest on 8 by 4 cells
+   of 1 m in 8 boxes, periodic both ways, on a bed that falls by 1 mm per
+   metre along x, with ``flume.bed.continue_slope = 1`` and
+   :math:`n` = 0.03 s/m\ :sup:`1/3`. The fluxes are the same on every face,
+   so the depth stays 1 m and the discharge obeys
+   :math:`dq/dt = g h S - g n^2 q^2 / h^{7/3}`. From
+   :math:`q(0) = q_0` this gives
+
+   .. math::
+
+      q(t) = q_n \tanh\left(\frac{t}{T_r} + \operatorname{artanh}\frac{q_0}{q_n}\right)
+      \ (q_0 < q_n), \qquad
+      q(t) = q_n \coth\left(\frac{t}{T_r} + \operatorname{arcoth}\frac{q_0}{q_n}\right)
+      \ (q_0 > q_n),
+
+   with Manning's normal discharge :math:`q_n = h^{5/3} S^{1/2} / n`
+   (1.05409 m\ :sup:`2`/s) and :math:`T_r = q_n / (g h S)` (107.451 s).
+   ``Tests/check_friction.py`` checks the depth in every cell within 64
+   epsilons of the depth plus the bed, and the discharge vector against
+   :math:`q(t)` down the slope. Largest relative error of the discharge in
+   a cell, at 100 s unless noted:
+
+   .. list-table::
+      :header-rows: 1
+
+      * - Test
+        - Run
+        - Error
+        - Bound
+      * - ``friction_channel``
+        - order 1
+        - 5.64e-4
+        - 6e-4
+      * - ``friction_channel_steady``
+        - order 1, 1500 s, 2 ranks
+        - 2.500313e-4
+        - 2.5002e-4 to 2.5004e-4 (64 epsilons wider)
+      * - ``friction_channel_second_order``
+        - order 2
+        - 1.66e-4
+        - 2e-4
+      * - ``friction_channel_second_order_half_step``
+        - order 2, ``flume.cfl = 0.25``, 2 ranks
+        - 8.31e-5
+        - 1e-4
+      * - ``friction_channel_second_order_steady``
+        - order 2, 1500 s, 3 ranks
+        - 1.2e-13
+        - 1024 epsilons
+      * - ``friction_channel_second_order_diagonal``
+        - order 2, slope (-0.0006, 0.0008), 3 ranks
+        - 1.61e-4
+        - 2e-4
+      * - ``friction_channel_second_order_y``
+        - order 2, slope along y, 2 ranks
+        - 1.66e-4
+        - 2e-4
+      * - ``friction_channel_second_order_slowing``
+        - order 2, starts at 2 m/s
+        - 1.46e-4
+        - 2e-4
+      * - ``friction_channel_second_order_walls``
+        - order 2, walls along y, SNaN fills and trap, 2 ranks
+        - 1.66e-4
+        - 2e-4
+      * - ``friction_channel_second_order_gravity``
+        - order 2, ``flume.gravity = 5`` (:math:`T_r` = 210.819 s)
+        - 9.80e-5
+        - 1.2e-4
+      * - ``friction_thin_film_second_order``
+        - order 2, 1 mm on a slope of 0.1, :math:`n` = 0.05, 10 s
+        - 1.1e-9
+        - 1e-8 + 4096 epsilons
+
+   The steady error at first order is the bias of the first-order bed-slope
+   term, :math:`1 - \sqrt{1 - S \Delta x / (2 h)}` = 2.50031e-4
+   (:doc:`Model`), against 2.50031e-4 measured; the test pins it from both
+   sides. The transient bounds at second order add 1024 epsilons, for
+   rounding in single precision. At second order the transient error
+   halves with the step, as friction is first order in time. In the thin
+   film :math:`T_r` = 0.0645 s and the step is about 2 s (2.5 s for the
+   first step); the run takes 5 steps (checked), and an explicit friction
+   term would reverse the discharge (:math:`\Delta t\, g n^2 |u| / h^{4/3}`
+   = 31). The film is not run at first order, where cells of 1 m drive it
+   with 0.5 % of :math:`g h S` (:doc:`Model`). The walls test runs with
+   ``amrex.init_snan=1 amrex.fpe_trap_invalid=1``: it stops on a corner
+   ghost cell beyond a periodic side and a wall if the continued slope is
+   added there.
+
+``friction_film_uneven_second_order``
+   As the thin film, but with the surface falling by 0.0999 per metre, so
+   the film is 1.05 to 1.75 mm deep, on 2 ranks; 6 steps to 10 s.
+   ``Tests/check_film_local_manning.py`` checks that every depth stays
+   above 0, the mass is kept to 64 epsilons, and the discharge in every
+   cell is the local Manning discharge :math:`h^{5/3} S^{1/2} / n` of the
+   surface slope :math:`S` (centred differences) within 3e-3; it is
+   2.36e-3. Friction balances the surface slope when :math:`T_r` is much
+   shorter than the step; the rest is the inertia of the film and the
+   discretisation. The test guards the second stage, which starts from an
+   undamped discharge (:doc:`Model`).
+
+``friction_lake_at_rest_islands_order1``, ``_order2``, ``friction_basin_mass_second_order``
+   Guards, not checks of the friction formula: they pass with friction off.
+   ``lake_at_rest_islands`` with :math:`n` = 0.05 at both orders: friction
+   does not move still water, nor put a NaN in a dry cell. The closed basin
+   at second order with :math:`n` = 0.05 on 3 ranks: the mass is kept to 16
+   epsilons.
+
 ``abort_*``
    At least one test per check in :doc:`Inputs`: missing keys, wrong numbers
    of values, values outside the range (including integers that would wrap),
@@ -609,7 +718,10 @@ Current tests
    keys these need and the keys they cannot be used with; water that is all
    below ``flume.dry_depth`` with a step limit and no stop time; a
    time step that is zero or not finite; and the range of ``flume.order``,
-   the keys the wave needs and the keys it cannot be used with. The wrong-type values that AMReX's parser
+   the keys the wave needs and the keys it cannot be used with; the range of
+   ``flume.friction.manning`` and of ``flume.bed.continue_slope``, and
+   ``flume.bed.continue_slope = 1`` without a periodic side across which
+   the bed slopes. The wrong-type values that AMReX's parser
    stops are not tested.
 
 Adding a test

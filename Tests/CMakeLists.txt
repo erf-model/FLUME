@@ -843,6 +843,121 @@ flume_add_regtest(basin_mass_second_order_one_cell_boxes NPROCS 2
           --surface-lo 2 --surface-hi 1.5 --velocity-lo 0.5 -0.3 --velocity-hi 0.5 -0.3
           --mass-only --min-change 0.1)
 
+# --- Manning friction ---------------------------------------------------------------
+# Tests/Friction/inputs: water 1 m deep starts at rest in an endless channel
+# whose bed falls by 1 mm per metre (flume.bed.continue_slope = 1), with
+# n = 0.03 s/m^(1/3). The depth stays 1 m, and the discharge follows
+# q_n tanh(t / T_r), q_n = 1.05409 m2/s from Manning's formula and
+# T_r = 107.451 s (Tests/check_friction.py; Docs/sphinx_doc/Testing.rst).
+# Largest relative error of the discharge in a cell, at 100 s unless noted:
+#   order 1                          5.64e-4
+#   order 1, steady (1500 s)         2.50e-4  (the bed-slope term of the
+#                                             first-order hydrostatic
+#                                             reconstruction drives with
+#                                             g S (h - S dx / 2))
+#   order 2                          1.66e-4
+#   order 2, half the step           8.31e-5  (friction is first order in time)
+#   order 2, steady (1500 s)         1.2e-13
+#   order 2, slope along x and y     1.61e-4
+#   order 2, starting at 2 m/s       1.46e-4  (slows down to q_n)
+set(check_friction ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/check_friction.py)
+set(fric_x --depth 1 --slope -0.001 0 --manning 0.03)
+flume_add_regtest(friction_channel NPROCS 1
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/Friction/inputs
+    CHECK ${check_friction} fric --time 100 ${fric_x} --q-rtol 6e-4)
+flume_add_regtest(friction_channel_steady NPROCS 2
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/Friction/inputs
+    ARGS flume.stop_time=1500
+    CHECK ${check_friction} fric --time 1500 ${fric_x} --q-rtol 2.5004e-4 --q-rtol-min 2.5002e-4
+          --q-rtol-eps 64)
+flume_add_regtest(friction_channel_second_order NPROCS 1
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/Friction/inputs
+    ARGS flume.order=2
+    CHECK ${check_friction} fric --time 100 ${fric_x} --q-rtol 2e-4 --q-rtol-eps 1024)
+flume_add_regtest(friction_channel_second_order_half_step NPROCS 2
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/Friction/inputs
+    ARGS flume.order=2 flume.cfl=0.25
+    CHECK ${check_friction} fric --time 100 ${fric_x} --q-rtol 1e-4 --q-rtol-eps 1024)
+flume_add_regtest(friction_channel_second_order_steady NPROCS 3
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/Friction/inputs
+    ARGS flume.order=2 flume.stop_time=1500
+    CHECK ${check_friction} fric --time 1500 ${fric_x} --q-rtol 0 --q-rtol-eps 1024)
+flume_add_regtest(friction_channel_second_order_diagonal NPROCS 3
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/Friction/inputs
+    ARGS flume.order=2 flume.bed.slope=-0.0006\ 0.0008 flume.init.surface_slope=-0.0006\ 0.0008
+         flume.init.surface_elevation=10.9992
+    CHECK ${check_friction} fric --time 100 --depth 1 --slope -0.0006 0.0008 --manning 0.03
+          --q-rtol 2e-4 --q-rtol-eps 1024)
+flume_add_regtest(friction_channel_second_order_y NPROCS 2
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/Friction/inputs
+    ARGS flume.order=2 flume.bed.slope=0\ 0.001 flume.init.surface_slope=0\ 0.001
+         flume.init.surface_elevation=11.002
+    CHECK ${check_friction} fric --time 100 --depth 1 --slope 0 0.001 --manning 0.03
+          --q-rtol 2e-4 --q-rtol-eps 1024)
+# Side walls along y (periodic in x only), with SNaN fills and the trap on
+# invalid operations: the corner ghost cells beyond the periodic side and a
+# wall are not touched by the continued slope. Slip walls do not change
+# uniform flow along them.
+flume_add_regtest(friction_channel_second_order_walls NPROCS 2
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/Friction/inputs
+    ARGS flume.order=2 flume.periodic=1\ 0 amrex.init_snan=1 amrex.fpe_trap_invalid=1
+    CHECK ${check_friction} fric --time 100 ${fric_x} --q-rtol 2e-4 --q-rtol-eps 1024)
+# Gravity of 5 m/s2: q_n does not change, T_r = 210.819 s.
+flume_add_regtest(friction_channel_second_order_gravity NPROCS 1
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/Friction/inputs
+    ARGS flume.order=2 flume.gravity=5
+    CHECK ${check_friction} fric --time 100 ${fric_x} --gravity 5 --q-rtol 1.2e-4
+          --q-rtol-eps 1024)
+flume_add_regtest(friction_channel_second_order_slowing NPROCS 1
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/Friction/inputs
+    ARGS flume.order=2 flume.init.velocity=2\ 0
+    CHECK ${check_friction} fric --time 100 ${fric_x} --speed0 2 --q-rtol 2e-4 --q-rtol-eps 1024)
+# A film 1 mm deep on a slope of 1 in 10 with n = 0.05: q_n = 6.32e-5 m2/s
+# and T_r = 0.0645 s, while the CFL step is about 2 s (2.5 s for the first
+# step). Five steps reach the normal discharge (error 1.1e-9); an explicit
+# friction term, at dt g n^2 |u| / h^(4/3) = 31, would reverse and grow it.
+# At first order the bed-slope term on cells of 1 m (S dx = 100 h) drives
+# this film with g h^2 / (2 dx), 0.5 % of g h S: the test is second order
+# only.
+flume_add_regtest(friction_thin_film_second_order NPROCS 1
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/Friction/inputs
+    ARGS flume.order=2 flume.stop_time=10 flume.friction.manning=0.05
+         flume.bed.slope=-0.1\ 0 flume.init.surface_slope=-0.1\ 0
+         flume.init.surface_elevation=9.601
+    OUTPUT "FLUME: 5 step\\(s\\)"
+    CHECK ${check_friction} fric --time 10 --depth 0.001 --slope -0.1 0 --manning 0.05
+          --q-rtol 1e-8 --q-rtol-eps 4096)
+# A film of uneven depth (1.05 to 1.75 mm; the surface falls by 0.0999 per
+# metre over a bed falling by 0.1) on the same slope at second order: the
+# second stage starts from a discharge friction has not damped yet. The run
+# stays positive, keeps its mass, and follows the local Manning discharge of
+# the surface slope within 2.4e-3 at 10 s (6 steps).
+set(check_film ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/check_film_local_manning.py)
+flume_add_regtest(friction_film_uneven_second_order NPROCS 2
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/Friction/inputs
+    ARGS flume.order=2 flume.stop_time=10 flume.friction.manning=0.05
+         flume.bed.slope=-0.1\ 0 flume.init.surface_slope=-0.0999\ 0
+         flume.init.surface_elevation=9.601
+    CHECK ${check_film} fric --time 10 --bed-slope -0.1 --manning 0.05 --rtol 3e-3)
+# Guards, not checks of the friction formula (they pass with friction off):
+# friction does not move still water, nor put a NaN in a dry cell: the lake
+# with islands (wet and dry cells side by side) with friction, at both
+# orders, as lake_at_rest_islands.
+foreach(order 1 2)
+    flume_add_regtest(friction_lake_at_rest_islands_order${order} NPROCS 2
+        INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/LakeAtRest/inputs
+        ARGS flume.init.surface_elevation=10.2 flume.friction.manning=0.05 flume.order=${order}
+        CHECK ${check_plotfile} lake --steps 0 50 --times 0 6.078990464567538 --time-rtol 1e-6
+              ${lake_grid} --n-files 2 --surface 10.2)
+endforeach()
+# Guard: friction does not change the mass, at second order on 3 ranks.
+flume_add_regtest(friction_basin_mass_second_order NPROCS 3
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/Basin/inputs
+    ARGS flume.order=2 flume.friction.manning=0.05
+    CHECK ${check_dam_break} basin --time 20 --direction x --position 15
+          --surface-lo 2 --surface-hi 1.5 --velocity-lo 0.5 -0.3 --velocity-hi 0.5 -0.3
+          --mass-only --min-change 0.1)
+
 # --- Inputs that must abort ---------------------------------------------------
 # Every check in Source/FLUME_Inputs.cpp has at least one test.
 set(ok flume.n_cell=8\ 8 flume.prob_hi=8\ 8)
@@ -1192,3 +1307,36 @@ flume_add_abort_test(abort_dam_position_other_direction
     EXPECT "${dam_range} x .*. it is 20"
     ARGS flume.n_cell=8\ 8 flume.prob_hi=8\ 32 flume.init.surface_elevation=2
          flume.init.dam_position=20 flume.init.dam_surface_elevation=1)
+
+# --- Friction and continued slope ---------------------------------------------------
+flume_add_abort_test(abort_manning_negative
+    EXPECT "flume\\.friction\\.manning must be >= 0. it is -0\\.5"
+    ARGS ${ok} flume.friction.manning=-0.5)
+flume_add_abort_test(abort_manning_nan      EXPECT "flume\\.friction\\.manning must be finite"
+    ARGS ${ok} flume.friction.manning=nan)
+flume_add_abort_test(abort_manning_inf      EXPECT "flume\\.friction\\.manning must be finite"
+    ARGS ${ok} flume.friction.manning=inf)
+flume_add_abort_test(abort_manning_two
+    EXPECT "flume\\.friction\\.manning needs exactly 1 value. it has 2"
+    ARGS ${ok} flume.friction.manning=0.03\ 0.04)
+flume_add_abort_test(abort_continue_slope_above_one
+    EXPECT "flume\\.bed\\.continue_slope must be >= 0 and <= 1. it is 2"
+    ARGS ${ok} flume.bed.continue_slope=2)
+flume_add_abort_test(abort_continue_slope_minus_one
+    EXPECT "flume\\.bed\\.continue_slope must be >= 0 and <= 1. it is -1"
+    ARGS ${ok} flume.bed.continue_slope=-1)
+flume_add_abort_test(abort_continue_slope_two_values
+    EXPECT "flume\\.bed\\.continue_slope needs exactly 1 value. it has 2"
+    ARGS ${ok} flume.bed.continue_slope=1\ 1)
+set(continue_needs "flume\\.bed\\.continue_slope = 1 needs flume\\.periodic = 1 in a direction where flume\\.bed\\.slope is not 0")
+# Walls on all sides; periodic in x with the slope along y; a slope along a
+# periodic x that is zero.
+flume_add_abort_test(abort_continue_slope_walls
+    EXPECT "${continue_needs}"
+    ARGS ${ok} flume.bed.slope=0.01\ 0.01 flume.bed.continue_slope=1)
+flume_add_abort_test(abort_continue_slope_other_direction
+    EXPECT "${continue_needs}"
+    ARGS ${ok} flume.periodic=1\ 0 flume.bed.slope=0\ 0.01 flume.bed.continue_slope=1)
+flume_add_abort_test(abort_continue_slope_flat
+    EXPECT "${continue_needs}"
+    ARGS ${ok} flume.periodic=1\ 1 flume.bed.continue_slope=1)

@@ -269,9 +269,20 @@ read_inputs ()
         amrex::Abort("flume.dry_depth must be >= 0; it is " + all_digits(in.dry_depth));
     }
 
+    // friction.manning: optional, one finite real >= 0
+    query_finite(pp, "friction.manning", in.friction_manning);
+    if (!(in.friction_manning >= amrex::Real(0.0))) {
+        amrex::Abort("flume.friction.manning must be >= 0; it is "
+                     + all_digits(in.friction_manning));
+    }
+
     // bed.elevation, bed.slope: optional, finite
     query_finite(pp, "bed.elevation", in.bed_elevation);
     query_finite_pair(pp, "bed.slope", in.bed_slope);
+
+    // bed.continue_slope: optional, one integer, 0 or 1
+    const bool continue_slope = query_int(pp, "bed.continue_slope", 0, 1,
+                                          in.bed_continue_slope);
 
     // bed.noise: optional, one finite real >= 0
     query_finite(pp, "bed.noise", in.bed_noise);
@@ -290,6 +301,15 @@ read_inputs ()
     // first such message.
     std::string needs;
     const auto defer = [&needs] (const char* msg) { if (needs.empty()) { needs = msg; } };
+
+    // bed.continue_slope = 1 acts on a periodic side across which the bed
+    // slopes; anywhere else it would be read and not used.
+    if (continue_slope && in.bed_continue_slope == 1
+        && !((in.periodic[0] == 1 && in.bed_slope[0] != amrex::Real(0.0))
+             || (in.periodic[1] == 1 && in.bed_slope[1] != amrex::Real(0.0)))) {
+        defer("flume.bed.continue_slope = 1 needs flume.periodic = 1 in a direction where"
+              " flume.bed.slope is not 0");
+    }
 
     // bed.bowl_depth: optional, finite; bed.bowl_radius: finite, > 0, and
     // each needs the other (a depth of 0 is no bowl, and reads no radius).

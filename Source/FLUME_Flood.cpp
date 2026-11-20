@@ -63,7 +63,10 @@ Flood::Flood (const Inputs& in) : m_in(in)
         amrex::Abort(msg);
     }
     // The bed does not change: its ghost cells are filled once.
-    fill_bed_ghost_cells(m_bed, m_geom);
+    const amrex::Real zero = amrex::Real(0.0);
+    const amrex::Array<amrex::Real, 2> continued_slope =
+        (in.bed_continue_slope == 1) ? in.bed_slope : amrex::Array<amrex::Real, 2>{{zero, zero}};
+    fill_bed_ghost_cells(m_bed, m_geom, continued_slope);
 
     if (in.init_dam_position.has_value()) {
         fill_state_dam(m_state, m_bed, m_geom, in.init_dam_direction, *in.init_dam_position,
@@ -102,6 +105,8 @@ Flood::Flood (const Inputs& in) : m_in(in)
 
     amrex::Print() << "FLUME: " << in.n_cell[0] << " x " << in.n_cell[1] << " cells in "
                    << m_ba.size() << " box(es)\n";
+
+    m_friction.define(m_ba, m_dm, in.friction_manning, in.gravity, in.dry_depth);
 }
 
 amrex::Real
@@ -217,6 +222,12 @@ Flood::evolve ()
             } else {
                 advance_stage(dt_real);
             }
+            // Friction acts once, after the explicit terms of the whole
+            // step: implicit in the discharge, with the depth at the end of
+            // the step (FLUME_Friction.H). Acting on each stage instead,
+            // and then taking the mean, would remove only half of a stiff
+            // film's excess discharge per step.
+            if (m_friction.active()) { m_friction.apply(m_state, dt_real); }
         } else {
             amrex::Print() << "No depth is above flume.dry_depth (" << m_in.dry_depth
                            << " m): the state is not advanced\n";
