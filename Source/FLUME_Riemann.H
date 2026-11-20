@@ -4,9 +4,11 @@
 #include <AMReX_Algorithm.H>
 #include <AMReX_Extension.H>
 #include <AMReX_GpuQualifiers.H>
+#include <AMReX_Math.H>
 #include <AMReX_REAL.H>
 
 #include <cmath>
+#include <limits>
 
 namespace flume {
 
@@ -18,21 +20,51 @@ struct FaceFlux
     amrex::Real tangent; //!< m3/s2
 };
 
+//! The depths the two cells of a face present to it.
+struct FaceDepths
+{
+    amrex::Real lo; //!< of the cell on the low side
+    amrex::Real hi; //!< of the cell on the high side
+};
+
 /**
- * Depth a cell presents to a face (hydrostatic reconstruction, Audusse et
- * al. 2004). `h` is the depth of the cell, `z` its bed elevation and
- * `z_other` the bed elevation of the cell across the face. The face bed is
- * the higher of the two beds, and the depth is what the cell's surface leaves
- * above it: max(0, h - max(0, z_other - z)).
+ * Depths the two cells of a face present to it (hydrostatic reconstruction,
+ * Audusse et al. 2004). `hL`, `zL` are the depth and the bed elevation of the
+ * cell on the low side, `hR`, `zR` those of the cell on the high side. The
+ * face bed is the higher of the two beds, and the depth of a cell is what its
+ * surface leaves above it: h - max(0, z_other - z). A depth at or below
+ * `dry_depth` (>= 0) counts as none: it is returned as zero.
+ *
+ * Under a level surface the two depths are equal up to rounding (they are
+ * computed from different numbers). Where one is above `dry_depth`, the other
+ * is not and they differ by rounding only (4 machine epsilons of the larger
+ * cell depth), both are returned as zero: the cut is the same on the two
+ * sides, and water at rest stays at rest for any `dry_depth`. The flux and
+ * the bed-slope term call this with the same arguments, so they see the same
+ * depths.
  *
  * Only the difference of the two bed elevations enters, so the result does
  * not lose digits when the elevations are large.
  */
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE amrex::Real
-face_depth (amrex::Real h, amrex::Real z, amrex::Real z_other) noexcept
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE FaceDepths
+face_depths (amrex::Real hL, amrex::Real zL, amrex::Real hR, amrex::Real zR,
+             amrex::Real dry_depth) noexcept
 {
-    const amrex::Real step = amrex::max(z_other - z, amrex::Real(0.0));
-    return amrex::max(h - step, amrex::Real(0.0));
+    const amrex::Real zero = amrex::Real(0.0);
+    const amrex::Real dz = zR - zL;
+    const amrex::Real hsL = hL - amrex::max(dz, zero);
+    const amrex::Real hsR = hR - amrex::max(-dz, zero);
+    bool wetL = hsL > dry_depth;
+    bool wetR = hsR > dry_depth;
+    if (wetL != wetR) {
+        const amrex::Real tol = amrex::Real(4.0) * std::numeric_limits<amrex::Real>::epsilon()
+                                * amrex::max(hL, hR);
+        if (amrex::Math::abs(hsL - hsR) <= tol) {
+            wetL = false;
+            wetR = false;
+        }
+    }
+    return {wetL ? hsL : zero, wetR ? hsR : zero};
 }
 
 /**

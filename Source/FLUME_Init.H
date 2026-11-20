@@ -26,6 +26,25 @@ void fill_state_from_surface (amrex::MultiFab& state, const amrex::MultiFab& bed
                               amrex::Real surface, const amrex::Array<amrex::Real, 2>& velocity);
 
 /**
+ * As fill_state_from_surface, under a tilted and curved surface:
+ * eta = surface + slope_x X + slope_y Y + curvature (X^2 + Y^2),
+ * with X, Y the distance of the cell centre from the centre of the domain.
+ */
+void fill_state_from_curved_surface (amrex::MultiFab& state, const amrex::MultiFab& bed,
+                                     const amrex::Geometry& geom, amrex::Real surface,
+                                     const amrex::Array<amrex::Real, 2>& slope,
+                                     amrex::Real curvature,
+                                     const amrex::Array<amrex::Real, 2>& velocity);
+
+/**
+ * Add a paraboloid bowl to the valid cells: the bed moves by
+ * -depth (1 - r^2 / radius^2), with r the distance of the cell centre from
+ * the centre of the domain. A negative `depth` makes a mound.
+ */
+void add_bed_bowl (amrex::MultiFab& bed, const amrex::Geometry& geom, amrex::Real depth,
+                   amrex::Real radius);
+
+/**
  * Add a rough-bed perturbation to the valid cells: cell (i, j), counted from
  * the lower corner of the domain, moves by amplitude * r(i, j), where r is a
  * fixed pseudo-random number in [-1, 1) (a multiple of 1/1024) from an

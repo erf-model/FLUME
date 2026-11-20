@@ -80,14 +80,26 @@ a valid number.
      - real
      - ``0.5``
      - CFL number of the time step, with the wave rates of the two directions
-       added (:doc:`Model`). Must be greater than 0 and at most 1. Above 0.5
-       a wet cell next to dry ones can lose more water in a step than it
-       holds, and the run then stops (:doc:`Model`).
+       added (:doc:`Model`). Must be greater than 0 and at most 1. For any
+       value in the range the water that leaves a cell in a step is limited
+       to the water the cell holds (:doc:`Model`).
    * - ``flume.gravity``
      - real
      - ``9.81``
      - Acceleration of gravity, in m/s\ :sup:`2`. Must be finite and greater
        than 0.
+   * - ``flume.dry_depth``
+     - real
+     - ``1e-6``
+     - Depth at or below which water counts as dry, in metres. Must be finite
+       and at least 0. A cell at or below it has no velocity, holds no
+       discharge after a step that advances the state (the initial state is
+       kept as given) and does not enter the time step; a face that
+       sees no more than this depth of a cell sees none (:doc:`Model`). The
+       water of such a cell is kept. ``0`` treats every depth above zero as
+       wet. In single precision the bed elevation is rounded to about
+       1e-6 m at elevations of 10 m, the default: raise the value for
+       higher beds.
    * - ``flume.bed.elevation``
      - real
      - ``0``
@@ -98,6 +110,20 @@ a valid number.
      - ``0 0``
      - Slope of the bed in x and y (rise over run). Must be finite. The bed is
        a plane: see :doc:`Model`.
+   * - ``flume.bed.bowl_depth``
+     - real
+     - ``0``
+     - Depth of a paraboloid bowl added to the bed, in metres, at the centre
+       of the domain. Must be finite. A negative value makes a mound; ``0``
+       is no bowl. Needs ``flume.bed.bowl_radius`` unless it is 0
+       (:doc:`Model`). For tests.
+   * - ``flume.bed.bowl_radius``
+     - real
+     - none
+     - Distance from the centre of the domain at which the bowl crosses the
+       plane bed, in metres. Must be finite and greater than 0, with a
+       square that is a normal number. Required
+       with a ``flume.bed.bowl_depth`` that is not 0, and needs one.
    * - ``flume.bed.noise``
      - real
      - ``0``
@@ -111,6 +137,20 @@ a valid number.
        datum as the bed. Must be finite. Cells whose bed is at or above it
        start dry. Without this key the whole domain starts dry. With a dam it
        is the surface on the low-coordinate side.
+   * - ``flume.init.surface_slope``
+     - 2 reals
+     - ``0 0``
+     - Slope of the initial water surface in x and y (rise over run). Must be
+       finite. ``flume.init.surface_elevation`` is then the elevation at the
+       centre of the domain (:doc:`Model`). Needs
+       ``flume.init.surface_elevation``; not with a dam. For tests.
+   * - ``flume.init.surface_curvature``
+     - real
+     - ``0``
+     - Curvature of the initial water surface, in 1/m: the surface rises by
+       this value times the square of the distance from the centre of the
+       domain. Must be finite. Needs ``flume.init.surface_elevation``; not
+       with a dam. For tests.
    * - ``flume.init.velocity``
      - 2 reals
      - ``0 0``
@@ -167,19 +207,23 @@ Four checks are made on the fields, after the inputs are read, because finite
 inputs can give a number that is not finite:
 
 * The bed elevation must be finite in every cell (``flume.bed.slope`` times
-  the size of the domain, or ``flume.bed.noise`` added to the bed, can pass
-  the largest floating-point number).
+  the size of the domain, ``flume.bed.noise`` added to the bed, or a bowl of
+  a small radius can pass the largest floating-point number).
 * The initial depth and discharges must be finite in every cell.
 * Before every step and before every plotfile the depth must be finite and
-  not negative, and the wave speed finite, in every cell. A negative depth
-  after the first step means the time step was too long for the flow: lower
-  ``flume.cfl``.
+  not negative, and the wave speed finite, in every cell. The step limits
+  the water that leaves a cell to the water it holds, so a negative depth
+  after the first step is not expected for any ``flume.cfl``; the check
+  stays as a guard.
 * At every step the time step must be finite, above zero and large enough to
   change the time.
 
-A domain with no water has no wave to set the time step. The run then takes
-one step to ``flume.stop_time``; with ``flume.max_step`` alone it stops with a
-message asking for ``flume.stop_time``, after the initial plotfile is written.
+A domain with no depth above ``flume.dry_depth`` has no wave to set the time
+step. The run then takes
+one step to ``flume.stop_time`` and prints that the state is not advanced;
+with ``flume.max_step`` alone it stops with a message asking for
+``flume.stop_time``, after the initial plotfile is written. This also holds
+later in a run, if the water spreads until no cell is above the tolerance.
 
 A key with no value (``flume.cfl =``) is stopped by AMReX's parser, with its
 own message.

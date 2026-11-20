@@ -38,6 +38,19 @@ fill_plane_bed (amrex::MultiFab& bed, const amrex::Geometry& geom, amrex::Real e
     amrex::Gpu::streamSynchronize();
 }
 
+namespace {
+
+//! Distance of a cell centre from the centre of the domain along one
+//! direction, in cell sizes: index i of n cells that start at ilo.
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE amrex::Real
+cells_from_centre (int i, int ilo, int n) noexcept
+{
+    // (i - ilo + 1/2) - n/2, as an exact half-integer.
+    return amrex::Real(0.5) * static_cast<amrex::Real>(2 * (i - ilo) + 1 - n);
+}
+
+} // namespace
+
 void
 fill_state_from_surface (amrex::MultiFab& state, const amrex::MultiFab& bed, amrex::Real surface,
                          const amrex::Array<amrex::Real, 2>& velocity)
@@ -53,6 +66,61 @@ fill_state_from_surface (amrex::MultiFab& state, const amrex::MultiFab& bed, amr
             s[box_no](i, j, k, State::h) = h;
             s[box_no](i, j, k, State::hu) = h * u;
             s[box_no](i, j, k, State::hv) = h * v;
+        });
+    amrex::Gpu::streamSynchronize();
+}
+
+void
+fill_state_from_curved_surface (amrex::MultiFab& state, const amrex::MultiFab& bed,
+                                const amrex::Geometry& geom, amrex::Real surface,
+                                const amrex::Array<amrex::Real, 2>& slope,
+                                amrex::Real curvature,
+                                const amrex::Array<amrex::Real, 2>& velocity)
+{
+    const amrex::Real u = velocity[0];
+    const amrex::Real v = velocity[1];
+    const amrex::Real sx = slope[0];
+    const amrex::Real sy = slope[1];
+    const amrex::Real dx = geom.CellSize(0);
+    const amrex::Real dy = geom.CellSize(1);
+    const int ilo = geom.Domain().smallEnd(0);
+    const int jlo = geom.Domain().smallEnd(1);
+    const int nx = geom.Domain().length(0);
+    const int ny = geom.Domain().length(1);
+    const auto& zb = bed.const_arrays();
+    const auto& s = state.arrays();
+    amrex::ParallelFor(state,
+        [=] AMREX_GPU_DEVICE (int box_no, int i, int j, int k) noexcept
+        {
+            const amrex::Real x = cells_from_centre(i, ilo, nx) * dx;
+            const amrex::Real y = cells_from_centre(j, jlo, ny) * dy;
+            const amrex::Real eta = surface + (sx * x + sy * y) + curvature * (x * x + y * y);
+            const amrex::Real h = amrex::max(eta - zb[box_no](i, j, k), amrex::Real(0.0));
+            s[box_no](i, j, k, State::h) = h;
+            s[box_no](i, j, k, State::hu) = h * u;
+            s[box_no](i, j, k, State::hv) = h * v;
+        });
+    amrex::Gpu::streamSynchronize();
+}
+
+void
+add_bed_bowl (amrex::MultiFab& bed, const amrex::Geometry& geom, amrex::Real depth,
+              amrex::Real radius)
+{
+    const amrex::Real dx = geom.CellSize(0);
+    const amrex::Real dy = geom.CellSize(1);
+    const int ilo = geom.Domain().smallEnd(0);
+    const int jlo = geom.Domain().smallEnd(1);
+    const int nx = geom.Domain().length(0);
+    const int ny = geom.Domain().length(1);
+    const amrex::Real inv_r2 = amrex::Real(1.0) / (radius * radius);
+    const auto& zb = bed.arrays();
+    amrex::ParallelFor(bed,
+        [=] AMREX_GPU_DEVICE (int box_no, int i, int j, int k) noexcept
+        {
+            const amrex::Real x = cells_from_centre(i, ilo, nx) * dx;
+            const amrex::Real y = cells_from_centre(j, jlo, ny) * dy;
+            zb[box_no](i, j, k) -= depth * (amrex::Real(1.0) - (x * x + y * y) * inv_r2);
         });
     amrex::Gpu::streamSynchronize();
 }

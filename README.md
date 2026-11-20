@@ -18,7 +18,8 @@ file, builds the grid, the bed and the initial state, and advances the
 shallow-water equations with a first-order finite-volume scheme (HLLC fluxes
 with hydrostatic reconstruction) between walls or periodic sides, writing
 plotfiles. It is tested on a lake at rest over a rough bed, on the dam-break
-exact solution and on mass conservation in a closed basin.
+exact solution, on water moving in a bowl with a shoreline (Thacker's
+solutions) and on mass conservation in a closed basin.
 
 ## Planned scope
 
@@ -32,8 +33,8 @@ exact solution and on mass conservation in a closed basin.
 - A water-balance log, flood outputs (maximum depth, speed, arrival time),
   checkpoint and restart.
 
-Of these, the first-order scheme and the absolute datum exist; the rest does
-not yet.
+Of these, the first-order scheme, wetting and drying and the absolute datum
+exist; the rest does not yet.
 
 ## Layout
 

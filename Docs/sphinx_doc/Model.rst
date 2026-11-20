@@ -3,8 +3,8 @@ Model
 
 This page describes what the code holds and computes today: the
 shallow-water equations over a fixed bed, advanced by a first-order
-finite-volume scheme between walls or periodic sides. Wetting and drying
-fronts, friction, rainfall and open boundaries are not written yet.
+finite-volume scheme with wetting and drying, between walls or periodic
+sides. Friction, rainfall and open boundaries are not written yet.
 
 Equations
 ---------
@@ -100,12 +100,36 @@ The initial water surface is level, at :math:`\eta_0`
 
 A cell whose bed is at or above :math:`\eta_0` starts dry.
 
-Two more features of the initial state build test cases.
+Four more features of the bed and the initial state build test cases.
 
 **Rough bed.** ``flume.bed.noise`` gives an amplitude :math:`A`, and the bed
 of cell :math:`(i, j)` moves by :math:`A\,r_{ij}`, where :math:`r_{ij}` is a
 fixed pseudo-random number in :math:`[-1, 1)` computed from the two cell
 indices. The bed is the same for any boxes and any number of ranks.
+
+**Bowl.** ``flume.bed.bowl_depth`` (:math:`h_0`) and
+``flume.bed.bowl_radius`` (:math:`a`) add a paraboloid to the plane bed. With
+:math:`X`, :math:`Y` the distance of a cell centre from the centre of the
+domain and :math:`r^2 = X^2 + Y^2`, the bed moves by
+
+.. math::
+
+   -h_0 \left(1 - \frac{r^2}{a^2}\right) .
+
+It is lowered by :math:`h_0` at the centre and crosses the plane at
+:math:`r = a`. A negative :math:`h_0` makes a mound.
+
+**Tilted and curved surface.** ``flume.init.surface_slope``
+(:math:`\sigma_x`, :math:`\sigma_y`) and ``flume.init.surface_curvature``
+(:math:`\kappa`) replace the level surface by
+
+.. math::
+
+   \eta(x, y) = \eta_0 + \sigma_x X + \sigma_y Y + \kappa\, r^2 ,
+
+so :math:`\eta_0` is then the elevation at the centre of the domain. With the
+bowl these two give the initial states of Thacker's solutions
+(:doc:`Testing`).
 
 **Dam.** ``flume.init.dam_position`` gives a coordinate :math:`x_d` along x
 or y (``flume.init.dam_direction``). Cells whose centre is below :math:`x_d`
@@ -131,7 +155,8 @@ the directions. With :math:`U = (h, hu, hv)`:
 :math:`S` is the bed-slope term, both defined below. The scheme is first order
 in space and time. The fluxes are computed once per face and stored, so the
 water that leaves a cell through a face is the water that enters its
-neighbour.
+neighbour. Before the update the fluxes of a cell that would give away more
+water than it holds are scaled down (`Wetting and drying`_).
 
 Hydrostatic reconstruction
 --------------------------
@@ -145,7 +170,9 @@ cell through the depth (Audusse et al., 2004)
    h^{*} = \max\bigl(0,\; h - \max(0,\; z_b' - z_b)\bigr) .
 
 This is the part of the cell's water that lies above the higher of the two
-beds. It is never negative. Only the difference of the two bed elevations
+beds. It is never negative. A value at or below the dry depth
+:math:`h_{\mathrm{dry}}` (``flume.dry_depth``) is replaced by zero
+(`Wetting and drying`_). Only the difference of the two bed elevations
 enters, so large elevations cost no digits. The flux on the face is computed
 from :math:`h^{*}` on each side and the velocities of the two cells.
 
@@ -253,13 +280,86 @@ the celerity of the deep side where the exact front moves at about 1.7
 times. In a check over random pairs of wet states, 13 % had an estimated
 speed inside the exact wave fan by more than 1 %. The tests of
 :doc:`Testing` pass with these speeds. Speeds built from the depth ratio
-across the shock remove the gap but need a depth below which a
-cell counts as dry, which this version does not have.
+across the shock remove the gap; they are not in this version.
 
-The velocity of a cell is :math:`hu / h` where :math:`h > 0` and zero in a dry
-cell. There is no depth below which a cell counts as dry yet, so a very thin
-layer of water can carry a large velocity. This is treated with the wetting
-and drying fronts.
+Wetting and drying
+------------------
+
+Water can reach dry ground and leave it. Four rules keep the depth
+non-negative and the velocity bounded where the water is thin. They use one
+input, the dry depth :math:`h_{\mathrm{dry}}` (``flume.dry_depth``, default
+10\ :sup:`-6` m).
+
+**Dry cells.** A cell with :math:`h \le h_{\mathrm{dry}}` is dry. Its velocity
+is zero in the fluxes; elsewhere the velocity is :math:`hu / h`. After each
+step the discharges of a dry cell are set to zero. Its water is kept, so mass
+is conserved.
+
+**Dry faces.** The depth a cell presents to a face is
+
+.. math::
+
+   h^{*} = \begin{cases}
+       h - \max(0,\; z_b' - z_b) & \text{if this is above } h_{\mathrm{dry}} , \\
+       0 & \text{otherwise.}
+   \end{cases}
+
+The flux and the bed-slope term use this depth. The cut is made on
+:math:`h^{*}` and not on :math:`h`: under a level surface the two cells at a
+face present the same :math:`h^{*}`, so both are kept or both are cut, and
+water at rest stays at rest for any :math:`h_{\mathrm{dry}}`. The two values
+are computed from different numbers and agree to round-off only, so a face
+whose :math:`h^{*}` is within round-off of :math:`h_{\mathrm{dry}}` could be
+cut on one side alone. That would start a flow of
+:math:`\tfrac{2}{3} h^{*} \sqrt{g h^{*}}` in water at rest. Where one side is
+above :math:`h_{\mathrm{dry}}`, the other is not, and the two differ by no
+more than 4 machine epsilons of the larger cell depth, both are cut. The
+decision is made once for a face and used by its flux and by the bed-slope
+terms of its two cells.
+
+**Outflow limit.** With :math:`F^{h}` and :math:`G^{h}` the mass fluxes, the
+water that leaves cell :math:`(i, j)` in a step through its four faces is
+
+.. math::
+
+   o_{ij} = \frac{\Delta t}{\Delta x}\left[\max(F^{h}_{i+1/2,j}, 0)
+            + \max(-F^{h}_{i-1/2,j}, 0)\right]
+          + \frac{\Delta t}{\Delta y}\left[\max(G^{h}_{i,j+1/2}, 0)
+            + \max(-G^{h}_{i,j-1/2}, 0)\right] ,
+   \qquad
+   \phi_{ij} = \min\left(1,\; \frac{h_{ij}}{o_{ij}}\right) .
+
+The three components of the flux on a face are multiplied by the
+:math:`\phi` of the cell the mass flux leaves. A face with no mass flux is
+not changed. The new depth is then at least
+:math:`h_{ij} - \phi_{ij}\, o_{ij} \ge 0`, for any ``flume.cfl``. Each face
+still has one flux, so mass is conserved. The sum :math:`o_{ij}` counts the
+water that leaves and not the water that arrives in the same step, so a cell
+can be limited that the plain step would have left with water. The bed-slope
+term is not scaled; water at rest has no mass flux and is not limited. A depth that the rounding of this
+sum leaves below zero by at most 16 machine epsilons of the old depth is set
+to zero.
+
+**Why.** Without the limit a wet cell between dry ones can lose more than it
+holds: still water of depth :math:`h` with dry cells on its four sides loses
+:math:`2 c h / 3` through each face and would end the step with
+:math:`h\,(1 - 4C/3)` on square cells, negative for a CFL number
+:math:`C > 0.75`. A column of such cells, dry on two sides only, loses
+:math:`4C/3` times :math:`\Delta y / (\Delta x + \Delta y)`: up to twice as
+much on cells that are long across the flow. Where :math:`\phi < 1` the scheme is no longer the plain
+HLLC scheme in that cell for that step.
+
+**Time step.** Dry cells do not enter the largest wave rate (`Time step`_),
+so a film that carries a large velocity does not shorten the step.
+
+**Limits.** The scheme is first order, and at a moving shoreline it damps
+the motion: see the bowl tests in :doc:`Testing`. A shore that retreats leaves a film on the bed, which stays
+until water flows over it again: a cell at or below the dry depth passes no
+water on. With
+``flume.dry_depth = 0`` a front that advances over a dry bed also carries a
+trace of water ahead of it, one cell per step. The
+limit of the hydrostatic reconstruction on a steep bed (above) applies to
+thin water on a slope in particular.
 
 Sides of the domain
 -------------------
@@ -282,7 +382,7 @@ waves cross a cell is
 
 .. math::
 
-   r = \max_{\text{cells with } h > 0}
+   r = \max_{\text{cells with } h > h_{\mathrm{dry}}}
        \left(\frac{|u| + c}{\Delta x} + \frac{|v| + c}{\Delta y}\right) ,
 
 where :math:`\Delta x` and :math:`\Delta y` are the cell sizes. The maximum
@@ -297,17 +397,12 @@ with the CFL number :math:`C` (``flume.cfl``, :math:`0 < C \le 1`).
 The rates of the two directions are added because the scheme updates a cell
 with the fluxes of both directions in one step (unsplit). :math:`C \le 1` is
 the linear stability bound of the first-order scheme. The depth stays
-non-negative when no cell loses more water in a step than it holds. This is
-not guaranteed for every :math:`C \le 1`: the wave speeds :math:`s_L` and
-:math:`s_R` at a face can be larger than the rate of either cell. A cell of
-still water of depth :math:`h` with dry cells on its four sides loses
-:math:`2 c h / 3` through each face and ends the step with
-:math:`h\,(1 - 4C/3)` on square cells, which is negative for
-:math:`C > 0.75`. For the default :math:`C = 0.5` a search over random
-states found no negative depth; this is not a proof. The depth is not
-clipped: if it becomes negative in any cell the run stops with a message
-that asks for a lower ``flume.cfl``. The state is checked before every step and
-before every plotfile.
+non-negative when no cell loses more water in a step than it holds. The
+wave speeds :math:`s_L` and :math:`s_R` at a face can be larger than the rate
+of either cell, so :math:`C \le 1` alone does not give this; the outflow
+limit does (`Wetting and drying`_). The state is still checked before every
+step and before every plotfile, and the run stops with a message on a depth
+that is negative or not finite.
 
 A step that reaches ``flume.stop_time`` is shortened to end on it. A step that
 falls short of it by round-off only (4 machine epsilons of the stop time, in
@@ -316,9 +411,9 @@ follows. The time and ``flume.stop_time`` are held in double precision in
 every build: a single-precision sum of steps stops growing after about
 :math:`2^{24}` steps.
 
-A cell with :math:`h = 0` has no wave and does not enter the maximum; the
-velocity is not computed there. If no cell holds water, :math:`r = 0` and no
-step follows from the formula. The run then takes one step to
+A dry cell (:math:`h \le h_{\mathrm{dry}}`) has no wave and does not enter
+the maximum; the velocity is not computed there. If no cell is wet,
+:math:`r = 0` and no step follows from the formula. The run then takes one step to
 ``flume.stop_time``; with ``flume.max_step`` alone it stops with a message
 that asks for ``flume.stop_time``.
 

@@ -4,9 +4,9 @@
     check_dam_break.py <prefix> --time T --direction x|y --position X
         --surface-lo A --surface-hi B [--gravity G] [--mass-tol-eps K]
         [--time-rtol R]
-        ( --l1-max E --plateau-rtol P --shock-cells C | --l1-max E --front-max F
+        ( --l1-max E --plateau-rtol P --shock-cells C | --l1-max E --front-max F [--front-min G]
         | --first-step-cfl N | --mass-only --min-change D | --initial-only )
-        [--velocity-lo U V] [--velocity-hi U V]
+        [--velocity-lo U V] [--velocity-hi U V] [--dry-depth D]
 
 The run directory must hold exactly two plotfiles of the prefix: <prefix>00000
 and the one of the last step, whose number is not pinned (it depends on the
@@ -59,8 +59,10 @@ is dry. Then --front-max F is given in place of --plateau-rtol and
   * the state does not vary across the dam direction, as above;
   * L1 error: the mean of |h - h_exact| divided by h1, and the mean of
     |q - q_exact| divided by h1 c1, are each at most E;
-  * beyond the exact front, X + 2 c1 T, no depth is above F h1. A first-order
-    scheme carries a trace of water one cell per step, ahead of the front.
+  * beyond the exact front, X + 2 c1 T, no depth is above F h1 (and, with
+    --front-min G, the largest is at least G h1). With flume.dry_depth = 0
+    the scheme carries a trace of water one cell per step, ahead of the
+    front; with a tolerance the depth there is zero.
 
 With --first-step-cfl N the run is the dry-bed dam break stopped after its
 first step, taken at the Courant number N (flume.cfl); --time is not given.
@@ -79,6 +81,9 @@ the step is computed in the precision of the build) and the mass.
 
 With --initial-only the run takes no step: there is one plotfile, and only the
 check of the dam in it is made. --time is not given.
+
+With --dry-depth D every cell of the last plotfile whose depth is at most D
+must hold no discharge (flume.dry_depth: a dry cell has no momentum).
 
 With --mass-only the comparison with an exact solution is left out (the bed may be rough and
 the water may move at the start), and the depth must have changed somewhere by
@@ -166,12 +171,14 @@ def main():
     p.add_argument("--plateau-rtol", type=float)
     p.add_argument("--shock-cells", type=float)
     p.add_argument("--front-max", type=float)
+    p.add_argument("--front-min", type=float)
     p.add_argument("--first-step-cfl", type=float)
     p.add_argument("--mass-only", action="store_true")
     p.add_argument("--initial-only", action="store_true")
     p.add_argument("--velocity-lo", type=float, nargs=2, default=[0.0, 0.0])
     p.add_argument("--velocity-hi", type=float, nargs=2, default=[0.0, 0.0])
     p.add_argument("--min-change", type=float)
+    p.add_argument("--dry-depth", type=float)
     a = p.parse_args()
     if a.initial_only:
         if a.time is not None or a.mass_only or a.first_step_cfl is not None:
@@ -242,6 +249,13 @@ def main():
         if not all(math.isfinite(x) for x in v):
             errors.append(f"cell ({i}, {j}) holds a value that is not finite")
             break
+
+    if a.dry_depth is not None:
+        moving = [c for c, v in last.items() if v[0] <= a.dry_depth and (v[1] != 0.0 or v[2] != 0.0)]
+        if moving:
+            c = moving[0]
+            errors.append(f"{len(moving)} cell(s) no deeper than {a.dry_depth} m hold a discharge, e.g."
+                          f" cell {c}: depth {last[c][0]!r}, discharge ({last[c][1]!r}, {last[c][2]!r})")
 
     # Mass: exact sums of the stored depths.
     m0 = math.fsum(v[0] for v in first.values())
@@ -355,6 +369,9 @@ def main():
         if dry:
             if not lowest >= 0.0:
                 errors.append(f"the lowest depth is {lowest!r}: negative")
+            if a.front_min is not None and not ahead >= a.front_min * h1:
+                errors.append(f"beyond the exact front the depth reaches {ahead:.3g} m, at least"
+                              f" {a.front_min * h1:.3g} m expected")
             if not ahead <= a.front_max * h1:
                 errors.append(f"beyond the exact front the depth reaches {ahead:.3g} m, at most"
                               f" {a.front_max * h1:.3g} m")

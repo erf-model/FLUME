@@ -13,7 +13,8 @@
 namespace flume {
 
 WaveRate
-max_wave_rate (const amrex::MultiFab& state, const amrex::Geometry& geom, amrex::Real gravity)
+max_wave_rate (const amrex::MultiFab& state, const amrex::Geometry& geom, amrex::Real gravity,
+               amrex::Real dry_depth)
 {
     const amrex::Real dxi = geom.InvCellSize(0);
     const amrex::Real dyi = geom.InvCellSize(1);
@@ -32,7 +33,7 @@ max_wave_rate (const amrex::MultiFab& state, const amrex::Geometry& geom, amrex:
             if (!amrex::Math::isfinite(h) || h < amrex::Real(0.0)) {
                 return {amrex::Real(0.0), amrex::Long(1)};
             }
-            if (h == amrex::Real(0.0)) {
+            if (h <= dry_depth) {
                 // A dry cell has no wave speed, but its discharges must still
                 // be numbers: they are written to the plotfile.
                 const bool finite = amrex::Math::isfinite(s[box_no](i, j, k, State::hu))

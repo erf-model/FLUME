@@ -1,0 +1,19 @@
+# Water in a paraboloid bowl 0.1 m deep that crosses the plane z = 0 at 1 m
+# from the centre of a 4 m square, on 100 x 100 cells of 0.04 m in 16 boxes,
+# between walls the water never reaches. The surface is a plane tilted along
+# x that turns about the axis of the bowl once in 2 pi / sqrt(2 g h0) =
+# 4.4857 s; the shoreline moves over the dry bed. Three periods (Thacker's
+# planar solution with eta = 0.5; Docs/sphinx_doc/Testing.rst).
+flume.n_cell        = 100 100
+flume.prob_hi       = 4.0 4.0
+flume.max_grid_size = 25
+flume.plot_file     = bowl
+flume.stop_time     = 13.45710439639912
+
+flume.bed.bowl_depth  = 0.1
+flume.bed.bowl_radius = 1.0
+
+# surface = -eta^2 h0 / a^2 + (2 eta h0 / a^2) x, velocity (0, eta w)
+flume.init.surface_elevation = -0.025
+flume.init.surface_slope     = 0.1 0.0
+flume.init.velocity          = 0.0 0.7003570517957252
