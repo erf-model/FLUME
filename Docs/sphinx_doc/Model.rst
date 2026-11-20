@@ -4,7 +4,8 @@ Model
 This page describes what the code holds and computes today: the
 shallow-water equations over a fixed bed, advanced by a first-order or a second-order
 finite-volume scheme with wetting and drying, between walls or periodic
-sides. Friction, rainfall and open boundaries are not written yet.
+sides, with Manning friction on the bed. Rainfall and open boundaries are
+not written yet.
 
 Equations
 ---------
@@ -24,8 +25,10 @@ discharges :math:`hu` and :math:`hv` over a bed of elevation :math:`z_b`:
       &= -g h \frac{\partial z_b}{\partial y} ,
 
 where :math:`u` and :math:`v` are the depth-averaged velocities and :math:`g`
-is the acceleration of gravity (``flume.gravity``). The only source term so
-far is the bed slope.
+is the acceleration of gravity (``flume.gravity``). With Manning friction
+(`Manning friction`_) the two momentum equations also have the friction
+term on their right-hand side; without it the only source term is the bed
+slope.
 
 State
 -----
@@ -511,6 +514,89 @@ Next to a dry cell the depth difference is limited by the neighbour's depth
 and the cell is close to first order. The outflow limit and the cut at the
 dry depth are those of the first-order scheme.
 
+Manning friction
+----------------
+
+With the Manning coefficient :math:`n` (``flume.friction.manning``, in
+s/m\ :sup:`1/3`) and the discharge :math:`\mathbf{q} = (hu, hv)`, the two
+momentum equations gain the term
+
+.. math::
+
+   \mathbf{S}_f = -\frac{g\, n^2\, |\mathbf{q}|\, \mathbf{q}}{h^{7/3}} .
+
+In uniform flow down a bed of slope :math:`S` it balances gravity,
+:math:`g h S = g n^2 q^2 / h^{7/3}`, which gives Manning's formula for the
+normal discharge, :math:`q_n = h^{5/3} S^{1/2} / n`.
+
+**Implicit update.** After the explicit terms (fluxes and bed slope) have
+given the discharge :math:`\mathbf{q}^*` and the depth :math:`h` at the end
+of the step, the friction step is backward Euler in the discharge with
+that depth held fixed:
+
+.. math::
+
+   \mathbf{q} + \Delta t\, \frac{g\, n^2\, |\mathbf{q}|}{h^{7/3}}\, \mathbf{q}
+      = \mathbf{q}^* .
+
+:math:`\mathbf{q}` has the direction of :math:`\mathbf{q}^*`, and its size
+:math:`r |\mathbf{q}^*|` solves :math:`a r^2 + r - 1 = 0` with
+:math:`a = \Delta t\, g\, n^2 |\mathbf{q}^*| / h^{7/3}`:
+
+.. math::
+
+   r = \frac{2}{1 + \sqrt{1 + 4 a}} .
+
+**Why this form.** :math:`0 < r \le 1`: friction never reverses the flow and
+never adds to it, whatever the step, so it needs no limit on the time step.
+When friction is stiff (:math:`a \gg 1`, thin water on a steep slope) the
+discharge goes to the balance of the explicit terms and friction in one
+step. For uniform flow on a plane, where the explicit terms add
+:math:`\Delta t\, g h S` per step, the steady state of the update is the
+balance :math:`g h S = g n^2 q^2 / h^{7/3}` for any :math:`\Delta t`. The
+formula is written without :math:`h^{14/3}`, which can overflow; a depth
+whose power 7/3 underflows to zero gets a zero discharge. A cell at or
+below :math:`h_{\mathrm{dry}}` is not touched (its discharge is already zero).
+
+**At second order.** With :math:`L` the explicit terms and :math:`F` the
+friction step, a step is
+
+.. math::
+
+   U^* = U^n + \Delta t\, L(U^n), \quad
+   M = \tfrac{1}{2}\left(U^n + U^* + \Delta t\, L(U^*)\right), \quad
+   U^{n+1} = F(M) :
+
+the two explicit stages and their mean as without friction, and then
+friction once over the whole step. If friction acted on each stage and the
+mean were taken of the damped stages, the mean with :math:`U^n` would remove
+only half of a stiff film's excess discharge per step.
+
+The second stage starts from a discharge that friction has not damped. In a
+stiff film it is much larger than the discharge the step ends with (about
+30 times in the thin-film test), and its fluxes run at a Courant number of
+about 4 for a step chosen from the start of the step. The outflow limit
+keeps the depth at zero or above. Damping the first stage as well, and
+giving the amount back before the mean, was tried; it changed none of the
+test results, including a film of uneven depth (:doc:`Testing`), so it is
+not done.
+
+**Limits.** Friction is first order in time at both orders: the error of
+the transient in the tests halves with the step (:doc:`Testing`). At first
+order the bed-slope term of the hydrostatic reconstruction drives uniform
+flow on a plane with :math:`g S (h - S \Delta x / 2)` instead of
+:math:`g h S` (Delestre et al., 2012): the steady discharge is low by the
+fraction :math:`1 - \sqrt{1 - S \Delta x / (2 h)} \approx S \Delta x / (4 h)`,
+for :math:`S \Delta x \le h`. A film thinner than the drop of the bed over
+one cell (:math:`S \Delta x > h`) has a dry lower face; it is driven with
+:math:`g h^2 / (2 \Delta x)`, a fraction :math:`h / (2 S \Delta x)` of
+:math:`g h S`, and its steady discharge is the normal discharge times the
+square root of that fraction (7 % for 1 mm on a slope of 0.1 on cells of
+1 m). The
+second-order reconstruction is exact on a plane. The coefficient is the same in every cell; the solver
+holds it as a field per cell, which a roughness map read from a raster will
+fill.
+
 Sides of the domain
 -------------------
 
@@ -523,8 +609,18 @@ second cell: same depth and bed, same discharge
 along the wall, and the discharge normal to the wall with its sign changed.
 Every box whose ghost layers reach outside a wall is filled this way, also a
 box that ends one cell short of it.
-The mass flux through a wall is then exactly zero. A sloping bed is taken as
-it is at a periodic side: the bed has a step there.
+The mass flux through a wall is then exactly zero.
+
+By default a sloping bed is taken as it is at a periodic side: the bed
+repeats, and has a step of the slope times the length of the domain there.
+With ``flume.bed.continue_slope = 1`` a ghost cell beyond a periodic side
+takes the bed of the cell it covers plus the slope times the distance
+between the two, so the plane of the bed goes on: an endless inclined
+channel. The depth and the discharges still repeat. This is how the
+friction tests drive uniform flow (:doc:`Testing`); a lake at rest over such
+a bed is not at rest, since its surface does not repeat. Only the plane is
+continued: a bowl (``flume.bed.bowl_depth``) still repeats, with a step at
+the periodic side where it does not reach zero there.
 
 Time step
 ---------

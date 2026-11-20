@@ -1,0 +1,23 @@
+# Uniform flow down an endless inclined channel with Manning friction: 8 x 4
+# cells of 1 m in 8 boxes, periodic both ways, the plane of the bed continued
+# across the periodic sides (flume.bed.continue_slope = 1). The bed falls by
+# 1 mm per metre along x; the water is 1 m deep everywhere (the surface is
+# parallel to the bed) and starts at rest. With n = 0.03 s/m^(1/3) the normal
+# discharge is q_n = 1^(5/3) 0.001^(1/2) / 0.03 = 1.05409 m2/s, and the
+# discharge grows as q_n tanh(t / T_r) with T_r = q_n / (g h |S|) = 107.451 s
+# (Tests/check_friction.py). The run stops at 100 s, near T_r.
+flume.n_cell        = 8 4
+flume.prob_hi       = 8.0 4.0
+flume.periodic      = 1 1
+flume.max_grid_size = 2
+flume.plot_file     = fric
+flume.stop_time     = 100.0
+flume.cfl           = 0.5
+
+flume.friction.manning = 0.03
+
+flume.bed.elevation          = 10.0
+flume.bed.slope              = -0.001 0.0
+flume.bed.continue_slope     = 1
+flume.init.surface_elevation = 10.996
+flume.init.surface_slope     = -0.001 0.0

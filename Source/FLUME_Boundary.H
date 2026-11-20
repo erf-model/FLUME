@@ -1,6 +1,7 @@
 #ifndef FLUME_BOUNDARY_H_
 #define FLUME_BOUNDARY_H_
 
+#include <AMReX_Array.H>
 #include <AMReX_Geometry.H>
 #include <AMReX_MultiFab.H>
 
@@ -23,8 +24,14 @@ void fill_state_ghost_cells (amrex::MultiFab& state, const amrex::Geometry& geom
 /**
  * Fill the ghost cells of the bed elevation: as the state, and at a wall
  * each ghost cell takes the bed of the cell it mirrors.
+ *
+ * Across a periodic side in direction d with continued_slope[d] not 0, a
+ * ghost cell then adds continued_slope[d] times its distance from the cell
+ * it covers (flume.bed.continue_slope): the plane of the bed goes on beyond
+ * the side. Pass 0 0 for a bed that repeats.
  */
-void fill_bed_ghost_cells (amrex::MultiFab& bed, const amrex::Geometry& geom);
+void fill_bed_ghost_cells (amrex::MultiFab& bed, const amrex::Geometry& geom,
+                           const amrex::Array<amrex::Real, 2>& continued_slope);
 
 } // namespace flume
 

@@ -71,12 +71,24 @@ struct Inputs
     //! face, counts as dry, m (flume.dry_depth; default 1e-6; finite, >= 0)
     amrex::Real dry_depth = amrex::Real(1.0e-6);
 
+    //! Manning coefficient of the bed, s/m^(1/3) (flume.friction.manning;
+    //! default 0: no friction; finite, >= 0). The same in every cell.
+    amrex::Real friction_manning = amrex::Real(0.0);
+
     //! Bed elevation at the lower corner of the domain, m, on the absolute
     //! vertical datum (flume.bed.elevation; default 0; finite)
     amrex::Real bed_elevation = amrex::Real(0.0);
 
     //! Bed slope dz_b/dx and dz_b/dy (flume.bed.slope; default 0 0; finite)
     amrex::Array<amrex::Real, 2> bed_slope{{amrex::Real(0.0), amrex::Real(0.0)}};
+
+    //! Whether the plane of the bed continues across a periodic side
+    //! (flume.bed.continue_slope; default 0; 0 or 1; 1 needs flume.periodic = 1
+    //! in a direction where flume.bed.slope is not 0). 0: the bed repeats, so
+    //! a sloping bed has a step of slope x domain length at the side. 1: the
+    //! ghost cells beyond the side take the bed of the cell they cover plus
+    //! slope x the distance between the two, an endless inclined channel.
+    int bed_continue_slope = 0;
 
     //! Depth of a paraboloid bowl added to the bed, m (flume.bed.bowl_depth;
     //! default 0: no bowl; finite; needs flume.bed.bowl_radius): the bed moves

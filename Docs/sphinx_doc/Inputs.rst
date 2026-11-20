@@ -109,6 +109,15 @@ a valid number.
        wet. In single precision the bed elevation is rounded to about
        1e-6 m at elevations of 10 m, the default: raise the value for
        higher beds.
+   * - ``flume.friction.manning``
+     - real
+     - ``0``
+     - Manning coefficient of the bed, in s/m\ :sup:`1/3`, the same in every
+       cell. Must be finite and at least 0. ``0`` is no friction. Typical
+       values: 0.01 to 0.02 for smooth concrete, about 0.03 for a natural
+       channel, 0.05 to 0.1 for a floodplain with vegetation. The update is
+       implicit in the discharge and sets no limit on the time step
+       (:doc:`Model`).
    * - ``flume.bed.elevation``
      - real
      - ``0``
@@ -119,6 +128,14 @@ a valid number.
      - ``0 0``
      - Slope of the bed in x and y (rise over run). Must be finite. The bed is
        a plane: see :doc:`Model`.
+   * - ``flume.bed.continue_slope``
+     - integer
+     - ``0``
+     - ``0``: across a periodic side the bed repeats, with a step of the
+       slope times the length of the domain. ``1``: the plane of the bed
+       goes on across the periodic sides, an endless inclined channel
+       (:doc:`Model`). Must be 0 or 1; ``1`` needs ``flume.periodic = 1`` in
+       a direction where ``flume.bed.slope`` is not 0.
    * - ``flume.bed.bowl_depth``
      - real
      - ``0``

@@ -29,7 +29,6 @@ endif()
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 
 option(FLUME_MPI          "Build with MPI"                                       ON)
-option(FLUME_OMP          "Build with OpenMP"                                    OFF)
 option(FLUME_TESTING      "AMReX_TESTING + assertions (SNaN fills, as GPU CI)"   OFF)
 option(FLUME_ENABLE_TESTS "Register the tests"                                   ON)
 option(FLUME_WERROR       "Warnings in FLUME's own sources are errors"           OFF)
@@ -53,8 +52,12 @@ foreach(opt PRECISION GPU_BACKEND)
     endif()
 endforeach()
 
-if(FLUME_OMP AND NOT FLUME_GPU_BACKEND STREQUAL "NONE")
-    message(FATAL_ERROR "FLUME_OMP=ON cannot be combined with FLUME_GPU_BACKEND=${FLUME_GPU_BACKEND}")
+# OpenMP is not supported: the kernels and tests are written and checked for
+# MPI ranks and GPUs only. FLUME_OMP=ON, on the command line or left in a build
+# cache, would otherwise be ignored without a word; OFF is harmless.
+if(FLUME_OMP)
+    message(FATAL_ERROR "FLUME_OMP=ON is no longer supported: FLUME builds without OpenMP. "
+                        "Remove it from the command line or the cache (cmake -U FLUME_OMP).")
 endif()
 
 if(FLUME_GPU_BACKEND STREQUAL "CUDA")
@@ -75,7 +78,7 @@ endif()
 set(AMReX_SPACEDIM       3)
 set(AMReX_PRECISION      ${FLUME_PRECISION})
 set(AMReX_MPI            ${FLUME_MPI})
-set(AMReX_OMP            ${FLUME_OMP})
+set(AMReX_OMP            OFF)
 set(AMReX_GPU_BACKEND    ${FLUME_GPU_BACKEND})
 set(AMReX_FORTRAN        OFF)
 set(AMReX_INSTALL        OFF)
