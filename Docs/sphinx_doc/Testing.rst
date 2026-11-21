@@ -847,6 +847,164 @@ Current tests
    ``flume.buildings.file``. In a single-precision build,
    ``abort_raster_beyond_float`` reads a value of 1e39.
 
+``rain_flat_constant_np1``, ``_np2``, ``rain_flat_hyetograph_*``, ``rain_flat_no_stop_time``, ``rain_dry_*``
+   Rain on a closed, flat, dry domain (``Tests/Rain/inputs_flat``: 24 by 16
+   cells of 2 m in 6 boxes, walls on all sides). The rain is the same in
+   every cell, so the water stays level and still: in every plotfile every
+   cell must hold the rain fallen by the plotfile's time, within 4 epsilons
+   of that depth per step, and both discharges must be exactly 0
+   (``Tests/Rain/check_rain.py --uniform``, which computes the rain from
+   the rate or the file itself). Observed: equal to the last bit in double
+   precision.
+
+   * ``rain_flat_constant_np1``, ``_np2``: 36 mm/h to 600 s, 6 mm, on 1 and
+     2 ranks. The domain starts dry: the first step computes no fluxes (the
+     output says so) and the rain still falls.
+   * ``rain_flat_hyetograph_step``: ``hyetograph_steps.txt``, 36 mm/h for
+     600 s, 72 mm/h for 600 s, then none, held between entries: 18 mm at
+     1800 s. ``_linear``: ``hyetograph_triangle.txt``, from 0 to 72 mm/h and
+     back in 1200 s, linear: 12 mm at 1800 s. ``_step_file_linear`` reads the
+     step file with linear interpolation. Every plotfile is checked at its
+     own time, on the rising and falling sides and after the rain.
+   * ``rain_flat_hyetograph_late_start``: ``hyetograph_late.txt``, whose
+     first time, 600 s, is after the start, with 36 mm/h: that rate falls
+     from :math:`t = 0` (12 mm at 1800 s), and the run prints a note.
+   * ``rain_flat_deep_water``: 0.36 mm/h on 1 m of still water
+     (``inputs_flat_deep``), on 2 ranks. The rain of a step, about
+     1.6e-8 m, is below half the spacing of single-precision numbers near
+     1 m; the compensated sum keeps it. Every cell holds 1 m plus the rain
+     within 4 epsilons of the depth, not scaled by the number of steps.
+   * ``rain_flat_no_stop_time``: the dry domain of ``Tests/Skeleton/inputs``
+     with three steps and no stop time: the rain sets the step.
+   * ``rain_dry_burst_no_stop_time``: no stop time and a rate of 0 at the
+     start and at the end, with 1 mm/s from 100 s to 101 s
+     (``hyetograph_burst.txt``). Before 100 s only the burst, an entry of
+     the table inside the interval the step looks ahead over, gives a
+     finite step; the domain gets 1 mm.
+   * ``rain_dry_start_discharge``: the Skeleton domain starting with
+     5e-7 m of water (below ``flume.dry_depth``) moving at (1, -2) m/s,
+     under 36 mm/h for 5 steps. The domain is dry at first, so no fluxes
+     are computed; after every step both discharges are exactly 0 and the
+     depth is 5e-7 m plus the rain (the initial state, plotfile 0, is not
+     checked).
+   * ``rain_dry_tiny_rate``: 1e-300 mm/h on the dry Skeleton domain with no
+     stop time, for 2 steps. The Newton iteration of the rain-limited step
+     converges from the smaller one-term root; from the larger it would
+     need 171 iterations, more than the 100 allowed, and the run would
+     stop. In single precision the depth, about 4e-305 m, rounds to 0, and
+     the check expects 0.
+
+``rain_basin_volume``
+   The closed basin of ``basin_mass_*`` (rough sloping bed, moving water,
+   waves off the walls) under the triangular hyetograph, on 2 ranks: the sum
+   of the depth over the cells grows by the number of cells times the rain
+   fallen, within 4 epsilons of the sum per step (observed: 8.9e-13 of an
+   added 6.4e-3). In single precision that tolerance is larger than the
+   rain on this deep water; there ``rain_flat_deep_water`` checks the rain
+   added to deep water.
+
+``rain_plane_kinematic_wave``, ``_order2``
+   Rain on an impermeable plane (``Tests/Rain/inputs_plane``): 100 m long,
+   falling at :math:`S_0 = 0.01` towards an outflow side, a wall upstream,
+   Manning :math:`n = 0.01` s/m\ :sup:`1/3`, rain :math:`i = 50` mm/h on a dry
+   bed from :math:`t = 0`, cells of 0.1 m along the slope, on 2 ranks. The
+   kinematic-wave approximation keeps only the bed slope and friction in the
+   momentum equation, :math:`q = \alpha h^{5/3}` with
+   :math:`\alpha = S_0^{1/2} / n`, and
+
+   .. math::
+
+      \frac{\partial h}{\partial t} + \frac{\partial q}{\partial x} = i .
+
+   Along the characteristics :math:`dx/dt = \tfrac53 \alpha h^{2/3}` the depth
+   grows as :math:`dh/dt = i`. A characteristic that starts at the wall
+   (:math:`x = 0`, :math:`h = 0`) reaches :math:`x` at
+   :math:`t_x = (x / (\alpha\, i^{2/3}))^{3/5}`; before that the depth at
+   :math:`x` is that of a plane with no upstream inflow, and after it the
+   steady depth:
+
+   .. math::
+
+      h(x, t) = \begin{cases} i\, t, & t < t_x \\
+                (i\, x / \alpha)^{3/5}, & t \ge t_x \end{cases}
+      \qquad
+      q(x, t) = \alpha\, h(x, t)^{5/3} .
+
+   Here :math:`t_{100} = 349` s; the outlet depth at equilibrium is 4.8 mm,
+   with a Froude number of 1.3, so the flow leaves supercritical and the
+   outflow side sets nothing the flow inside depends on. The kinematic
+   wave neglects the pressure term, whose ratio to the bed slope,
+   :math:`\partial h / \partial x / S_0 \approx 0.6\, h / (x S_0)`, is
+   0.003 at the outlet. In plotfiles to 900 s the check computes the L1
+   error of the depth over the cells, relative to the L1 norm of the exact
+   depth, and the error of the outlet discharge (mean of the last column)
+   relative to :math:`i L`:
+
+   .. list-table::
+      :header-rows: 1
+
+      * - Order, cell, cfl
+        - depth L1 (largest)
+        - outlet (largest)
+      * - 1, 0.2 m, 0.5
+        - 10.2 %
+        - 11.1 %
+      * - **1, 0.1 m, 0.5 (test)**
+        - **5.5 %**
+        - **5.7 %**
+      * - 2, 0.2 m, 0.5
+        - 2.8 %
+        - 3.6 %
+      * - 2, 0.1 m, 0.5
+        - 1.2 %
+        - 2.6 %
+      * - **2, 0.1 m, 0.125 (test)**
+        - **0.22 %**
+        - **1.3 %**
+
+   At order 1 the errors fall with the cell size at about first order; the
+   largest depth error is at the upstream end, where the film is thinner
+   than the bed step of a cell (Delestre et al., 2012), and the outlet error
+   is largest on the rising limb. At order 2 and cfl 0.5 the error is mostly
+   that of friction split from the stages (below), which halves with the
+   step, not with the cell: so the order-2 test runs at cfl 0.125, where a
+   rain rate off by 1 % or a Manning coefficient off by 2 % raises the depth
+   L1 error above 1 %. Bounds: 6 % and 6.5 % at order 1, 0.5 % and 1.6 % at
+   order 2. At order 1 the outlet discharge at equilibrium is
+   :math:`i L` to round-off (observed 1.2e-13; bound 1e-9, 1e-4 in single
+   precision): the outlet cell's discharge is the flux through the side,
+   and at equilibrium the side passes all the rain on the plane. At order 2
+   the cell value is a cell average, 1.2 % below the flux; the steady
+   discharge in the cells is about 3 % below :math:`i x` at 0.2 m and
+   1.3 % at 0.1 m. That matches friction acting once per step on the state
+   after the two stages, with a step of about 4 % of the film's friction
+   time :math:`h^{4/3} / (g n^2 |u|)`: at 0.1 m it is 2.75 %, 1.38 %,
+   0.69 % and 0.35 % at a quarter of the plane for cfl 0.5, 0.25, 0.125 and
+   0.0625, and the same at equal steps on 0.2 m cells. At order 1 the
+   implicit friction balances the bed slope exactly at steady state.
+
+   On a plane at 1 cm per metre with 1 m cells and :math:`n = 0.03`, the bed
+   falls by more than the film depth from one cell to the next over most of
+   the plane; the hydrostatic reconstruction
+   then slows the film (depth error 27 % at equilibrium; Delestre et al.,
+   2012), and the outflow is subcritical, which a zero-gradient side does
+   not hold (water ponds in the last cells). The test avoids both.
+
+``abort_rain_*``
+   Each check of the rain inputs: the three reserved and an unknown
+   ``flume.rain.type``; a negative or infinite ``flume.rain.rate``; a missing
+   rate or file for its type; a rate, file or interpolation given with the
+   other type or with none; an unknown interpolation; a misspelled key, which is reported as unknown
+   before the missing rate; an empty file name; a
+   file that cannot be opened (with an absolute and with a relative path,
+   whose message names the directory it is taken from) and a directory; and on files in
+   ``Tests/Rain/bad`` a line of one or three items, a time that is not a
+   number or beyond double precision, an infinite rate, a negative rate, a
+   time below or equal to the one before, and a file with only comments and
+   blank lines. ``abort_rain_zero_dry_without_stop_time``: rain of 0 mm/h on
+   a dry domain with a step limit and no stop time stops with the message
+   that asks for ``flume.stop_time``.
+
 ``abort_*``
    At least one test per check in :doc:`Inputs`: missing keys, wrong numbers
    of values, values outside the range (including integers that would wrap),

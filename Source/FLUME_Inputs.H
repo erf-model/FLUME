@@ -17,6 +17,12 @@ inline constexpr int n_cell_max = 1073741824;
 //! The type of a boundary segment (flume.bc.<name>.type).
 enum class BoundaryType : int { wall, outflow };
 
+//! Where the rain comes from (flume.rain.type).
+enum class RainType : int { none, constant, hyetograph };
+
+//! How a hyetograph's rate runs between its entries (flume.rain.interpolation).
+enum class RainInterpolation : int { step, linear };
+
 /**
  * A segment of a side that is not periodic (flume.bc.<name>.*): the boundary
  * cells cell_lo to cell_hi along the side, all with one type. read_inputs
@@ -105,6 +111,25 @@ struct Inputs
     //! flume.friction.manning). Each cell takes the raster cell that holds
     //! its centre; every value a cell takes must be >= 0.
     std::string friction_manning_file;
+
+    //! Where the rain comes from (flume.rain.type; default none; none,
+    //! constant or hyetograph; gridded, moving_cell and microphysics are
+    //! reserved and abort)
+    RainType rain_type = RainType::none;
+
+    //! Rain rate, mm/h (flume.rain.rate; finite, >= 0; required with
+    //! flume.rain.type = constant and read only with it)
+    double rain_rate = 0.0;
+
+    //! Hyetograph file: lines of a time in s and a rate in mm/h
+    //! (flume.rain.file; not empty; required with flume.rain.type =
+    //! hyetograph and read only with it)
+    std::string rain_file;
+
+    //! How the hyetograph's rate runs between entries
+    //! (flume.rain.interpolation; default step; step or linear; read only
+    //! with flume.rain.type = hyetograph)
+    RainInterpolation rain_interpolation = RainInterpolation::step;
 
     //! Bed elevation at the lower corner of the domain, m, on the absolute
     //! vertical datum (flume.bed.elevation; default 0; finite)

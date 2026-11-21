@@ -119,15 +119,17 @@ query_int (const amrex::ParmParse& pp, const std::string& key, long long lo, lon
     return true;
 }
 
-//! Read one file name, not empty, if the key is given. Returns whether it was.
+//! Read one file name, not empty, if the key is given. Returns whether it
+//! was. `what` names the kind of file in the message.
 bool
-query_file (const amrex::ParmParse& pp, const std::string& key, std::string& value)
+query_file (const amrex::ParmParse& pp, const std::string& key, std::string& value,
+            const char* what = "an ESRI ASCII grid file")
 {
     if (!pp.contains(key)) { return false; }
     require_count(pp, key, 1);
     pp.get(key, value);
     if (value.empty()) {
-        amrex::Abort("flume." + key + " must not be empty: the name of an ESRI ASCII grid file");
+        amrex::Abort("flume." + key + " must not be empty: the name of " + what);
     }
     return true;
 }
@@ -453,6 +455,63 @@ read_inputs ()
     if (query_file(pp, "friction.manning_file", in.friction_manning_file) && manning_value) {
         defer("flume.friction.manning_file cannot be used with flume.friction.manning: the file"
               " gives the coefficient of every cell");
+    }
+
+    // rain.type: none, constant or hyetograph; rain.rate (constant only),
+    // rain.file and rain.interpolation (hyetograph only)
+    if (pp.contains("rain.type")) {
+        require_count(pp, "rain.type", 1);
+        std::string v;
+        pp.get("rain.type", v);
+        if (v == "none") {
+            in.rain_type = RainType::none;
+        } else if (v == "constant") {
+            in.rain_type = RainType::constant;
+        } else if (v == "hyetograph") {
+            in.rain_type = RainType::hyetograph;
+        } else if (v == "gridded" || v == "moving_cell" || v == "microphysics") {
+            amrex::Abort("flume.rain.type = " + v + " is reserved for a later version and is not"
+                         " available yet: use none, constant or hyetograph");
+        } else {
+            amrex::Abort("flume.rain.type must be none, constant or hyetograph; it is " + v);
+        }
+    }
+    {
+        const bool rate = query_finite(pp, "rain.rate", in.rain_rate);
+        if (!(in.rain_rate >= 0.0)) {
+            amrex::Abort("flume.rain.rate must be >= 0 (mm/h); it is " + all_digits(in.rain_rate));
+        }
+        if (in.rain_type == RainType::constant && !rate) {
+            defer("flume.rain.type = constant needs flume.rain.rate: the rain rate in mm/h");
+        }
+        if (in.rain_type != RainType::constant && rate) {
+            defer("flume.rain.rate is read only with flume.rain.type = constant");
+        }
+        const bool file = query_file(pp, "rain.file", in.rain_file,
+                                     "a hyetograph file (a time in s and a rain rate in mm/h"
+                                     " per line)");
+        if (in.rain_type == RainType::hyetograph && !file) {
+            defer("flume.rain.type = hyetograph needs flume.rain.file: lines of a time in s and"
+                  " a rain rate in mm/h");
+        }
+        if (in.rain_type != RainType::hyetograph && file) {
+            defer("flume.rain.file is read only with flume.rain.type = hyetograph");
+        }
+        if (pp.contains("rain.interpolation")) {
+            require_count(pp, "rain.interpolation", 1);
+            std::string v;
+            pp.get("rain.interpolation", v);
+            if (v == "step") {
+                in.rain_interpolation = RainInterpolation::step;
+            } else if (v == "linear") {
+                in.rain_interpolation = RainInterpolation::linear;
+            } else {
+                amrex::Abort("flume.rain.interpolation must be step or linear; it is " + v);
+            }
+            if (in.rain_type != RainType::hyetograph) {
+                defer("flume.rain.interpolation is read only with flume.rain.type = hyetograph");
+            }
+        }
     }
 
     // bed.elevation, bed.slope: optional, finite

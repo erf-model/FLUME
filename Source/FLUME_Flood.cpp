@@ -14,6 +14,7 @@
 #include <AMReX_Print.H>
 #include <AMReX_RealBox.H>
 
+#include <algorithm>
 #include <cmath>
 #include <iomanip>
 #include <limits>
@@ -143,7 +144,8 @@ Flood::Flood (const Inputs& in) : m_in(in), m_boundary(in, make_geometry(in))
     amrex::Print() << "FLUME: " << in.n_cell[0] << " x " << in.n_cell[1] << " cells in "
                    << m_ba.size() << " box(es)\n";
 
-    m_sources = make_sources(in, m_geom, m_ba, m_dm);
+    m_forcing = make_forcing(in);
+    m_sources = make_sources(in, m_geom, m_ba, m_dm, m_forcing.get());
 }
 
 amrex::Real
@@ -193,16 +195,33 @@ Flood::compute_dt (bool& lands, bool& dry) const
     lands = false;
     dry = false;
     const amrex::Real rate = check_state();
-    if (!(rate > amrex::Real(0.0))) {
+    dry = !(rate > amrex::Real(0.0));
+    // The longest the step can be without rain: to the stop time, and no
+    // longer than the CFL step.
+    double dt_max = std::numeric_limits<double>::infinity();
+    if (m_in.stop_time.has_value()) { dt_max = *m_in.stop_time - m_time; }
+    if (!dry) { dt_max = std::min(dt_max, static_cast<double>(m_in.cfl / rate)); }
+    // The largest rain rate over that span bounds the rain of the step, which
+    // is no longer.
+    const double r_max = (m_forcing != nullptr)
+        ? m_forcing->max_rain_rate(m_time, m_time + dt_max) : 0.0;
+    double dt = dt_max;
+    if (r_max > 0.0) {
+        dt = std::min(dt_max, rain_limited_step(static_cast<double>(rate), r_max,
+                                                static_cast<double>(m_in.gravity),
+                                                static_cast<double>(m_in.dry_depth),
+                                                static_cast<double>(m_geom.InvCellSize(0)),
+                                                static_cast<double>(m_geom.InvCellSize(1)),
+                                                static_cast<double>(m_in.cfl)));
+    } else if (dry) {
         if (!m_in.stop_time.has_value()) {
             amrex::Abort("No cell has a wave speed above zero (no depth is above flume.dry_depth),"
-                         " so nothing sets the time step: set flume.stop_time");
+                         " and no rain falls from this time on, so nothing sets the time step:"
+                         " set flume.stop_time");
         }
         lands = true;
-        dry = true;
         return *m_in.stop_time - m_time;
     }
-    double dt = static_cast<double>(m_in.cfl / rate);
     if (!(std::isfinite(dt) && m_time + dt > m_time)) {
         std::ostringstream msg;
         msg << std::setprecision(17) << "The time step, " << dt
@@ -235,18 +254,19 @@ Flood::evolve ()
     if (!limited) {
         amrex::Print() << "Neither flume.stop_time nor flume.max_step is set: no step is taken\n";
     }
+    bool was_dry = false;  // the message for a dry domain is printed once per dry spell
     while (limited && (!m_in.max_step.has_value() || m_step < *m_in.max_step)
            && (!m_in.stop_time.has_value() || m_time < *m_in.stop_time)) {
         bool lands = false;
         bool dry = false;
         const double dt = compute_dt(lands, dry);
 
-        // A dry domain stays as it is, and its step (the whole time left) is
-        // bounded by nothing: only the time advances. Otherwise the state
-        // advances with the step in its own precision; in single precision
-        // that differs from dt by rounding.
+        // The fluxes leave a dry domain as it is: only the sources act on it.
+        // Otherwise the state advances with the step in its own precision;
+        // in single precision that differs from dt by rounding.
+        const auto dt_real = static_cast<amrex::Real>(dt);
+        const double time_end = lands ? *m_in.stop_time : m_time + dt;
         if (!dry) {
-            const auto dt_real = static_cast<amrex::Real>(dt);
             if (m_in.order == 2) {
                 // Two stages from the state, then the mean with it.
                 amrex::MultiFab::Copy(m_state_old, m_state, 0, 0, State::ncomp, 0);
@@ -259,19 +279,28 @@ Flood::evolve ()
             } else {
                 advance_stage(dt_real);
             }
-            // The sources act once, after the explicit terms of the whole
-            // step, in order. Friction is implicit in the discharge, with
-            // the depth at the end of the step (FLUME_Friction.H): acting on
-            // each stage instead, and then taking the mean, would remove
-            // only half of a stiff film's excess discharge per step.
-            const SourceContext ctx{m_bed, m_geom, m_time};
-            for (auto& s : m_sources) { s->apply(m_state, ctx, dt_real); }
         } else {
-            amrex::Print() << "No depth is above flume.dry_depth (" << m_in.dry_depth
-                           << " m): the state is not advanced\n";
+            // Every cell is dry: zero its discharges, as a step with fluxes
+            // does in dry cells, so that a cell the rain makes wet starts
+            // still (the initial state may hold a discharge in a dry cell).
+            m_state.setVal(amrex::Real(0.0), State::hu, 2, 0);
+            if (!was_dry) {
+                amrex::Print() << "No depth is above flume.dry_depth (" << m_in.dry_depth
+                               << " m): the fluxes are not computed until one is\n";
+            }
         }
+        was_dry = dry;
+        // The sources act once, after the explicit terms of the whole step,
+        // in order, from the start to the end of the step. Friction is
+        // implicit in the discharge, with the depth at the end of the step
+        // (FLUME_Friction.H): acting on each stage instead, and then taking
+        // the mean, would remove only half of a stiff film's excess
+        // discharge per step. They act on a dry domain too: rain falls on
+        // it, and friction leaves a dry cell as it is.
+        const SourceContext ctx{m_bed, m_geom, m_time, time_end};
+        for (auto& s : m_sources) { s->apply(m_state, ctx, dt_real); }
 
-        m_time = lands ? *m_in.stop_time : m_time + dt;
+        m_time = time_end;
         ++m_step;
         amrex::Print() << "Step " << m_step << ": time " << m_time << " s, dt " << dt << " s\n";
 

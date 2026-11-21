@@ -1,6 +1,7 @@
 #ifndef FLUME_SOURCE_H_
 #define FLUME_SOURCE_H_
 
+#include "FLUME_Forcing.H"
 #include "FLUME_Inputs.H"
 
 #include <AMReX_BoxArray.H>
@@ -22,6 +23,7 @@ struct SourceContext
     const amrex::MultiFab& bed;   //!< bed elevation, m, with filled ghost cells
     const amrex::Geometry& geom;  //!< the grid
     double time;                  //!< time at the start of the step, s
+    double time_end;              //!< time at the end of the step, s
 };
 
 /**
@@ -61,14 +63,16 @@ public:
 };
 
 /**
- * The sources the inputs switch on, in the order they act. Today the list is
- * empty or holds Manning friction (flume.friction.manning > 0 or
- * flume.friction.manning_file). Prints the
- * names, or "none", at start-up.
+ * The sources the inputs switch on, in the order they act: rain when
+ * `forcing` is not null (flume.rain.type), then Manning friction
+ * (flume.friction.manning > 0 or flume.friction.manning_file), which so
+ * sees the depth after the rain. `forcing` must outlive the sources. Prints
+ * the names, or "none", at start-up.
  */
 std::vector<std::unique_ptr<Source>> make_sources (const Inputs& in, const amrex::Geometry& geom,
                                                    const amrex::BoxArray& ba,
-                                                   const amrex::DistributionMapping& dm);
+                                                   const amrex::DistributionMapping& dm,
+                                                   const Forcing* forcing);
 
 } // namespace flume
 

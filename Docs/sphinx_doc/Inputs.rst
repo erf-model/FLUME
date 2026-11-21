@@ -129,8 +129,7 @@ a valid number.
      - ``1e-6``
      - Depth at or below which water counts as dry, in metres. Must be finite
        and at least 0. A cell at or below it has no velocity, holds no
-       discharge after a step that advances the state (the initial state is
-       kept as given) and does not enter the time step; a face that
+       discharge after a step (the initial state is kept as given) and does not enter the time step; a face that
        sees no more than this depth of a cell sees none (:doc:`Model`). The
        water of such a cell is kept. ``0`` treats every depth above zero as
        wet. In single precision the bed elevation is rounded to about
@@ -153,6 +152,32 @@ a valid number.
        raster cell that holds its centre; every value read must be at least
        0. Not with ``flume.friction.manning``. The run prints the smallest
        and the largest coefficient.
+   * - ``flume.rain.type``
+     - string
+     - ``none``
+     - ``none``, ``constant`` or ``hyetograph``: no rain, rain at a constant
+       rate, or a rate that changes in time from a file. The rain is the same
+       in every cell and adds depth without momentum (:doc:`Model`).
+       ``gridded``, ``moving_cell`` and ``microphysics`` are kept for later
+       versions and stop the run. The run prints the rain at start-up.
+   * - ``flume.rain.rate``
+     - real
+     - required with ``constant``
+     - Rain rate, in mm/h. Must be finite and at least 0. Only with
+       ``flume.rain.type = constant``.
+   * - ``flume.rain.file``
+     - string
+     - required with ``hyetograph``
+     - Hyetograph file (`Hyetograph files`_). Must not be empty. Only with
+       ``flume.rain.type = hyetograph``. A relative path is taken from the
+       directory the run starts in.
+   * - ``flume.rain.interpolation``
+     - string
+     - ``step``
+     - ``step`` holds each rate of the file until the next time; ``linear``
+       interpolates linearly in time between the entries. Before the first
+       time and after the last the rate is the first or the last one, in
+       both modes. Only with ``flume.rain.type = hyetograph``.
    * - ``flume.bed.file``
      - string
      - none
@@ -322,11 +347,13 @@ inputs can give a number that is not finite:
   change the time.
 
 A domain with no depth above ``flume.dry_depth`` has no wave to set the time
-step. The run then takes
-one step to ``flume.stop_time`` and prints that the state is not advanced;
-with ``flume.max_step`` alone it stops with a message asking for
-``flume.stop_time``, after the initial plotfile is written. This also holds
-later in a run, if the water spreads until no cell is above the tolerance.
+step, and the run prints, once for each such spell, that the fluxes are not
+computed; the discharges of its cells are set to zero, as a step with fluxes
+does in a dry cell. With rain ahead the rain sets the step (:doc:`Model`). Without rain the run takes one step to
+``flume.stop_time``; with ``flume.max_step`` alone it stops with a message
+asking for ``flume.stop_time``, after the initial plotfile is written. This
+also holds later in a run, if the water spreads until no cell is above the
+tolerance.
 
 A key with no value (``flume.cfl =``) is stopped by AMReX's parser, with its
 own message.
@@ -393,6 +420,36 @@ Each message about a file names the key and the file. A value beyond the
 range of the build's precision (above about 3.4e38 in single precision) stops
 the run with its position. Rasters through GDAL (GeoTIFF and other formats)
 are kept for a later version.
+
+Hyetograph files
+----------------
+
+``flume.rain.file`` is a text file of lines of two numbers: a time in s and
+a rain rate in mm/h. For example::
+
+   # time (s)  rate (mm/h)
+   0      36
+   600    72   # the rate doubles
+   1200   0
+
+* ``#`` starts a comment that runs to the end of the line. Blank lines are
+  skipped. Numbers are separated by spaces or tabs.
+* Each line that is not blank holds exactly two numbers, both finite; the
+  rate is at least 0; the times increase strictly from one line to the next.
+  The file holds at least one line. Times may be negative and need not start
+  at 0.
+* The rate between the times is held (``flume.rain.interpolation = step``)
+  or linear (``linear``); before the first time and after the last it is
+  the first or the last rate (:doc:`Model`). A storm that starts after the
+  run starts needs a first line ``0 0`` (or a line at its start with rate
+  0); a storm that ends needs a last line with rate 0. When the first time
+  is after 0 with a rate above 0, the run prints a note that this rate falls
+  from the start of the run.
+
+One rank reads the file and sends the table to the others. A file that
+cannot be opened, a path that is not a regular file, and each failed check
+stop the run on every rank with one message that names the key, the file
+and the line.
 
 Single precision and large coordinates
 --------------------------------------

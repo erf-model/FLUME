@@ -1812,3 +1812,8 @@ flume_add_abort_test(abort_raster_buildings_height_zero
 flume_add_abort_test(abort_raster_buildings_negative
     EXPECT "flume\\.buildings\\.file \\([^)]*\\): 16 cell\\(s\\) of the domain take a building height below 0"
     ARGS ${rok} flume.buildings.file=${bad}/negative.asc)
+
+
+# --- Prescribed rain ---------------------------------------------------------------
+# In their own file, which uses the functions and ${ok} above.
+include(${CMAKE_CURRENT_SOURCE_DIR}/Rain/RainTests.cmake)

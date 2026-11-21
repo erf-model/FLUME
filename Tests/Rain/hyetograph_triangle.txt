@@ -1,0 +1,7 @@
+# A triangular storm: from 0 to 72 mm/h in 10 minutes and back to 0 in 10
+# minutes (with flume.rain.interpolation = linear). Time in s, rain rate in
+# mm/h.
+
+0      0
+600    72
+1200   0

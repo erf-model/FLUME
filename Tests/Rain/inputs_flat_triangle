@@ -1,0 +1,16 @@
+# Rain from a hyetograph (hyetograph_triangle.txt, linear between entries)
+# on the closed, flat, dry domain of inputs_flat. The water stays level and
+# still: the depth in every cell is the rain fallen since the start,
+# 12 mm at 1800 s (the area of the triangle), and the discharges stay 0.
+# The file name is relative to the directory the run starts in; the tests
+# give its full path.
+flume.n_cell        = 24 16
+flume.prob_hi       = 48.0 32.0
+flume.max_grid_size = 8
+flume.plot_file     = flat_triangle
+flume.plot_int      = 100
+flume.stop_time     = 1800.0
+
+flume.rain.type          = hyetograph
+flume.rain.file          = hyetograph_triangle.txt
+flume.rain.interpolation = linear

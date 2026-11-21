@@ -8,7 +8,12 @@
 #include <AMReX_Tuple.H>
 #include <AMReX_TypeList.H>
 
+#include <AMReX.H>
+
+#include <algorithm>
 #include <cmath>
+#include <iomanip>
+#include <sstream>
 
 namespace flume {
 
@@ -55,6 +60,37 @@ max_wave_rate (const amrex::MultiFab& state, const amrex::Geometry& geom, amrex:
     amrex::ParallelDescriptor::ReduceRealMax(w.rate);
     amrex::ParallelDescriptor::ReduceLongSum(w.bad_cells);
     return w;
+}
+
+double
+rain_limited_step (double rate, double r_max, double gravity, double dry_depth, double dxi,
+                   double dyi, double cfl)
+{
+    const double inv = dxi + dyi;
+    const double a = std::sqrt(gravity * r_max) * inv;
+    const double b = std::max(rate, std::sqrt(gravity * dry_depth) * inv);
+    // f(y) = a y^3 + b y^2 - cfl. Start at or above the root: each term alone
+    // reaches cfl at its own root, and f >= 0 at both, since the other term
+    // is >= 0. The smaller of the two is the closer start.
+    double y = std::cbrt(cfl / a);
+    if (b > 0.0) { y = std::min(y, std::sqrt(cfl / b)); }
+    for (int it = 0; it < 100; ++it) {
+        const double f = (a * y + b) * y * y - cfl;
+        const double df = (3.0 * a * y + 2.0 * b) * y;
+        const double y_new = y - f / df;
+        // From above the iterates fall; stop when they stop falling.
+        if (!(y_new < y)) { break; }
+        y = y_new;
+    }
+    // The iteration stops at the root to round-off; anything else is a bug.
+    const double f = (a * y + b) * y * y - cfl;
+    if (!(std::isfinite(y) && y > 0.0 && std::abs(f) <= 1.0e-10 * cfl)) {
+        std::ostringstream msg;
+        msg << std::setprecision(17) << "The rain-limited time step did not converge: rate " << rate
+            << " 1/s, rain rate " << r_max << " m/s, sqrt(dt) " << y << " s^1/2, residual " << f;
+        amrex::Abort(msg.str());
+    }
+    return y * y;
 }
 
 } // namespace flume

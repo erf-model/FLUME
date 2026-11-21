@@ -4,9 +4,9 @@ Model
 This page describes what the code holds and computes today: the
 shallow-water equations over a fixed bed, advanced by a first-order or a second-order
 finite-volume scheme with wetting and drying, between walls, outflow sides
-or periodic sides, with Manning friction on the bed. The bed, buildings and
-the Manning coefficient can come from raster files. Rainfall and inflow
-boundaries are not written yet.
+or periodic sides, with Manning friction on the bed and rain that is given
+as a function of time. The bed, buildings and the Manning coefficient can
+come from raster files. Inflow boundaries are not written yet.
 
 Equations
 ---------
@@ -591,12 +591,88 @@ Each source is a class with a name and one step of :math:`\Delta t`
 switch on and prints their names at start-up (``FLUME: sources: ...``, or
 ``none``). Each source acts once per step, after the fluxes and the bed slope
 of all the stages of the step, on the state at the end of the step, in the
-order of the list. Today the list is empty or holds Manning friction (next
-section). Rain, infiltration and drains are to be added as further sources.
+order of the list. Today the list holds rain (`Rain`_), then Manning friction
+(`Manning friction`_), each when its inputs switch it on. The sources act on
+a dry domain too (`Time step`_). Infiltration and drains are to be added as
+further sources.
 
 The bed-slope term is not one of these sources: it is part of each explicit
 stage, where it balances the fluxes of still water exactly (`Hydrostatic
 reconstruction`_).
+
+Rain
+----
+
+**Provider.** The solver asks a forcing provider (``Source/FLUME_Forcing.H``)
+for the rain that falls on each cell over an interval of time, and for the
+largest rain rate over an interval (for the `Time step`_). The provider gives
+the depth of rain over the interval, the integral of the rate, not the rate
+at one time. Today one provider exists: rain that is the same in every cell,
+with a rate :math:`r(t)` (m/s) given by a table of times
+:math:`t_0 < t_1 < \dots < t_N` and rates :math:`r_0, \dots, r_N \ge 0`:
+
+* ``flume.rain.type = constant``: one entry, :math:`r(t) = r_0` at all times
+  (``flume.rain.rate``, in mm/h).
+* ``flume.rain.type = hyetograph``: the table read from
+  ``flume.rain.file`` (lines of a time in s and a rate in mm/h). With
+  ``flume.rain.interpolation = step`` the rate is :math:`r_k` from
+  :math:`t_k` to :math:`t_{k+1}`; with ``linear`` it is linear in time
+  between the entries. Before :math:`t_0` the rate is :math:`r_0`, and from
+  :math:`t_N` on it is :math:`r_N`, in both modes. A run that starts at
+  :math:`t = 0` with a file whose first time is later takes :math:`r_0`
+  until then (the run prints a note when :math:`r_0 > 0`); a storm that
+  starts later needs a first entry ``0 0``, and a storm that ends needs a
+  last entry of rate 0.
+
+The names ``gridded``, ``moving_cell`` and ``microphysics`` of
+``flume.rain.type`` are reserved for rain that varies in space (from a file,
+a moving storm cell, or ERF's microphysics); they stop the run today.
+
+**Step.** With :math:`I(t) = \int_{t_0}^{t} r(\tau)\, d\tau`, the step from
+:math:`t^n` to :math:`t^{n+1}` adds to the depth of every cell
+
+.. math::
+
+   \Delta h = \max\left(I(t^{n+1}) - I(t^{n}),\, 0\right) ,
+   \qquad
+   I(t) = C_k + \begin{cases}
+      r_k\, s & \text{(step)} \\
+      s \left(r_k + \tfrac12\, \dfrac{r_{k+1} - r_k}{t_{k+1} - t_k}\, s\right) & \text{(linear)}
+   \end{cases}
+   \qquad
+   s = t - t_k ,
+
+for :math:`t_k \le t < t_{k+1}`, with :math:`C_k = I(t_k)` summed once from
+the table. The discharges are not changed.
+
+**Why the integral.** The depth of each step is a difference of :math:`I` at
+the two ends of the step, and the end of one step is the start of the next,
+the same number. Over a run the depth added is then :math:`I(T) - I(0)` to
+round-off, whatever the steps are: a step that holds a change of rate, or
+the peak of a linear hyetograph, takes the exact rain of that step. A rate
+taken at one time in the step would add :math:`r(t^n)\,\Delta t`, which
+misses or doubles the rain of a change of rate inside the step. The times of
+the step are held in double precision in every build (`Time step`_).
+
+**Why a compensated sum.** In single precision the rain of one step can be
+below the rounding of the depth: 50 mm/h over 0.01 s is
+1.4\ :math:`\times`\ 10\ :sup:`-7` m, about the spacing of single-precision
+numbers near 1 m. Added plainly it would be rounded the same way at every
+step, and the rain over a run would be lost or doubled. Each cell therefore
+keeps the part of the rain that the addition rounded away,
+:math:`c \leftarrow (\Delta h + c) - (h^{\mathrm{new}} - h)`, and adds it
+with the rain of the next step (a Kahan sum). The depth then receives the
+rain to the rounding of one addition in every build.
+
+**Why no momentum.** Rain falls straight down and brings no horizontal
+momentum: the discharges :math:`hu` and :math:`hv` stay as they are, and the
+velocity of a wet cell falls as its depth grows. Rain falls on every cell,
+wet or dry, building or street; a dry cell under rain becomes wet once its
+depth passes ``flume.dry_depth``.
+
+**Order.** Rain acts once per step, after the explicit stages, like friction
+(`Source terms`_). In time this is first order at both orders of the scheme;
+in space the rain is the same in every cell and needs no reconstruction.
 
 Manning friction
 ----------------
@@ -804,8 +880,54 @@ every build: a single-precision sum of steps stops growing after about
 :math:`2^{24}` steps.
 
 A dry cell (:math:`h \le h_{\mathrm{dry}}`) has no wave and does not enter
-the maximum; the velocity is not computed there. If no cell is wet,
-:math:`r = 0` and no step follows from the formula. The run then takes one step to
+the maximum; the velocity is not computed there.
+
+**Rain.** Rain adds depth after the explicit stages, and a deeper cell has a
+faster wave, so the step also covers the state at its end. With
+:math:`\Delta t_{\max}` the step without rain (the CFL step, or the time
+to ``flume.stop_time`` if that is shorter) and :math:`\hat r` the largest
+rain rate over :math:`[t^n, t^n + \Delta t_{\max}]` (an end of the interval
+or an entry of the table inside it), the step is the smaller of
+:math:`\Delta t_{\max}` and the largest :math:`\Delta t` with
+
+.. math::
+
+   \Delta t \left(R + S \sqrt{\hat r\, \Delta t}\right) \le C ,
+   \qquad
+   S = \sqrt{g}\left(\frac{1}{\Delta x} + \frac{1}{\Delta y}\right) ,
+   \qquad
+   R = \max\left(r_w,\; \sqrt{g\, h_{\mathrm{dry}}}
+       \left(\frac{1}{\Delta x} + \frac{1}{\Delta y}\right)\right) ,
+
+with :math:`r_w` the wave rate :math:`r` above. The rain of the step adds at
+most :math:`\hat r\, \Delta t` to a depth: that lowers :math:`|u|` and
+:math:`|v|` and raises :math:`c` by at most :math:`\sqrt{g \hat r\,
+\Delta t}`, since :math:`\sqrt{a + b} \le \sqrt{a} + \sqrt{b}`. The
+second term of :math:`R` covers cells at or below :math:`h_{\mathrm{dry}}`,
+which have no rate. With :math:`y = \sqrt{\Delta t}` the bound is the root
+of :math:`S \sqrt{\hat r}\, y^3 + R\, y^2 - C = 0`, an increasing,
+convex function for :math:`y > 0`; Newton's method from the smaller of the
+roots of the two terms alone (each above the root, since the other term is
+not negative) falls monotonically to it, and the run stops if it ends away
+from the root. Without rain over the interval (:math:`\hat r = 0`) the step
+is :math:`\Delta t_{\max}`, as before.
+
+**What the rain bound is for.** The stages use the state at the start of
+the step, so the stability of the step needs only the CFL step. The rain
+bound gives a dry domain under rain a step that is finite, and keeps the
+rain of one step small next to the waves it makes on a thin film. It costs
+little on deep water: below 2 % of the CFL step for depths of 0.1 m and
+more. On a domain that is all thin film it shortens the step: to about
+0.6 or 0.45 of the CFL step at 50 or 200 mm/h on films of
+10\ :sup:`-4` m over 5 m cells, or of 10\ :sup:`-5` m over 1 m cells
+(cfl 0.5).
+
+If no cell is wet, :math:`r = 0` and no step follows from the wave rate. The
+fluxes are then not computed (the run prints so, once for each such spell),
+the discharges are set to zero as a step with fluxes does in a dry cell, and
+the sources still act: rain falls on the dry domain. With rain ahead (:math:`\hat r > 0` over the
+time to ``flume.stop_time``, or over all later time without a stop time) the
+rain bound sets the step. Without rain the run takes one step to
 ``flume.stop_time``; with ``flume.max_step`` alone it stops with a message
 that asks for ``flume.stop_time``.
 
