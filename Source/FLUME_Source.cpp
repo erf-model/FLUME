@@ -1,5 +1,6 @@
 #include "FLUME_Source.H"
 #include "FLUME_Friction.H"
+#include "FLUME_Rain.H"
 
 #include <AMReX_Print.H>
 
@@ -7,9 +8,10 @@ namespace flume {
 
 std::vector<std::unique_ptr<Source>>
 make_sources (const Inputs& in, const amrex::Geometry& geom, const amrex::BoxArray& ba,
-              const amrex::DistributionMapping& dm)
+              const amrex::DistributionMapping& dm, const Forcing* forcing)
 {
     std::vector<std::unique_ptr<Source>> sources;
+    if (forcing != nullptr) { sources.push_back(std::make_unique<Rain>(ba, dm, *forcing)); }
     if (!in.friction_manning_file.empty()) {
         sources.push_back(std::make_unique<Friction>(ba, dm, geom, in.friction_manning_file,
                                                      in.gravity, in.dry_depth));

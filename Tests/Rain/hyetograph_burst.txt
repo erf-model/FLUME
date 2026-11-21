@@ -1,0 +1,5 @@
+# A burst: no rain for 100 s, then 3600 mm/h (1 mm/s) for 1 s, then none
+# (held between entries): 1 mm in all. Time in s, rain rate in mm/h.
+0     0
+100   3600
+101   0

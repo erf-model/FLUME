@@ -2,6 +2,7 @@
 #define FLUME_FLOOD_H_
 
 #include "FLUME_Boundary.H"
+#include "FLUME_Forcing.H"
 #include "FLUME_Inputs.H"
 #include "FLUME_Source.H"
 
@@ -34,8 +35,9 @@ namespace flume {
  * values. With flume.order = 2 the faces take a piecewise-linear
  * reconstruction of the cells, and a step is the mean of the state and of
  * two stages from it. The step ends with the source terms
- * (FLUME_Source.H), each over the whole step, in order: today Manning
- * friction, implicit in the discharge (FLUME_Friction.H).
+ * (FLUME_Source.H), each over the whole step, in order: rain from the
+ * forcing provider (FLUME_Forcing.H, FLUME_Rain.H), then Manning friction,
+ * implicit in the discharge (FLUME_Friction.H).
  */
 class Flood
 {
@@ -48,13 +50,16 @@ public:
     void evolve ();
 
     /**
-     * The next time step, s: cfl / max_wave_rate(). A step that reaches
+     * The next time step, s: cfl / max_wave_rate(), or with rain falling
+     * during it rain_limited_step() (FLUME_TimeStep.H). A step that reaches
      * flume.stop_time, or falls short of it by round-off only (4 machine
      * epsilons of the stop time), is set to end on it. With no wave anywhere
-     * (a dry domain) the step goes straight to flume.stop_time and `dry` is
-     * set; without a stop time it aborts. Aborts as check_state() does, and
-     * on a step that is zero, not finite or too small to advance the time.
-     * `lands` is set when the step ends at flume.stop_time.
+     * (a dry domain) `dry` is set: the step is the rain-limited one if rain
+     * falls before flume.stop_time (or ever, without a stop time), and
+     * otherwise goes straight to flume.stop_time; with neither rain nor a
+     * stop time it aborts. Aborts as check_state() does, and on a step that
+     * is zero, not finite or too small to advance the time. `lands` is set
+     * when the step ends at flume.stop_time.
      */
     double compute_dt (bool& lands, bool& dry) const;
 
@@ -92,6 +97,9 @@ private:
     amrex::MultiFab m_bed_source;
     //! The sides that are not periodic (flume.periodic, flume.bc.*)
     Boundary m_boundary;
+    //! What drives the flood from outside (flume.rain.*), or null; declared
+    //! before m_sources, which may hold a reference to it
+    std::unique_ptr<Forcing> m_forcing;
     //! The source terms, applied in order at the end of each step
     std::vector<std::unique_ptr<Source>> m_sources;
     //! Time, s. In double precision in every build: a single-precision sum of

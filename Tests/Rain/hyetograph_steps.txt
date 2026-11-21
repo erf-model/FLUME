@@ -1,0 +1,5 @@
+# A storm of three parts: 36 mm/h for 10 minutes, 72 mm/h for 10 minutes,
+# then dry. Time in s, rain rate in mm/h.
+0     36
+600   72   # the rate doubles
+1200  0

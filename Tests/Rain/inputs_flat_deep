@@ -1,0 +1,16 @@
+# Light rain on deep, still water: the closed, flat domain of inputs_flat
+# with 1 m of water. 0.36 mm/h over a step of about 0.16 s is 1.6e-8 m, less
+# than half the spacing of single-precision numbers near 1 m (6e-8 m): each
+# step's rain is kept by the compensated sum of the rain source, not rounded
+# away. 600 s give 0.06 mm.
+flume.n_cell        = 24 16
+flume.prob_hi       = 48.0 32.0
+flume.max_grid_size = 8
+flume.plot_file     = flat_deep
+flume.plot_int      = 1000
+flume.stop_time     = 600.0
+
+flume.init.surface_elevation = 1.0
+
+flume.rain.type     = constant
+flume.rain.rate     = 0.36

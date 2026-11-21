@@ -1,0 +1,13 @@
+# Rain on a closed, flat, dry domain: 24 x 16 cells of 2 m in 6 boxes, walls
+# on all four sides, bed at 0. The rain is the same in every cell, so the
+# water stays level and still: the depth in every cell is the rain fallen
+# since the start, and the discharges stay 0.
+flume.n_cell        = 24 16
+flume.prob_hi       = 48.0 32.0
+flume.max_grid_size = 8
+flume.plot_file     = flat
+flume.plot_int      = 50
+flume.stop_time     = 600.0
+
+flume.rain.type     = constant
+flume.rain.rate     = 36.0

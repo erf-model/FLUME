@@ -1,0 +1,4 @@
+# A storm written from its onset at 600 s, without a first line "0 0":
+# its first rate is held from the start of the run (Docs/sphinx_doc/Inputs.rst).
+600   36
+1200  0
