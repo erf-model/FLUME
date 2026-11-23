@@ -271,6 +271,48 @@ the solver.
    * - ``rain_cell_zero_peak_long_step``
      - A cell of peak 0 takes one step of 1e7 s and adds no water.
 
+Infiltration
+------------
+
+Decks in ``Tests/Infiltration``, checked by ``check_infiltration.py``, which
+computes the closed forms independently of the solver (bisection for the
+Green-Ampt equation).
+
+.. list-table::
+   :header-rows: 1
+   :widths: 34 66
+
+   * - Tests
+     - What is checked
+   * - ``infiltration_green_ampt_ponded``
+     - 0.5 m of still water on silt loam for 6 h: every cell against the
+       implicit solution :math:`K_s t = F - M \ln(1 + F/M)`.
+   * - ``infiltration_green_ampt_ponded_moving``
+     - The same water moving on a periodic domain: the velocity is kept.
+   * - ``infiltration_green_ampt_rain``
+     - 36 mm/h on dry sandy loam: all rain infiltrates up to
+       :math:`F_s` at 1437 s, then ponding (round-off).
+   * - ``infiltration_curve_number_rain``, ``_ia_ratio``
+     - CN 75 (:math:`\lambda = 0.2`) and CN 65.31 (:math:`\lambda = 0.05`)
+       under constant rain: the cumulative loss against the formula.
+   * - ``infiltration_curve_number_many_steps``
+     - CN 75 on 2 cm cells, 279217 steps: the loss within a few epsilons,
+       with a bound that does not grow with the steps (compensated sums).
+   * - ``infiltration_curve_number_map``
+     - A map of curve numbers with flow and buildings: each cell loses the
+       loss of its own rain; buildings and CN 100 lose nothing.
+   * - ``infiltration_green_ampt_balance``
+     - A sloped, walled domain, second order, hyetograph, conductivity map
+       and buildings: surface water plus infiltrated water equals the rain,
+       to round-off.
+   * - ``infiltration_green_ampt_cap``, ``_cap_moving``
+     - A 1 mm film on a soil that could take 28 m in a step: the cell loses
+       exactly its water and holds no discharge.
+   * - ``infiltration_green_ampt_burst``
+     - Rain in the first step only, on cells that infiltration empties: the
+       rain's negative carry does not take a depth below 0 in the next,
+       dry step, and the water balances.
+
 Input checks
 ------------
 
@@ -289,6 +331,10 @@ Input checks
    * - ``abort_rain_*``
      - Each check of the rain inputs and of the hyetograph reader, on files
        in ``Tests/Rain/bad``.
+   * - ``abort_infiltration_*``
+     - Each infiltration key: ranges, missing and excluded keys, a value
+       with a file, the curve number without rain, and files with values
+       out of range or NODATA cells.
    * - ``abort_rain_gridded_*``, ``abort_rain_cell_*``
      - Each check of the index reader and the grids (files in
        ``Tests/RainField/bad``), each cell key, cell keys with another type,

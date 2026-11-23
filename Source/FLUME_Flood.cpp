@@ -77,7 +77,8 @@ Flood::Flood (const Inputs& in) : m_in(in), m_boundary(in, make_geometry(in))
     }
     if (!in.buildings_file.empty()) {
         const Raster b = read_raster("buildings.file", in.buildings_file, m_geom);
-        amrex::MultiFab height(m_ba, m_dm, 1, 0);
+        m_buildings.define(m_ba, m_dm, 1, 0);
+        amrex::MultiFab& height = m_buildings;
         sample_nearest(height, 0, b, m_geom);
         const amrex::Long below = count_below_zero(height);
         if (below > 0) {
@@ -145,7 +146,8 @@ Flood::Flood (const Inputs& in) : m_in(in), m_boundary(in, make_geometry(in))
                    << m_ba.size() << " box(es)\n";
 
     m_forcing = make_forcing(in, m_geom, m_ba, m_dm);
-    m_sources = make_sources(in, m_geom, m_ba, m_dm, m_forcing.get());
+    m_sources = make_sources(in, m_geom, m_ba, m_dm, m_forcing.get(),
+                             m_buildings.ok() ? &m_buildings : nullptr);
 }
 
 amrex::Real

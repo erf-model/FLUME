@@ -4,8 +4,8 @@ Source terms
 A source term changes the state in a cell without a flux between cells. Each
 source is a class with a name and one step of :math:`\Delta t`
 (``Source/FLUME_Source.H``). The active sources are printed at start-up and
-act once per step, after all the explicit stages, in this order: rain, then
-Manning friction. They act on a dry domain too.
+act once per step, after all the explicit stages, in this order: rain,
+infiltration, then Manning friction. They act on a dry domain too.
 
 The bed-slope term is not one of these sources: it is part of each explicit
 stage (:ref:`sec:HydrostaticReconstruction`).
@@ -53,6 +53,9 @@ rain brings no horizontal momentum. Rain falls on every cell, wet or dry.
 * Each cell keeps the part of the rain that the addition rounded away and
   adds it with the next step (a compensated sum). In single precision the
   rain of one step can be below the rounding of the depth; the sum keeps it.
+  A negative carry (rain rounded up) waits while the cell holds less than
+  it, so rain never takes the depth below 0, also in a cell that another
+  source (infiltration) has just emptied.
 * Rain is first order in time at both orders of the scheme.
 
 The solver asks a forcing provider (``Source/FLUME_Forcing.H``) for the depth
@@ -125,6 +128,123 @@ exact:
   more than :math:`10^4` sub-intervals stops the run.
 * Centre positions are formed in double precision relative to
   ``flume.prob_lo``. The step bound is :math:`P`.
+
+.. _sec:Infiltration:
+
+Infiltration
+------------
+
+Infiltration takes water from the surface into the soil
+(``flume.infiltration.type``). Each step a loss model gives a depth
+:math:`\Delta F` for each cell, which the cell loses, never more than the
+water :math:`W` it holds after the rain of the step. The water that leaves
+takes its share of the discharge: :math:`\mathbf{q}` is scaled by
+:math:`(h - \Delta F)/h`, so the velocity does not change, and a cell left at
+or below :math:`h_{\mathrm{dry}}` holds no discharge. The cumulative loss
+:math:`F` of each cell is written to the plotfiles as ``infiltrated_depth``.
+It adds the depth actually removed, :math:`h - h_{\mathrm{new}}` as stored
+(the subtraction rounds), in a compensated sum like the rain's, so the depth
+plus :math:`F` of each cell stays the water it got, to a few epsilons over
+any number of steps. So the water balances: water on the surface plus :math:`F`, summed over
+the cells, is the initial water plus the rain, less what leaves through the
+sides. Building cells and cells with :math:`K_s = 0` or :math:`CN = 100`
+infiltrate nothing.
+
+**Green-Ampt** (``green_ampt``), as in Rossman and Huber (2016, section
+4.4). With the saturated hydraulic conductivity :math:`K_s`, the suction
+head at the wetting front :math:`\psi_s`, the initial moisture deficit
+:math:`\theta_d` and :math:`M = \psi_s \theta_d`, the infiltration rate of a
+saturated surface is
+
+.. math::
+
+   f = K_s \left(1 + \frac{M}{F}\right) .
+
+With :math:`i = W/\Delta t`, the rate at which water is available in the
+step:
+
+* :math:`i \le K_s`: the cell loses :math:`W`.
+* Otherwise the surface is saturated once :math:`F` reaches
+
+  .. math::
+
+     F_s = \frac{K_s M}{i - K_s}
+
+  (their eq. 4-29). Below :math:`F_s` the cell loses :math:`W` if
+  :math:`F + W < F_s`. Else :math:`F` rises to :math:`F_s` at the rate
+  :math:`i`, after :math:`t_s = (F_s - F)/i`, and follows the integrated
+  equation for the rest of the step (eq. 4-32):
+
+  .. math::
+
+     K_s \tau = (F_2 - F_1) - M \ln\frac{F_2 + M}{F_1 + M} ,
+
+  with :math:`\tau = \Delta t - t_s` (or :math:`\Delta t` when already
+  saturated), :math:`F_1` the cumulative loss at the start of
+  :math:`\tau` and :math:`F_2` at its end.
+
+**Why the integrated equation.** It is exact for any :math:`\tau`, so the
+ponded infiltration does not depend on the step. :math:`F_2` is found by
+Newton's method from the upper bound
+:math:`F_1 + K_s\tau + \sqrt{2 M K_s \tau}`, in double precision, with a
+series for :math:`u - \ln(1 + u)` when :math:`u = (F_2 - F_1)/(F_1 + M)` is
+small. When the surface is saturated the rate is at most :math:`i`, so the
+loss is at most :math:`W`.
+
+Representative parameters by soil class are in Rossman and Huber (2016,
+Table 4-7, after Rawls et al., 1983). Ponded water at :math:`t = 0` is taken
+as rain of rate :math:`h/\Delta t` in the first step; the surface then
+saturates when :math:`F` reaches :math:`F_s \approx K_s M \Delta t / h`,
+after :math:`K_s M \Delta t^2 / h^2`, instead of at once. Exact ponding
+reaches the same :math:`F_s` after half that time, so :math:`F` lags by
+about :math:`K_s M \Delta t^2 / (2h^2)`: :math:`3.7 \times 10^{-6}` s in
+the test of :ref:`sec:VerifyInfiltration`.
+
+**Curve number** (``curve_number``), the NRCS runoff curve number used as a
+loss on the rain (NRCS, 2004; Woodward et al., 2003). With :math:`P` the rain
+fallen on the cell since the start, the potential retention :math:`S` and
+the initial abstraction :math:`I_a = \lambda S`,
+
+.. math::
+
+   S = 25.4 \left(\frac{1000}{CN} - 10\right)\ \mathrm{mm} , \qquad
+   Q = \frac{(P - I_a)^2}{P - I_a + S}\ \ (P > I_a), \quad Q = 0\ \ (P \le I_a),
+
+and the cumulative loss is :math:`L(P) = P - Q`, computed as
+:math:`I_a + (P - I_a) S / (P - I_a + S)` above :math:`I_a`. :math:`P` is a
+compensated sum, like the rain's, so a run of many small steps keeps it in
+single precision. Each step the
+cell loses :math:`L(P_{n+1}) - L(P_n)`, which is at most the rain of the step
+(:math:`dL/dP \le 1`). Water that runs onto a cell from its neighbours is
+not infiltrated: the loss depends on the cell's own rain only.
+
+**Which CN.** The handbook tables of curve numbers assume
+:math:`\lambda = 0.2`. FLUME does not convert: the curve number given must
+match ``flume.infiltration.cn.ia_ratio``. For :math:`\lambda = 0.05`,
+Woodward et al. (2003, eqs. 8 and 9) relate the retentions (in inches) and
+the curve numbers by
+
+.. math::
+
+   S_{0.05} = 1.33\, S_{0.2}^{1.15} , \qquad
+   CN_{0.05} = \frac{100}{1.879\,(100/CN_{0.2} - 1)^{1.15} + 1} .
+
+For example :math:`CN_{0.2} = 75` gives :math:`CN_{0.05} = 65.31` (their
+Table 4).
+
+**Limitations.**
+
+* One storm: the soil does not recover between storms (Rossman and Huber,
+  2016, section 4.4.2, not modelled). There a saturated soil takes
+  :math:`75/\sqrt{K_s}` hours (:math:`K_s` in in/h) to recover fully: 106 h
+  for :math:`K_s = 12.7` mm/h, much longer than a flood of a few hours.
+* Green-Ampt leaves out the depth of the ponded water from the head that
+  drives infiltration (Rossman and Huber, 2016, eq. 4-27, assume it small
+  next to :math:`\psi_s`). Under deep ponding the loss is then low.
+* The curve number does not infiltrate run-on water, and it has no rate:
+  a cell's loss follows its rain, whatever the soil under ponded water.
+* Infiltration is first order in time at both orders of the scheme, like
+  the other sources.
 
 .. _sec:Friction:
 

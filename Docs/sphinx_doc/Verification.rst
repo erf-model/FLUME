@@ -358,6 +358,45 @@ of 2 m in 6 boxes), against a reference computed from the files:
    * - Moving cell leaving the domain, water to 1200 s
      - 1.4e-16
 
+.. _sec:VerifyInfiltration:
+
+Infiltration
+------------
+
+Closed, flat domains where every cell is the same, against the closed forms
+of :ref:`sec:Infiltration` (``Tests/Infiltration``). Soil parameters from
+Rossman and Huber (2016, Table 4-7).
+
+.. list-table::
+   :header-rows: 1
+   :widths: 64 36
+
+   * - Case
+     - Largest difference
+   * - Green-Ampt, 0.5 m ponded on silt loam, 6 h, 4506 steps
+     - 2.9e-11 m (a time shift of 3.7e-6 s)
+   * - Green-Ampt, 36 mm/h on dry sandy loam, 2 h
+     - 7.6e-17 m
+   * - Curve number 75, 36 mm/h, 2 h (72 mm, loss 50.30 mm)
+     - 1.4e-17 m
+   * - Curve number 65.31 with :math:`\lambda = 0.05`
+     - 1.4e-17 m
+   * - Curve-number map with flow and buildings, per cell
+     - 3.5e-18 m
+
+The ponded case differs only by a shift in time: the first step takes the
+ponded water as rain and saturates the surface after
+:math:`K_s M \Delta t^2/h^2 \approx 7.5 \times 10^{-6}` s, where exact
+ponding takes half that, so :math:`F` lags by
+:math:`K_s M \Delta t^2/(2h^2) \approx 3.7 \times 10^{-6}` s; from there
+the integrated equation is exact. In every case with a closed form, the
+depth plus the infiltrated depth of each cell is the water it got to 4
+machine epsilons, also over the 279217 steps of a curve-number run on 2 cm
+cells. On a sloped, walled
+domain with a hyetograph, a conductivity map and buildings (second order, 3
+ranks), the water on the surface plus the infiltrated water equals the rain
+to :math:`5.7 \times 10^{-14}` of 28.8 m\ :sup:`3` per m\ :sup:`2` of cell.
+
 Partial outflow
 ---------------
 

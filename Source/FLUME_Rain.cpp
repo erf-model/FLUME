@@ -39,6 +39,13 @@ add_rain_depth (amrex::MultiFab& state, const amrex::MultiFab& depth, amrex::Mul
         {
             const amrex::Real h = s[box_no](i, j, k, State::h);
             const amrex::Real y = d[box_no](i, j, k) + c[box_no](i, j, k);
+            // A negative carry (the rain a step rounded up) waits while the
+            // cell holds less: rain never takes water away, and a cell that
+            // another source emptied stays at 0 instead of below it.
+            if (!(h + y >= amrex::Real(0.0))) {
+                c[box_no](i, j, k) = y;
+                return;
+            }
             const amrex::Real h_new = h + y;
             c[box_no](i, j, k) = y - (h_new - h);
             s[box_no](i, j, k, State::h) = h_new;

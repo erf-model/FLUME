@@ -36,8 +36,9 @@ namespace flume {
  * reconstruction of the cells, and a step is the mean of the state and of
  * two stages from it. The step ends with the source terms
  * (FLUME_Source.H), each over the whole step, in order: rain from the
- * forcing provider (FLUME_Forcing.H, FLUME_Rain.H), then Manning friction,
- * implicit in the discharge (FLUME_Friction.H).
+ * forcing provider (FLUME_Forcing.H, FLUME_Rain.H), then infiltration
+ * (FLUME_Infiltration.H), then Manning friction, implicit in the discharge
+ * (FLUME_Friction.H).
  */
 class Flood
 {
@@ -68,7 +69,8 @@ public:
     amrex::Real check_state () const;
 
     //! Write <plot_file><step>: depth, discharge_x, discharge_y,
-    //! bed_elevation, surface_elevation (bed + depth).
+    //! bed_elevation, surface_elevation (bed + depth), then the fields of the
+    //! sources (Source::plot_fields; infiltrated_depth with infiltration).
     void write_plotfile () const;
 
     [[nodiscard]] double time () const { return m_time; }
@@ -95,6 +97,9 @@ private:
     amrex::MultiFab m_outflow_factor;
     //! Bed-slope term in x and in y (compute_bed_source), no ghost cells
     amrex::MultiFab m_bed_source;
+    //! Building height of each cell, m (flume.buildings.file), one
+    //! component, no ghost cells; not defined without buildings
+    amrex::MultiFab m_buildings;
     //! The sides that are not periodic (flume.periodic, flume.bc.*)
     Boundary m_boundary;
     //! What drives the flood from outside (flume.rain.*), or null; declared

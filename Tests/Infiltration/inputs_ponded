@@ -1,0 +1,19 @@
+# Ponded Green-Ampt infiltration: 8 x 8 cells of 40 m in 4 boxes, walls on
+# all four sides, flat bed at 0, still water 0.5 m deep, no rain. Silt loam
+# of Rossman and Huber (2016, Table 4-7): K = 0.26 in/h = 6.604 mm/h,
+# psi = 6.57 in = 166.878 mm, with a moisture deficit of 0.3. Every cell is
+# the same, so the water stays level and still, and each cell infiltrates
+# as ponded soil from t = 0: 6 h gives F = 91.75 mm.
+flume.n_cell        = 8 8
+flume.prob_hi       = 320.0 320.0
+flume.max_grid_size = 4
+flume.plot_file     = ponded
+flume.plot_int      = 250
+flume.stop_time     = 21600.0
+
+flume.init.surface_elevation = 0.5
+
+flume.infiltration.type                    = green_ampt
+flume.infiltration.green_ampt.conductivity = 6.604
+flume.infiltration.green_ampt.suction      = 166.878
+flume.infiltration.green_ampt.deficit      = 0.3

@@ -35,6 +35,10 @@ public:
     //! cells of `state`.
     void apply (amrex::MultiFab& state, const SourceContext& ctx, amrex::Real dt) override;
 
+    //! The rain depth of the last step, m, per cell (one component, no ghost
+    //! cells): set by apply, read by the curve-number infiltration.
+    [[nodiscard]] const amrex::MultiFab& step_depth () const { return m_depth; }
+
 private:
     const Forcing& m_forcing;
     amrex::MultiFab m_depth;  //!< rain depth of the step, m: one component, no ghost cells

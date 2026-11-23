@@ -24,6 +24,20 @@ enum class RainType : int { none, constant, hyetograph, gridded, moving_cell };
 //! (flume.rain.interpolation).
 enum class RainInterpolation : int { step, linear };
 
+//! The infiltration loss model (flume.infiltration.type).
+enum class InfiltrationType : int { none, green_ampt, curve_number };
+
+/**
+ * A soil parameter of the infiltration model: one value for every cell, or
+ * an ESRI ASCII grid of values (flume.infiltration.<model>.<name> or
+ * flume.infiltration.<model>.<name>_file; exactly one of the two).
+ */
+struct SoilParameter
+{
+    amrex::Real value = amrex::Real(0.0);  //!< the value, when `file` is empty
+    std::string file;                      //!< the grid, or empty
+};
+
 /**
  * A segment of a side that is not periodic (flume.bc.<name>.*): the boundary
  * cells cell_lo to cell_hi along the side, all with one type. read_inputs
@@ -202,6 +216,41 @@ struct Inputs
     //! flume.buildings.file). With it, the file is a footprint mask: any
     //! value > 0 is a building.
     std::optional<amrex::Real> buildings_height;
+
+    //! The infiltration loss model (flume.infiltration.type; default none;
+    //! none, green_ampt or curve_number). Building cells
+    //! (flume.buildings.file) infiltrate nothing with either model.
+    InfiltrationType infiltration_type = InfiltrationType::none;
+
+    //! Green-Ampt saturated hydraulic conductivity, mm/h
+    //! (flume.infiltration.green_ampt.conductivity or .conductivity_file;
+    //! finite, >= 0; one of the two required with
+    //! flume.infiltration.type = green_ampt and read only with it). 0 is an
+    //! impervious cell.
+    SoilParameter ga_conductivity;
+
+    //! Green-Ampt suction head at the wetting front, mm
+    //! (flume.infiltration.green_ampt.suction or .suction_file; finite,
+    //! >= 0; one of the two required with green_ampt and read only with it)
+    SoilParameter ga_suction;
+
+    //! Green-Ampt initial moisture deficit, saturated minus initial moisture
+    //! content (flume.infiltration.green_ampt.deficit or .deficit_file;
+    //! finite, >= 0 and <= 1; one of the two required with green_ampt and
+    //! read only with it)
+    SoilParameter ga_deficit;
+
+    //! Runoff curve number (flume.infiltration.cn.number or .number_file;
+    //! finite, > 0 and <= 100; one of the two required with
+    //! flume.infiltration.type = curve_number and read only with it). 100 is
+    //! an impervious cell. The number must match flume.infiltration.cn.ia_ratio:
+    //! handbook tables are for 0.2.
+    SoilParameter cn_number;
+
+    //! Initial abstraction over potential retention, Ia / S
+    //! (flume.infiltration.cn.ia_ratio; default 0.2; finite, >= 0 and < 1;
+    //! read only with flume.infiltration.type = curve_number)
+    amrex::Real cn_ia_ratio = amrex::Real(0.2);
 
     //! Elevation of the initial, level water surface, m, on the same datum
     //! (flume.init.surface_elevation; no default: the domain starts dry; finite)

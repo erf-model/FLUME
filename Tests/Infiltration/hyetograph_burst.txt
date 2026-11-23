@@ -1,0 +1,4 @@
+# A burst of rain for the first second only: 3600 mm/h (1 mm), then dry.
+# Time in s, rain rate in mm/h.
+0     3600
+1     0
