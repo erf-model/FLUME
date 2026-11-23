@@ -1,0 +1,18 @@
+# A 1 mm film on a flat, walled 4 x 4 m domain of 1 m cells, with an inlet
+# far larger than the water it can reach: perimeter 100 m, open area 1 m2
+# (the whole cell). An explicit step of the weir rate would take 13 mm from
+# a cell that holds 1 mm (the first step is 2.5 s); the closed form leaves
+# the depth at or above 0.
+flume.n_cell        = 4 4
+flume.prob_hi       = 4.0 4.0
+flume.max_grid_size = 2
+flume.plot_file     = film
+flume.plot_int      = 1
+flume.max_step      = 20
+
+flume.init.surface_elevation = 0.001
+
+flume.drains.names           = big
+flume.drains.big.location    = 1.5 2.5
+flume.drains.big.perimeter   = 100.0
+flume.drains.big.area        = 1.0

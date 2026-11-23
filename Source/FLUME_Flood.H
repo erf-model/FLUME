@@ -40,7 +40,8 @@ namespace flume {
  * two stages from it. The step ends with the source terms
  * (FLUME_Source.H), each over the whole step, in order: rain from the
  * forcing provider (FLUME_Forcing.H, FLUME_Rain.H), then infiltration
- * (FLUME_Infiltration.H), then Manning friction, implicit in the discharge
+ * (FLUME_Infiltration.H), then the storm-drain inlets (FLUME_Drains.H),
+ * then Manning friction, implicit in the discharge
  * (FLUME_Friction.H).
  *
  * After each step the flood maps take the new state (FLUME_FloodMaps.H),
@@ -86,7 +87,8 @@ public:
 
     //! Write <plot_file><step>: depth, discharge_x, discharge_y,
     //! bed_elevation, surface_elevation (bed + depth), then the fields of the
-    //! sources (Source::plot_fields; infiltrated_depth with infiltration),
+    //! sources (Source::plot_fields; infiltrated_depth with infiltration,
+    //! drained_depth with drain inlets),
     //! then the flood maps (with flume.flood_maps = 1).
     void write_plotfile () const;
 

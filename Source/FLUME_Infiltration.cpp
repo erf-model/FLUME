@@ -1,6 +1,7 @@
 #include "FLUME_Infiltration.H"
 #include "FLUME_Forcing.H"
 #include "FLUME_Raster.H"
+#include "FLUME_RemoveWater.H"
 #include "FLUME_State.H"
 #include "FLUME_WaterBalance.H"
 
@@ -221,37 +222,6 @@ CurveNumber::apply (amrex::MultiFab& state, const SourceContext& /*ctx*/, amrex:
     apply_curve_number(state, m_rain.step_depth(), m_retention, m_rain_total, m_rain_carry,
                        m_infiltrated, m_infiltrated_carry, m_ia_ratio, m_dry_depth);
 }
-
-namespace {
-
-//! Remove `loss` (0 <= loss <= h) from the cell and add the depth removed,
-//! h - h_new as stored, to the infiltrated depth `f`, a compensated sum
-//! (rounding carried in `carry`, as the depth in add_rain_depth). So the
-//! depth plus the infiltrated depth of the cell stays the water it got:
-//! adding `loss`, which h - loss rounds, or rounding the sum would let them
-//! drift apart with the steps. The discharge keeps the velocity, and a cell
-//! left at or below `dry_depth` holds none.
-AMREX_GPU_DEVICE AMREX_FORCE_INLINE void
-remove_water (amrex::Array4<amrex::Real> const& a, amrex::Real& f, amrex::Real& carry, int i,
-              int j, int k, amrex::Real h, amrex::Real loss, amrex::Real dry_depth) noexcept
-{
-    const amrex::Real h_new = h - loss;
-    const amrex::Real y = (h - h_new) + carry;
-    const amrex::Real f_new = f + y;
-    carry = y - (f_new - f);
-    f = f_new;
-    a(i, j, k, State::h) = h_new;
-    if (h_new > dry_depth) {
-        const amrex::Real r = h_new / h;
-        a(i, j, k, State::hu) *= r;
-        a(i, j, k, State::hv) *= r;
-    } else {
-        a(i, j, k, State::hu) = amrex::Real(0.0);
-        a(i, j, k, State::hv) = amrex::Real(0.0);
-    }
-}
-
-} // namespace
 
 void
 apply_green_ampt (amrex::MultiFab& state, const amrex::MultiFab& conductivity,

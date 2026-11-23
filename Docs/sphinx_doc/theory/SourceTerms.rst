@@ -5,7 +5,7 @@ A source term changes the state in a cell without a flux between cells. Each
 source is a class with a name and one step of :math:`\Delta t`
 (``Source/FLUME_Source.H``). The active sources are printed at start-up and
 act once per step, after all the explicit stages, in this order: rain,
-infiltration, then Manning friction. They act on a dry domain too.
+infiltration, storm-drain inlets, then Manning friction. They act on a dry domain too.
 
 The bed-slope term is not one of these sources: it is part of each explicit
 stage (:ref:`sec:HydrostaticReconstruction`).
@@ -245,6 +245,85 @@ Table 4).
   a cell's loss follows its rain, whatever the soil under ponded water.
 * Infiltration is first order in time at both orders of the scheme, like
   the other sources.
+
+.. _sec:Drains:
+
+Storm-drain inlets
+------------------
+
+An inlet (``flume.drains.*``) takes water from the surface of the cell that
+holds it. The water leaves the model: there is no pipe network and no
+surcharge back to the surface. Each inlet is a grate in a sag (Brown et al.,
+2009, HEC-22, inlets in sag locations). At the depth :math:`d` of its cell it takes the
+smaller of the weir and the orifice capacity,
+
+.. math::
+
+   Q_w = C_w P d^{3/2}, \qquad Q_o = C_o A \sqrt{2 g d}, \qquad
+   Q = \min(Q_w, Q_o),
+
+with :math:`P` the perimeter of the grate (m), :math:`A` its open area
+(m\ :sup:`2`), :math:`g` the gravity (m/s\ :sup:`2`), :math:`C_w` the weir
+coefficient (1.66 in SI units) and :math:`C_o` the orifice coefficient
+(0.67), the values of HEC-22. The two rates are equal at
+
+.. math::
+
+   d^* = \frac{C_o A \sqrt{2 g}}{C_w P} ;
+
+the weir rate is the smaller below :math:`d^*` and the orifice rate above
+it. :math:`d^*` is printed for each inlet at start-up.
+
+**Step.** On a cell of area :math:`|\Omega| = \Delta x \, \Delta y` the
+depth follows
+
+.. math::
+
+   \frac{dh}{dt} = -\min\left(a h^{3/2},\, b h^{1/2}\right), \qquad
+   a = \frac{C_w P}{|\Omega|}, \qquad b = \frac{C_o A \sqrt{2g}}{|\Omega|} ,
+
+with :math:`d^* = b/a`. The step integrates it exactly from the depth
+:math:`h_0` the cell holds after the rain and the infiltration, for the time
+:math:`\tau = \Delta t`. Above :math:`d^*` (orifice),
+
+.. math::
+
+   \sqrt{h(t)} = \sqrt{h_0} - \tfrac{1}{2} b t ,
+
+which reaches :math:`d^*` at :math:`t_1 = 2(\sqrt{h_0} - \sqrt{d^*})/b`. At or
+below :math:`d^*` (weir), from the depth :math:`h_s` it starts at
+(:math:`h_0`, or :math:`d^*` after :math:`t_1`),
+
+.. math::
+
+   h(t) = \frac{h_s}{\left(1 + \tfrac{1}{2} a t \sqrt{h_s}\right)^2} .
+
+The cell loses :math:`h_0 - h(\tau)`, in double precision. The water that
+leaves takes its share of the discharge, as for infiltration, and the depth
+removed is added to the cell's drained depth (``drained_depth``) by a
+compensated sum. The balance column ``drained`` is the drained depth summed
+over the cells times the cell area (:doc:`WaterBalance`).
+
+**Why the exact solution.** An explicit step :math:`Q(h_0) \Delta t` can
+take more water than the cell holds: a 1 mm film on a 1 m cell with
+:math:`P = 100` m would lose 13 mm in the first step of the test, 2.5 s, at
+the weir rate. The exact
+solution never falls below 0 (the weir branch never empties a cell), so the
+loss is at most the water of the cell without a cap, and it does not depend
+on the step.
+
+**Limitations.**
+
+* :math:`d` is the depth of the cell, not the depth over the grate: an
+  inlet smaller than the cell sees the mean depth of the cell.
+* One inlet per cell; the capacity is that of a grate in a sag (no
+  approach flow, no clogging factor, no curb opening).
+* HEC-22 does not give the capacity between the depths where the weir and
+  the orifice formulas hold; the smaller of the two is taken there.
+* The water does not come back: an inlet always drains while its cell is
+  wet.
+* The source is first order in time at both orders of the scheme, like the
+  other sources.
 
 .. _sec:Friction:
 

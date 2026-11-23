@@ -96,12 +96,13 @@ public:
 /**
  * The sources the inputs switch on, in the order they act: rain when
  * `forcing` is not null (flume.rain.type), then infiltration
- * (flume.infiltration.type), which so sees the rain of the step, then
- * Manning friction (flume.friction.manning > 0 or
+ * (flume.infiltration.type), which so sees the rain of the step, then the
+ * storm-drain inlets (flume.drains.names), which take what the soil left,
+ * then Manning friction (flume.friction.manning > 0 or
  * flume.friction.manning_file), which sees the depth after both.
  * `forcing` must outlive the sources. `buildings` (may be null) is the
  * building height of each cell (flume.buildings.file): building cells
- * infiltrate nothing. Prints the names, or "none", at start-up.
+ * infiltrate nothing and hold no inlet. Prints the names, or "none", at start-up.
  */
 std::vector<std::unique_ptr<Source>> make_sources (const Inputs& in, const amrex::Geometry& geom,
                                                    const amrex::BoxArray& ba,

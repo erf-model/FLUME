@@ -62,6 +62,20 @@ struct GaugePoint
 };
 
 /**
+ * A storm-drain inlet (flume.drains.<name>.*): a grate in the cell that
+ * holds `location`, with the weir and orifice capacity of FLUME_Drains.H.
+ */
+struct DrainInlet
+{
+    std::string name;
+    amrex::Array<amrex::Real, 2> location{{amrex::Real(0.0), amrex::Real(0.0)}};  //!< x y, m
+    amrex::Real perimeter = amrex::Real(0.0);  //!< weir length P, m
+    amrex::Real area = amrex::Real(0.0);       //!< open area A, m2
+    amrex::Real weir_coefficient = amrex::Real(1.66);    //!< C_w, m^(1/2)/s
+    amrex::Real orifice_coefficient = amrex::Real(0.67); //!< C_o, no unit
+};
+
+/**
  * The run's inputs, all in the "flume" namespace of the inputs file.
  *
  * Every key has a range check that aborts with a message naming the key. A key
@@ -130,6 +144,17 @@ struct Inputs
     //! Gauge points (flume.gauges.names and flume.gauges.<name>.location;
     //! default none), in the order listed. Each writes gauge_<name>.txt.
     std::vector<GaugePoint> gauges;
+
+    //! Storm-drain inlets (flume.drains.names and flume.drains.<name>.*;
+    //! default none), in the order listed:
+    //!   - location: x y, m (required; inside the domain, on its edge too);
+    //!   - perimeter: weir length P, m (required; finite, > 0);
+    //!   - area: open area A, m2 (required; finite, > 0 and <= the area of a cell);
+    //!   - weir_coefficient: C_w, m^(1/2)/s (default 1.66; finite, > 0);
+    //!   - orifice_coefficient: C_o (default 0.67; finite, > 0 and <= 1).
+    //! Each inlet has a cell of its own, not a building cell (checked when
+    //! the inlets are placed, FLUME_Drains.H).
+    std::vector<DrainInlet> drains;
 
     //! Time at which the run stops, s (flume.stop_time; no default; finite, >= 0).
     //! In double precision in every build, as the time is.

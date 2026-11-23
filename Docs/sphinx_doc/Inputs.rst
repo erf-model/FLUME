@@ -380,6 +380,54 @@ only with it. Building cells (``flume.buildings.file``) infiltrate nothing.
      - Initial abstraction ratio :math:`\lambda = I_a / S`. Finite, at least
        0 and below 1. Only with ``curve_number``.
 
+Storm-drain inlets
+------------------
+
+The inlet model is in :ref:`sec:Drains`. Each inlet sits in the cell that
+holds its location, chosen as for a gauge (:ref:`sec:Gauges`). A cell holds
+at most one inlet (merge two into one with the sum of their perimeters and
+areas), and a building cell (``flume.buildings.file``) none: either aborts.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 26 12 12 50
+
+   * - Key
+     - Type
+     - Default
+     - Meaning and allowed values
+   * - ``flume.drains.names``
+     - strings
+     - none
+     - Names of the inlets, each of letters, digits and ``_``, none twice.
+   * - ``flume.drains.<name>.location``
+     - 2 reals
+     - required
+     - x and y of the inlet, m, inside the domain or on its edge. A point
+       on a face is in the cell above it, and one on the upper edge in the
+       last cell, also on a periodic side (as for the gauges).
+   * - ``flume.drains.<name>.perimeter``
+     - real
+     - required
+     - Perimeter :math:`P` of the grate that water spills over as a weir,
+       m. Finite, above 0.
+   * - ``flume.drains.<name>.area``
+     - real
+     - required
+     - Open area :math:`A` of the grate, m\ :sup:`2`. Finite, above 0 and at
+       most the area of a cell.
+   * - ``flume.drains.<name>.weir_coefficient``
+     - real
+     - ``1.66``
+     - Weir coefficient :math:`C_w`, m\ :sup:`1/2`/s (SI). Finite, above 0.
+   * - ``flume.drains.<name>.orifice_coefficient``
+     - real
+     - ``0.67``
+     - Orifice coefficient :math:`C_o`. Finite, above 0 and at most 1.
+
+The keys of an inlet are required, or allowed, for each name in
+``flume.drains.names``; a key for a name not listed is unknown.
+
 Initial state
 -------------
 

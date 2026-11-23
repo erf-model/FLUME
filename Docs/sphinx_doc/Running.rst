@@ -109,6 +109,11 @@ last state. An existing plotfile of the same name is first renamed to
      - Depth of water each cell has lost to the soil since the start
        (:ref:`sec:Infiltration`). Written only with
        ``flume.infiltration.type`` other than ``none``.
+   * - ``drained_depth``
+     - m
+     - Depth of water each cell has lost to a storm-drain inlet since the
+       start (:ref:`sec:Drains`); 0 in a cell without an inlet. Written only
+       with ``flume.drains.names``.
    * - ``max_depth``, ``max_speed``, ``max_depth_speed``, ``arrival_time``
      - m, m/s, m\ :sup:`2`/s, s
      - The flood maps, written only with ``flume.flood_maps = 1``
@@ -118,7 +123,8 @@ The plotfile is three-dimensional with one cell in z, from 0 to 1 m; the z
 extent carries no meaning. ParaView, VisIt and yt read the format.
 
 The log reports, at start-up, the boundary cells of each segment, the active
-source terms, the rain, the infiltration parameters, the range of the Manning map and the
+source terms, the rain, the infiltration parameters, each drain inlet with its cell and
+the depth above which it flows as an orifice, the range of the Manning map and the
 number of building cells.
 
 .. _sec:FloodMaps:
@@ -203,6 +209,9 @@ balance (:doc:`theory/WaterBalance`). The header names the columns:
    * - ``infiltrated``
      - Water lost to the soil, as a positive number (with
        ``flume.infiltration.type`` other than ``none``).
+   * - ``drained``
+     - Water taken by the storm-drain inlets, as a positive number (with
+       ``flume.drains.names``).
    * - ``out_<segment>``
      - Water that has left through outflow segment ``<segment>``; below 0
        where more has come in than gone out.
@@ -212,7 +221,7 @@ balance (:doc:`theory/WaterBalance`). The header names the columns:
 
 The ``# added:``, ``# removed:`` and ``# out:`` lines list the columns that
 enter the residual with each sign. ``# epsilon`` is the machine epsilon of the build.
-A domain without outflow segments, rain or infiltration has only ``stored``
+A domain without outflow segments, rain, infiltration or drain inlets has only ``stored``
 and ``residual``. ``Tests/check_balance.py`` checks a log against the bound
 of :doc:`theory/WaterBalance`; the regression tests run it on every log.
 
@@ -251,7 +260,7 @@ With ``flume.check_int > 0`` the run writes a checkpoint directory
 ``flume.check_int`` steps and at the last step. An existing directory of
 that name is first renamed, as plotfiles are. A checkpoint holds the step
 and the time, the state and the bed, the infiltrated depth (and, for the
-curve number, the rain fallen on each cell), the flood maps, and the
+curve number, the rain fallen on each cell), the drained depth with the inlets it belongs to, the flood maps, and the
 water-balance totals with their compensation terms. The fields are AMReX
 ``VisMF`` files of the valid cells; ``Header`` is a text file of keys and
 values, with times and volumes written to 17 digits.
@@ -287,8 +296,9 @@ step, off the plot interval, stays. ``flume.check_file`` must differ from
 The run stops with a message naming ``flume.restart`` when the checkpoint
 does not match the inputs: another grid, domain or set of periodic sides,
 another list of sources, a bed that differs in any cell, other water-balance
-columns (rain, infiltration and outflow segments), outflow segments on other
-faces, gauges in other cells, a build of the other precision, a checkpoint
+columns (rain, infiltration, drain inlets and outflow segments), outflow
+segments on other faces, gauges in other cells, drain inlets with another
+name, cell, perimeter, area or coefficient, a build of the other precision, a checkpoint
 written with ``flume.log_int = 0`` when the restart keeps a log, or one
 without maps when ``flume.flood_maps = 1``. It also stops on a checkpoint of
 another version, one with a key given twice, and a state that is not finite
@@ -297,7 +307,7 @@ or ``flume.bed.continue_slope`` (which sets the bed outside the domain), are
 not checked: a change there changes the result from the checkpoint on.
 
 The restart may use another rank count and other boxes. The state, the
-infiltrated depth, the maps, the plotfiles and the gauge files are then
+infiltrated depth, the drained depth, the maps, the plotfiles and the gauge files are then
 those of the run without a break, to the last bit. The water-balance totals
 of the outflow and the rain are sums over the ranks: on another rank count
 they are continued from their sum over the ranks, and the log agrees with

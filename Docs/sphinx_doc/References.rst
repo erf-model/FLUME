@@ -17,6 +17,10 @@ References
 * O. Delestre, F. Darboux, F. James, C. Lucas, C. Laguerre and S. Cordier
   (2014). FullSWOF: A free software package for the simulation of shallow
   water flows. arXiv:1401.4125. https://arxiv.org/abs/1401.4125
+* S. A. Brown, J. D. Schall, J. L. Morris, C. L. Doherty, S. M. Stein and
+  J. C. Warner (2009). *Urban Drainage Design Manual*. Hydraulic Engineering
+  Circular No. 22 (HEC-22), third edition, FHWA-NHI-10-009. United States
+  Department of Transportation, Federal Highway Administration.
 * NRCS (2004). *National Engineering Handbook, Part 630 Hydrology*, chapter
   10: Estimation of direct runoff from storm rainfall. United States
   Department of Agriculture, Natural Resources Conservation Service.

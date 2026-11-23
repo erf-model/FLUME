@@ -1825,3 +1825,5 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/RainField/RainFieldTests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/Infiltration/InfiltrationTests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/WaterBalance/WaterBalanceTests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/Restart/RestartTests.cmake)
+# After the restart tests, whose function it uses.
+include(${CMAKE_CURRENT_SOURCE_DIR}/Drains/DrainsTests.cmake)
