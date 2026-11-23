@@ -175,6 +175,27 @@ GreenAmpt::apply (amrex::MultiFab& state, const SourceContext& /*ctx*/, amrex::R
                      m_dry_depth, dt);
 }
 
+namespace {
+
+//! Replace each curve number by the potential retention S = (1000 / CN - 10)
+//! inches, in m. A free function: nvcc does not accept a device lambda in a
+//! constructor.
+void
+retention_from_curve_number (amrex::MultiFab& mf)
+{
+    const auto& s = mf.arrays();
+    amrex::ParallelFor(mf,
+        [=] AMREX_GPU_DEVICE (int box_no, int i, int j, int k) noexcept
+        {
+            const amrex::Real c = s[box_no](i, j, k);
+            const amrex::Real inches = amrex::Real(1000.0) / c - amrex::Real(10.0);
+            s[box_no](i, j, k) = amrex::max(inches, amrex::Real(0.0)) * amrex::Real(0.0254);
+        });
+    amrex::Gpu::streamSynchronize();
+}
+
+} // namespace
+
 CurveNumber::CurveNumber (const Inputs& in, const amrex::Geometry& geom,
                           const amrex::BoxArray& ba, const amrex::DistributionMapping& dm,
                           const amrex::MultiFab* buildings, const Rain& rain)
@@ -184,16 +205,7 @@ CurveNumber::CurveNumber (const Inputs& in, const amrex::Geometry& geom,
     const std::string cn = fill_soil(m_retention, in.cn_number, "cn.number", geom,
                                      amrex::Real(0.0), false, amrex::Real(100.0), true,
                                      "> 0 and <= 100");
-    // S = (1000 / CN - 10) inches, in m.
-    const auto& s = m_retention.arrays();
-    amrex::ParallelFor(m_retention,
-        [=] AMREX_GPU_DEVICE (int box_no, int i, int j, int k) noexcept
-        {
-            const amrex::Real c = s[box_no](i, j, k);
-            const amrex::Real inches = amrex::Real(1000.0) / c - amrex::Real(10.0);
-            s[box_no](i, j, k) = amrex::max(inches, amrex::Real(0.0)) * amrex::Real(0.0254);
-        });
-    amrex::Gpu::streamSynchronize();
+    retention_from_curve_number(m_retention);
     m_rain_total.setVal(amrex::Real(0.0));
     m_rain_carry.setVal(amrex::Real(0.0));
     const amrex::Long n_building = zero_in_buildings(m_retention, buildings, amrex::Real(0.0));
