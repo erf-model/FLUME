@@ -10,8 +10,8 @@ over its area and over the step, that a closed domain receives the integral
 of the input over the domain and over the run to round-off, and that every
 malformed index, grid or cell input stops the run with a message naming the
 key, the file and the line or entry. The model is in
-`Docs/sphinx_doc/Model.rst` (Rain that varies in space) and the inputs in
-`Docs/sphinx_doc/Inputs.rst` (Gridded rain index files).
+`Docs/sphinx_doc/theory/SourceTerms.rst` (Rain that varies in space) and the inputs in
+`Docs/sphinx_doc/InputFiles.rst` (Gridded rain index files).
 
 ## Files
 
@@ -79,7 +79,7 @@ python3 <repo>/Tests/RainField/check_rain_field.py flat --cell 120 6 40 26 0 0 -
 | `rain_cell_zero_peak_long_step` | one step of 1e7 s, no water |
 
 The numbers are what the runs give in double precision, not the bounds the
-checks use (`RainFieldTests.cmake`, `Docs/sphinx_doc/Testing.rst`).
+checks use (`RainFieldTests.cmake`, `Docs/sphinx_doc/TestCatalog.rst`).
 
 ## CTest
 
@@ -89,4 +89,4 @@ checks use (`RainFieldTests.cmake`, `Docs/sphinx_doc/Testing.rst`).
 `rain_gridded_volume_linear_shifted`, `rain_gridded_dry_burst_no_stop_time`,
 `rain_cell_at_rest_np1`, `rain_cell_at_rest_np2`, `rain_cell_fast_step`,
 `rain_cell_volume`, `rain_cell_zero_peak_long_step`, and the `abort_rain_gridded_*` and `abort_rain_cell_*`
-tests. They run on 1 or 2 ranks. See `Docs/sphinx_doc/Testing.rst`.
+tests. They run on 1 or 2 ranks. See `Docs/sphinx_doc/TestCatalog.rst`.

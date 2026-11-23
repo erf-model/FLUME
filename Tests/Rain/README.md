@@ -9,8 +9,8 @@ that falls, at every plotfile time; that a dry domain under rain gets a
 finite time step; that rain on an impermeable plane follows the
 kinematic-wave solution; and that every malformed input or file stops the
 run with a message naming the key, the file and the line. The model is in
-`Docs/sphinx_doc/Model.rst` (Rain, Time step) and the inputs in
-`Docs/sphinx_doc/Inputs.rst` (Hyetograph files).
+`Docs/sphinx_doc/theory` (Source terms, Time step) and the inputs in
+`Docs/sphinx_doc/InputFiles.rst` (Hyetograph files).
 
 ## Files
 
@@ -81,7 +81,7 @@ python3 <repo>/Tests/Rain/check_rain.py plane --rate 50 \
 | `rain_plane_kinematic_wave_order2` | at cfl 0.125: depth L1 0.22 %, outlet 1.3 % of i L |
 
 The numbers are what the runs give in double precision, not the bounds the
-checks use (`RainTests.cmake`, `Docs/sphinx_doc/Testing.rst`).
+checks use (`RainTests.cmake`, `Docs/sphinx_doc/Verification.rst`).
 
 ## CTest
 
@@ -93,4 +93,4 @@ checks use (`RainTests.cmake`, `Docs/sphinx_doc/Testing.rst`).
 `rain_dry_tiny_rate`, `rain_basin_volume`,
 `rain_plane_kinematic_wave`, `rain_plane_kinematic_wave_order2`, and the
 `abort_rain_*` tests. They run on 1 or 2 ranks. See
-`Docs/sphinx_doc/Testing.rst`.
+`Docs/sphinx_doc/Verification.rst`.

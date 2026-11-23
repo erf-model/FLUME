@@ -1,30 +1,75 @@
-FLUME
-=====
+FLUME: FLood and Urban inundation ModulE
+=========================================
 
 FLUME is a two-dimensional shallow-water flood solver for the
 `Energy Research and Forecasting (ERF) <https://github.com/erf-model/ERF>`__
 atmospheric code, built on `AMReX <https://github.com/AMReX-Codes/amrex>`__.
-The expansion of the name, FLood and Urban inundation ModulE, is a draft.
+It solves the full shallow-water equations over a fixed bed with a
+well-balanced finite-volume scheme, wetting and drying, Manning friction and
+prescribed rain. It runs with MPI and compiles for CUDA, HIP and SYCL.
 
-**Status.** The repository holds the build system, the test harness, the
-continuous integration and this documentation. The executable reads an inputs
-file, builds the grid, the bed and the initial state, and advances the
-shallow-water equations with a first-order or second-order finite-volume
-scheme (HLLC fluxes with hydrostatic reconstruction) between walls or periodic sides, with a CFL
-time step, writing plotfiles. Water can wet and leave dry ground. Friction,
-rainfall and open boundaries are not written yet.
+FLUME runs stand-alone today and uses only AMReX, taken from the commit ERF
+pins. A build inside ERF, with rain from ERF's microphysics, is planned. The
+expansion of the name is a draft.
 
-The plan is a stand-alone code first, which uses AMReX only: the solver,
-prescribed rainfall, losses, restart and benchmarks. A build with ERF, with
-rainfall from ERF's microphysics, comes after that. ERF is
-already a submodule of this repository, because the stand-alone build takes
-AMReX from the commit ERF pins.
+.. list-table:: Capabilities
+   :header-rows: 1
+   :widths: 22 42 36
+
+   * - Area
+     - Available
+     - Planned
+   * - Scheme
+     - HLLC flux with hydrostatic reconstruction; first and second order
+     -
+   * - Wet and dry ground
+     - Moving shorelines, non-negative depth, mass conserved
+     -
+   * - Boundaries
+     - Walls, periodic sides, outflow segments
+     - Prescribed discharge and stage
+   * - Friction
+     - Manning, one coefficient or a map
+     -
+   * - Rain
+     - Constant rate, hyetograph, gridded rain, moving storm cell
+     - ERF microphysics
+   * - Terrain
+     - Bed, buildings and Manning map from ESRI ASCII grids
+     - Other raster formats through GDAL
+   * - Losses
+     -
+     - Infiltration, storm-drain inlets
+   * - Output
+     - AMReX plotfiles
+     - Checkpoint and restart, flood maps, water-balance log
 
 .. toctree::
-   :maxdepth: 2
-   :caption: Contents
+   :caption: USER GUIDE
+   :maxdepth: 1
 
    Building
+   Running
    Inputs
-   Model
+   InputFiles
    Testing
+
+.. toctree::
+   :caption: THEORY
+   :maxdepth: 1
+
+   theory/Equations
+   theory/Terrain
+   theory/Discretization
+   theory/WettingDrying
+   theory/SourceTerms
+   theory/Boundaries
+   theory/TimeStep
+
+.. toctree::
+   :caption: VERIFICATION
+   :maxdepth: 1
+
+   Verification
+   TestCatalog
+   References
