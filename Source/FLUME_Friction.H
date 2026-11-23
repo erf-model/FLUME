@@ -28,7 +28,7 @@ namespace flume {
  *
  * So friction never reverses the flow and needs no limit on the step. The
  * update acts once over the whole step, after the fluxes and the bed slope
- * of all its stages (Docs/sphinx_doc/Model.rst).
+ * of all its stages (Docs/sphinx_doc/theory/SourceTerms.rst).
  *
  * The coefficient is a per-cell field (s/m^(1/3)), filled from
  * flume.friction.manning or from the map flume.friction.manning_file.

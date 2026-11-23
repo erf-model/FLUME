@@ -2,7 +2,7 @@
 # bed, 10 m long, on 100 x 4 cells of 0.1 m, periodic in x and y. The water
 # moves at (0.5, -0.3) m/s plus the velocity of the wave, which travels
 # towards high x and does not break before 3.2 s; the run stops at 1 s
-# (Docs/sphinx_doc/Testing.rst).
+# (Docs/sphinx_doc/Verification.rst).
 flume.n_cell        = 100 4
 flume.prob_hi       = 10.0 0.4
 flume.periodic      = 1 1

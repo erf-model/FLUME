@@ -298,7 +298,7 @@ flume_add_regtest(lake_at_rest_dry_depth_at_a_face NPROCS 2
 
 # --- Dam break -------------------------------------------------------------------
 # Tests/DamBreak/inputs: still water 2 m and 1 m deep on a flat bed, 400 cells
-# of 0.25 m along the flow, compared at 5 s with the exact solution (Docs/sphinx_doc/Testing.rst):
+# of 0.25 m along the flow, compared at 5 s with the exact solution (Docs/sphinx_doc/Verification.rst):
 # hm = 1.4538 m, um = 1.3058 m/s, shock speed 4.1831 m/s. The scheme is first
 # order; at this cell size the L1 error is 0.8 % of the depth step and 1.6 % of
 # the discharge, the constant state is within 0.2 %, and the shock is 0.2 cell
@@ -368,7 +368,7 @@ flume_add_regtest(dam_break_dry_first_step_y NPROCS 1
 # beyond it and across the periodic side. The column loses water through both
 # faces: 4 cfl / 3 of its depth in the first step without the limit on the
 # outflow, more than it holds for flume.cfl above 0.75
-# (Docs/sphinx_doc/Model.rst). The run reaches 5 s with no negative depth (the
+# (Docs/sphinx_doc/theory/WettingDrying.rst). The run reaches 5 s with no negative depth (the
 # run stops on one) and the same mass.
 foreach(cfl 0.8 1.0)
     flume_add_regtest(draining_column_cfl_${cfl} NPROCS 2
@@ -444,7 +444,7 @@ flume_add_regtest(thin_film_time_step NPROCS 1
 
 # Tests/Bowl/inputs: water in a paraboloid bowl with a moving shoreline,
 # against Thacker's periodic solutions (Delestre et al., 2013, section 4.2.2;
-# Docs/sphinx_doc/Testing.rst). Planar: a tilted plane surface that turns
+# Docs/sphinx_doc/Verification.rst). Planar: a tilted plane surface that turns
 # about the axis. The scheme is first order and damps the motion: after half
 # a period the L1 error of the depth is 13.5 % of the mean depth on 100 x 100
 # cells and 7.3 % on 200 x 200 (discharge 19.7 % and 10.8 %); the bounds of
@@ -571,12 +571,12 @@ flume_add_regtest(sloping_bed_initial NPROCS 2
 
 # --- Second order ------------------------------------------------------------------
 # flume.order = 2: limited linear reconstruction and two stages per step
-# (Docs/sphinx_doc/Model.rst). First the rate of convergence on a smooth
+# (Docs/sphinx_doc/theory/Discretization.rst). First the rate of convergence on a smooth
 # solution, then the tests above repeated at second order.
 #
 # Tests/Wave/inputs: a simple wave of 0.1 m on water 1 m deep, periodic,
 # compared at 1 s with its exact solution (the depth of each point travels
-# at u + c; Docs/sphinx_doc/Testing.rst). L1 errors of the depth and of the
+# at u + c; Docs/sphinx_doc/Verification.rst). L1 errors of the depth and of the
 # discharge, over the amplitude:
 #                100 cells            200 cells            400 cells
 #   order 1    0.0353  0.0408
@@ -848,7 +848,7 @@ flume_add_regtest(basin_mass_second_order_one_cell_boxes NPROCS 2
 # whose bed falls by 1 mm per metre (flume.bed.continue_slope = 1), with
 # n = 0.03 s/m^(1/3). The depth stays 1 m, and the discharge follows
 # q_n tanh(t / T_r), q_n = 1.05409 m2/s from Manning's formula and
-# T_r = 107.451 s (Tests/check_friction.py; Docs/sphinx_doc/Testing.rst).
+# T_r = 107.451 s (Tests/check_friction.py; Docs/sphinx_doc/Verification.rst).
 # Largest relative error of the discharge in a cell, at 100 s unless noted:
 #   order 1                          5.64e-4
 #   order 1, steady (1500 s)         2.50e-4  (the bed-slope term of the
@@ -961,7 +961,7 @@ flume_add_regtest(friction_basin_mass_second_order NPROCS 3
 
 # --- Boundary segments ----------------------------------------------------------
 # flume.bc.*: a side that is not periodic is made of segments, wall or
-# outflow; the cells no segment covers are walls (Docs/sphinx_doc/Model.rst).
+# outflow; the cells no segment covers are walls (Docs/sphinx_doc/theory/Boundaries.rst).
 #
 # The dam breaks of Tests/DamBreak/inputs with an outflow side, run past the
 # time the waves reach it. The exact solution of an unbounded domain still

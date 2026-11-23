@@ -30,7 +30,7 @@ state may hold what the first step changes).
                  sum times the number of the step.
 --kinematic-wave Rain on a plane bed falling along x at the slope S0 with
                  Manning N, a wall at x = 0 and the outflow at x = L,
-                 dry at t = 0 (Docs/sphinx_doc/Testing.rst). With
+                 dry at t = 0 (Docs/sphinx_doc/Verification.rst). With
                  a = S0^(1/2) / N and i the rain rate (m/s), the depth at x
                  is i t for t < t_x = (x / (a i^(2/3)))^(3/5) and
                  (i x / a)^(3/5) after, and the discharge is a h^(5/3).

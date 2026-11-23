@@ -73,7 +73,7 @@ face_depths (amrex::Real hL, amrex::Real zL, amrex::Real hR, amrex::Real zR,
  * to the face un and along it ut. `g` is the acceleration of gravity.
  *
  * The wave speeds are estimated from the middle state that two rarefactions
- * would leave (Docs/sphinx_doc/Model.rst), with the speeds of a front on a
+ * would leave (Docs/sphinx_doc/theory/Discretization.rst), with the speeds of a front on a
  * dry bed when one side has no water. Mass and
  * normal momentum take the HLL flux. The tangential momentum is carried by
  * the mass flux from its upwind side, which restores the contact wave.

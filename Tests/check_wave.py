@@ -13,7 +13,7 @@ domain over its length L, b the bed, H = S - b and c = sqrt(G h),
 
 This is a simple wave: u - 2 c is the same everywhere, and each depth travels
 unchanged at the speed u + c = U + 3 c - 2 c_H (the shallow-water equations in
-characteristic form; Docs/sphinx_doc/Testing.rst). At the time T the depth at
+characteristic form; Docs/sphinx_doc/Verification.rst). At the time T the depth at
 x is the initial depth at x0, where x0 + (U + 3 c(x0) - 2 c_H) T = x. The
 solution is smooth until the wave breaks, at
 

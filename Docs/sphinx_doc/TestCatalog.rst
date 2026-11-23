@@ -1,0 +1,263 @@
+Test catalogue
+==============
+
+Tests named ``*_np1``, ``*_np2``, ``*_np4`` run on 1, 2 and 4 MPI ranks.
+Tests named ``*_second_order`` repeat a test with ``flume.order = 2``.
+"eps" is the machine epsilon of the build.
+
+Grid, output and time loop
+--------------------------
+
+.. list-table::
+   :header-rows: 1
+   :widths: 34 66
+
+   * - Tests
+     - What is checked
+   * - ``skeleton_np*``, ``skeleton_defaults``
+     - Plotfile headers and every cell against a closed form: names, step,
+       time, domain, cell size, box coverage, one data file per rank. The
+       defaults of the grid and output keys.
+   * - ``uniform_np*``, ``uniform_channel_x``, ``_y``
+     - A uniform flow in a periodic domain, or along a channel between
+       walls, is unchanged in every plotfile; step count and times as
+       computed by hand (step 0.0625 s, 16 steps).
+   * - ``uniform_defaults``, ``uniform_gravity_default``,
+       ``uniform_last_step_cut``, ``uniform_stop_time_roundoff``,
+       ``uniform_max_step_first``, ``uniform_negative_u``, ``_v``,
+       ``uniform_unequal_cells``, ``uniform_stop_time_zero``,
+       ``uniform_max_step_zero``
+     - Defaults of ``flume.cfl``, ``flume.plot_int`` and ``flume.gravity``;
+       the last step shortened or lengthened onto the stop time; a step
+       limit before the stop time; negative velocities; cells of 2 m by
+       1 m; a stop time or step limit of zero.
+   * - ``dry_stop_time``, ``dry_stop_time_huge``
+     - A dry domain takes one step to the stop time, also for 10\ :sup:`308`
+       s.
+
+Initial state and water at rest
+-------------------------------
+
+.. list-table::
+   :header-rows: 1
+   :widths: 34 66
+
+   * - Tests
+     - What is checked
+   * - ``sloping_bed_initial``, ``dam_initial_on_centre``, ``_y``,
+       ``bowl_mound_initial``
+     - Every cell of the initial state against its closed form; a cell
+       centre on the dam belongs to the high side.
+   * - ``sloping_bed_np*``
+     - A lake at rest that does not cover its sloping bed, in 8 uneven
+       boxes: every cell after three steps; the step is reduced over ranks
+       that hold only dry boxes.
+   * - ``lake_at_rest_np*``, ``lake_at_rest_islands``,
+       ``lake_at_rest_islands_dry_depth``
+     - Level surface over a rough bed, 50 steps: unchanged within 16 eps of
+       the surface elevation; with dry islands; with a dry depth of 0.05 m.
+   * - ``lake_at_rest_dry_depth_at_a_face``
+     - The dry depth set to the depth one side of a face presents: the cut
+       is decided once per face and the lake stays at rest (64 eps).
+   * - ``lake_at_rest_segments``, ``lake_at_rest_islands_segments``
+     - The lake with outflow and wall segments, every value a signalling
+       NaN at the start.
+
+Wetting and drying
+------------------
+
+.. list-table::
+   :header-rows: 1
+   :widths: 34 66
+
+   * - Tests
+     - What is checked
+   * - ``draining_column_cfl_0.8``, ``_cfl_1.0``
+     - One column of water between dry cells, to 5 s: no negative depth,
+       mass within 16 eps, no discharge in dry cells.
+   * - ``draining_column_first_step``
+     - The closed form of the first step at CFL 1: fluxes scaled by
+       :math:`3 / (4 n)`, the column ends empty (64 eps).
+   * - ``draining_column_round_off``
+     - A depth the outflow limit leaves a rounding error below zero is set
+       to zero.
+   * - ``film_passes_no_water``, ``film_behind_a_bed_step``
+     - A film below the dry depth passes no water on; the tolerance acts on
+       the depth at the face, not on the depth of the cell.
+   * - ``thin_film_time_step``
+     - A fast film below the dry depth does not set the time step (2 steps;
+       1130 with a dry depth of 0).
+
+Dam break and shear
+-------------------
+
+.. list-table::
+   :header-rows: 1
+   :widths: 34 66
+
+   * - Tests
+     - What is checked
+   * - ``dam_break_x_np*``, ``dam_break_y``
+     - Wet-bed exact solution at 5 s: L1 errors, constant state, shock
+       position, mass (:doc:`Verification`).
+   * - ``dam_break_dry_x``, ``_y``, ``dam_break_dry_x_no_tolerance``
+     - Ritter's solution: L1 errors, no negative depth, no water beyond the
+       exact front; with a dry depth of 0, a trace below 10\ :sup:`-11` of
+       the depth.
+   * - ``dam_break_dry_first_step_x``, ``_y``
+     - The closed form of the first step: pins the dry-bed wave speeds.
+   * - ``dam_break_x_second_order_one_cell_wide``
+     - Walls one cell apart, narrower than the two ghost layers.
+   * - ``shear_x_np*``, ``shear_x_reversed``, ``shear_y``
+     - A jump of the tangential velocity carried by a uniform flow: bounded,
+       conserved, within one cell of its place; at most 10 cells wide at
+       order 2.
+   * - ``basin_mass_np*``, ``basin_mass_second_order_thin_boxes``,
+       ``_one_cell_boxes``
+     - A dam break over a rough bed between four walls, 20 s: mass within
+       16 eps, also in boxes two cells and one cell wide.
+
+Moving shoreline and convergence
+--------------------------------
+
+.. list-table::
+   :header-rows: 1
+   :widths: 34 66
+
+   * - Tests
+     - What is checked
+   * - ``bowl_planar_half``, ``_half_fine``, ``bowl_planar``,
+       ``bowl_radial_half``, ``_half_fine``, ``bowl_radial``
+     - Thacker's planar and radial solutions on 100 and 200 cells, half a
+       period and three periods: L1 errors, no negative depth, mass.
+   * - ``wave_x_first_order``, ``wave_x_second_order``, ``_fine``,
+       ``_finest``, ``wave_y_second_order``, ``_fine``,
+       ``wave_x_second_order_wide_cells``, ``_one_cell_wide``
+     - Simple wave at 1 s on 100, 200 and 400 cells: each bound is below
+       half the error of the run on cells twice as large, so a first-order
+       scheme fails.
+
+Friction
+--------
+
+.. list-table::
+   :header-rows: 1
+   :widths: 34 66
+
+   * - Tests
+     - What is checked
+   * - ``friction_channel``, ``_steady``, ``_second_order``,
+       ``_second_order_half_step``, ``_steady``, ``_diagonal``, ``_y``,
+       ``_slowing``, ``_walls``, ``_gravity``
+     - Discharge against :math:`q(t)` in an inclined periodic channel:
+       transient and steady, slope along x, y and diagonal, starting above
+       the normal discharge, between walls, with another gravity.
+   * - ``friction_thin_film_second_order``,
+       ``friction_film_uneven_second_order``
+     - A stiff film: 5 steps of 2 s against a friction time of 0.0645 s; a
+       film of uneven depth follows the local Manning discharge within
+       3e-3.
+   * - ``friction_lake_at_rest_islands_order1``, ``_order2``,
+       ``friction_basin_mass_second_order``
+     - Friction does not move still water or change the mass.
+
+Boundaries
+----------
+
+.. list-table::
+   :header-rows: 1
+   :widths: 34 66
+
+   * - Tests
+     - What is checked
+   * - ``dam_break_dry_x_outflow``, ``_y_outflow``
+     - A dry-bed front leaves through an outflow side; Ritter's solution
+       holds inside.
+   * - ``dam_break_x_outflow``
+     - A shock leaves through an outflow side; the reflected wave is
+       bounded.
+   * - ``outflow_whole_side``, ``outflow_split_side``
+     - One segment and two that meet inside a box give identical plotfiles.
+   * - ``partial_outflow``
+     - A side that is half outflow, half wall: Ritter's solution in the
+       open rows, the bore depth in the wall rows.
+   * - ``outflow_boxes_one_box``, ``outflow_boxes_one_cell``
+     - One box and boxes of one cell give the same cells.
+   * - ``boundary_segment_cells``
+     - A centre on the first coordinate of a range is in the segment; a
+       centre on the second is not.
+
+Rasters
+-------
+
+.. list-table::
+   :header-rows: 1
+   :widths: 34 66
+
+   * - Tests
+     - What is checked
+   * - ``raster_bed_plane``, ``raster_bed_coarse``,
+       ``raster_bed_relative_path``
+     - Bilinear interpolation reproduces a plane; edge values are held
+       within half a raster cell of the sides.
+   * - ``raster_streets``, ``_mask``, ``_small_boxes``,
+       ``raster_streets_overtop``
+     - A dam break through streets: 256 building cells stay dry, mass
+       within 64 eps; heights and a mask give the same footprints; water
+       goes over low buildings.
+   * - ``raster_lake_at_rest_order_1``, ``_order_2``
+     - Water at rest among and over buildings.
+   * - ``raster_manning_rows``, ``raster_manning_uniform_*``,
+       ``raster_manning_ties``
+     - Each row follows :math:`q(t)` with its own coefficient; a uniform
+       map equals the scalar key to the last bit; a centre on a raster edge
+       takes the cell above.
+
+Rain
+----
+
+.. list-table::
+   :header-rows: 1
+   :widths: 34 66
+
+   * - Tests
+     - What is checked
+   * - ``rain_flat_constant_np*``, ``rain_flat_hyetograph_step``,
+       ``_linear``, ``_step_file_linear``, ``_late_start``
+     - Every cell of a flat, closed domain holds the rain fallen, at every
+       plotfile time (4 eps per step); discharges exactly 0.
+   * - ``rain_flat_deep_water``
+     - Rain below the rounding of the depth is kept by the compensated sum.
+   * - ``rain_flat_no_stop_time``, ``rain_dry_burst_no_stop_time``,
+       ``rain_dry_tiny_rate``, ``rain_dry_start_discharge``
+     - A dry domain under rain gets a finite step, also from a burst ahead
+       and from a rate of 1e-300 mm/h; discharges of a dry domain are 0.
+   * - ``rain_basin_volume``
+     - The volume of a closed basin with moving water grows by the rain
+       fallen.
+   * - ``rain_plane_kinematic_wave``, ``_order2``
+     - Depth and outlet discharge against the kinematic-wave solution to
+       900 s.
+
+Input checks
+------------
+
+.. list-table::
+   :header-rows: 1
+   :widths: 34 66
+
+   * - Tests
+     - What is checked
+   * - ``abort_*``
+     - At least one test per check in :doc:`Inputs`: missing keys, wrong
+       numbers of values, values out of range, unknown and unused keys,
+       keys that need or exclude each other, fields that are not finite.
+   * - ``abort_raster_*``
+     - Each check of the raster reader, on files in ``Tests/Raster/bad``.
+   * - ``abort_rain_*``
+     - Each check of the rain inputs and of the hyetograph reader, on files
+       in ``Tests/Rain/bad``.
+
+Not repeated at second order: the closed forms of one first-order step, the
+lower bound of ``dam_break_dry_x_no_tolerance``, and the draining columns at
+CFL 0.8 and 1, which are above the 0.5 that ``flume.order = 2`` allows.

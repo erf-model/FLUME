@@ -3,17 +3,24 @@
 #     sphinx-build -W --keep-going -b html Docs/sphinx_doc Docs/sphinx_doc/_build/html
 
 project = "FLUME"
-author = "FLUME contributors"
-copyright = "2026, FLUME contributors"
+author = "FLUME and ERF developers"
+copyright = " "
+version = ""
+release = ""
+language = "en"
 
-extensions = ["sphinx.ext.mathjax"]
-templates_path = []
-exclude_patterns = ["_build"]
-
-html_theme = "sphinx_rtd_theme"
-html_static_path = []
+extensions = [
+    "sphinx.ext.mathjax",
+    "sphinx_copybutton",
+]
 
 master_doc = "index"
+source_suffix = ".rst"
+exclude_patterns = ["_build"]
 
 # Number figures and tables, so they can be cited with :numref:`label`.
 numfig = True
+numfig_format = {"figure": "%s", "table": "%s", "code-block": "%s"}
+
+html_theme = "sphinx_rtd_theme"
+html_title = "FLUME documentation"

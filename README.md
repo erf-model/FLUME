@@ -12,16 +12,22 @@ The expansion of the name is a draft.
 
 ## Status
 
-The repository holds the build system, a test harness, the continuous
-integration and the documentation. The executable, `flume`, reads an inputs
-file, builds the grid, the bed and the initial state, and advances the
-shallow-water equations with a first-order or second-order finite-volume
-scheme (HLLC fluxes with hydrostatic reconstruction) between walls, outflow
-sides or periodic sides, with Manning friction, writing plotfiles. It is tested on a lake at rest over a rough bed, on the dam-break
-exact solution, on water moving in a bowl with a shoreline (Thacker's
-solutions), on the rate of convergence on a smooth wave, on uniform flow
-with friction down an inclined channel and on mass conservation in a closed
-basin.
+The executable, `flume`, reads an inputs file, builds the grid, the bed and
+the initial state, and advances the shallow-water equations with a
+first-order or second-order finite-volume scheme (HLLC fluxes with
+hydrostatic reconstruction), writing plotfiles.
+
+| Area       | Available                                                         |
+| ---------- | ----------------------------------------------------------------- |
+| Scheme     | First and second order; wetting and drying; absolute datum.       |
+| Sides      | Walls, outflow over a whole side or over segments, periodic.      |
+| Bed        | Plane, bowl or raster; building footprints from a raster.         |
+| Friction   | Manning, one coefficient or a raster map.                         |
+| Rain       | Constant rate or a hyetograph file.                               |
+
+It is verified against a lake at rest, the wet and dry dam-break solutions,
+Thacker's solutions in a bowl, a smooth wave (rate of convergence), uniform
+flow with friction and the kinematic wave of rain on a plane.
 
 ## Planned scope
 
@@ -35,9 +41,9 @@ basin.
 - A water-balance log, flood outputs (maximum depth, speed, arrival time),
   checkpoint and restart.
 
-Of these, the first-order and second-order schemes, wetting and drying,
-Manning friction with one coefficient for the whole bed and the absolute
-datum exist; the rest does not yet.
+Not yet available: infiltration, storm-drain inlets, gridded rain, the
+coupling to ERF, the water-balance log, the flood outputs, and checkpoint
+and restart.
 
 ## Layout
 
@@ -45,7 +51,7 @@ datum exist; the rest does not yet.
 | ------------------- | ----------------------------------------------------------------- |
 | `Source`            | FLUME's sources.                                                  |
 | `Tests`             | Test decks, the test runner and the check scripts.                |
-| `Docs/sphinx_doc`   | The documentation (Sphinx): building, model, inputs, testing.     |
+| `Docs/sphinx_doc`   | The documentation (Sphinx): user guide, theory, verification.     |
 | `.github/workflows` | Continuous integration: builds and tests, style, documentation.   |
 | `Submodules/ERF`    | ERF, pinned to the tagged release 26.11. AMReX comes through ERF. |
 

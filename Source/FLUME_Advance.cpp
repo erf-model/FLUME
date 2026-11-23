@@ -208,7 +208,7 @@ compute_bed_source_second_order (amrex::MultiFab& source, const amrex::MultiFab&
                 // The steps of the bed at the two faces and the slope of the
                 // bed inside the cell add up to the first-order term with the
                 // depths of the sides, minus g h d_eta
-                // (Docs/sphinx_doc/Model.rst).
+                // (Docs/sphinx_doc/theory/Discretization.rst).
                 src[box_no](c, d) = half_g * ((h_hi - h_lo) * (h_hi + h_lo))
                                     - gravity * a(c, State::h) * here.d_eta;
             });
