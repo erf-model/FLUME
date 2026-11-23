@@ -58,6 +58,10 @@ public:
     //! times the sum of the infiltrated depth and the rounding carried in it.
     [[nodiscard]] double balance_volume () const override;
 
+    //! The infiltrated depth and the rounding carried in it.
+    void write_checkpoint (CheckpointWriter& chk) const override;
+    void read_checkpoint (const CheckpointReader& chk) override;
+
 protected:
     Infiltration (const amrex::BoxArray& ba, const amrex::DistributionMapping& dm,
                   const amrex::Geometry& geom, amrex::Real dry_depth);
@@ -132,6 +136,11 @@ public:
 
     [[nodiscard]] std::string name () const override { return "curve_number_infiltration"; }
     void apply (amrex::MultiFab& state, const SourceContext& ctx, amrex::Real dt) override;
+
+    //! Those of Infiltration, and the rain fallen on each cell (P) with the
+    //! rounding carried in it.
+    void write_checkpoint (CheckpointWriter& chk) const override;
+    void read_checkpoint (const CheckpointReader& chk) override;
 
 private:
     const Rain& m_rain;

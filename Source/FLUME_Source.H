@@ -1,6 +1,7 @@
 #ifndef FLUME_SOURCE_H_
 #define FLUME_SOURCE_H_
 
+#include "FLUME_Checkpoint.H"
 #include "FLUME_Forcing.H"
 #include "FLUME_Inputs.H"
 
@@ -83,6 +84,13 @@ public:
     //! The fields this source adds to the plotfiles, after the fields of the
     //! state, in this order (none by default).
     [[nodiscard]] virtual std::vector<PlotField> plot_fields () const { return {}; }
+
+    //! Write what this source carries from step to step (none by default),
+    //! under keys and field names that start with name(). Collective.
+    virtual void write_checkpoint (CheckpointWriter& /*chk*/) const {}
+
+    //! Read back what write_checkpoint wrote. Collective.
+    virtual void read_checkpoint (const CheckpointReader& /*chk*/) {}
 };
 
 /**

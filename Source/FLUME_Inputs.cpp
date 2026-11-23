@@ -402,6 +402,35 @@ read_inputs ()
     // log_int: optional, one integer in [0, INT_MAX]
     query_int(pp, "log_int", 0, int_max, in.log_int);
 
+    // check_file: optional, one string, not empty
+    if (pp.contains("check_file")) {
+        require_count(pp, "check_file", 1);
+        pp.get("check_file", in.check_file);
+        if (in.check_file.empty()) {
+            amrex::Abort("flume.check_file must not be empty");
+        }
+    }
+
+    // check_int: optional, one integer in [0, INT_MAX]
+    query_int(pp, "check_int", 0, int_max, in.check_int);
+    if (pp.contains("check_file") && in.check_int == 0) {
+        defer("flume.check_file needs flume.check_int > 0: no checkpoint is written");
+    }
+    if (in.check_int > 0 && in.check_file == in.plot_file) {
+        amrex::Abort("flume.check_file and flume.plot_file are both '" + in.check_file
+                     + "': they must differ, or a checkpoint takes the name of the plotfile"
+                       " of its step");
+    }
+
+    // restart: optional, one string, not empty
+    if (pp.contains("restart")) {
+        require_count(pp, "restart", 1);
+        pp.get("restart", in.restart);
+        if (in.restart.empty()) {
+            amrex::Abort("flume.restart must not be empty");
+        }
+    }
+
     // stop_time: optional, one finite real >= 0
     {
         double v = 0.0;

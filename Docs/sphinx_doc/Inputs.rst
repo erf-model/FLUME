@@ -115,6 +115,25 @@ Output
        (:ref:`sec:WaterBalanceLog`). Each line adds a reduction over the
        ranks; with outflow segments, every stage adds one reduction per
        segment; ``0`` adds none.
+   * - ``flume.check_file``
+     - string
+     - ``chk``
+     - Checkpoint name prefix. Not empty; needs ``flume.check_int > 0`` and
+       must differ from ``flume.plot_file`` (:ref:`sec:Restart`).
+   * - ``flume.check_int``
+     - integer
+     - ``0``
+     - Steps between checkpoints, from 0 to 2147483647; 0 writes none. With
+       checkpoints, the last step is always written (:ref:`sec:Restart`).
+   * - ``flume.restart``
+     - string
+     - none
+     - Checkpoint directory to continue from; one value, not empty. The
+       grid, domain, periodic sides, sources, bed, water-balance columns,
+       outflow segments, gauge cells and precision must be those of the run
+       that wrote it; with a log (``flume.log_int > 0``) it must have been
+       written with a log, and with ``flume.flood_maps = 1`` it must hold
+       maps (:ref:`sec:Restart`).
    * - ``flume.flood_maps``
      - integer
      - ``0``

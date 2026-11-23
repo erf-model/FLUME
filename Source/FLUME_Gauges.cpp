@@ -1,4 +1,5 @@
 #include "FLUME_Gauges.H"
+#include "FLUME_Checkpoint.H"
 #include "FLUME_State.H"
 
 #include <AMReX.H>
@@ -55,20 +56,58 @@ Gauges::Gauges (const Inputs& in, const amrex::Geometry& geom) : m_dry_depth(in.
 {
     for (const auto& g : in.gauges) {
         m_names.push_back(g.name);
+        m_locations.push_back(g.location);
         m_cells.push_back(gauge_cell(g.location, geom));
         amrex::Print() << "FLUME: gauge " << g.name << " at (" << g.location[0] << ", "
                        << g.location[1] << ") m reads cell (" << m_cells.back()[0] << ", "
                        << m_cells.back()[1] << ")\n";
-        if (amrex::ParallelDescriptor::IOProcessor()) {
-            const std::string file = "gauge_" + g.name + ".txt";
-            auto f = std::make_unique<std::ofstream>(file);
+    }
+}
+
+void
+Gauges::start ()
+{
+    open(-1, false);
+}
+
+void
+Gauges::resume (int step, bool keep_step)
+{
+    open(step, keep_step);
+}
+
+std::vector<std::string>
+Gauges::words () const
+{
+    std::vector<std::string> w;
+    for (std::size_t n = 0; n < m_names.size(); ++n) {
+        w.push_back(m_names[n] + ":" + std::to_string(m_cells[n][0]) + ":"
+                    + std::to_string(m_cells[n][1]));
+    }
+    return w;
+}
+
+void
+Gauges::open (int resume_step, bool keep_step)
+{
+    if (!amrex::ParallelDescriptor::IOProcessor()) { return; }
+    m_files.clear();
+    for (std::size_t n = 0; n < m_names.size(); ++n) {
+        const std::string file = "gauge_" + m_names[n] + ".txt";
+        if (resume_step >= 0 && rewind_log(file, resume_step, keep_step)) {
+            auto f = std::make_unique<std::ofstream>(file, std::ios::app);
             if (!*f) { amrex::Abort("FLUME: cannot open " + file + " for writing"); }
-            *f << "# FLUME gauge " << g.name << " at x = " << std::setprecision(digits)
-               << g.location[0] << " m, y = " << g.location[1] << " m, cell ("
-               << m_cells.back()[0] << ", " << m_cells.back()[1] << ")\n"
-               << "# step time depth surface_elevation velocity_x velocity_y\n";
             m_files.push_back(std::move(f));
+            continue;
         }
+        auto f = std::make_unique<std::ofstream>(file);
+        if (!*f) { amrex::Abort("FLUME: cannot open " + file + " for writing"); }
+        *f << "# FLUME gauge " << m_names[n] << " at x = " << std::setprecision(digits)
+           << m_locations[n][0] << " m, y = " << m_locations[n][1] << " m, cell ("
+           << m_cells[n][0] << ", " << m_cells[n][1] << ")\n"
+           << "# step time depth surface_elevation velocity_x velocity_y\n";
+        f->flush();
+        m_files.push_back(std::move(f));
     }
 }
 

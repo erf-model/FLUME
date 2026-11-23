@@ -27,6 +27,22 @@ FloodMaps::FloodMaps (const Inputs& in, const amrex::BoxArray& ba,
 }
 
 void
+FloodMaps::write_checkpoint (CheckpointWriter& chk) const
+{
+    chk.put_multifab("flood_maps", m_maps);
+}
+
+void
+FloodMaps::read_checkpoint (const CheckpointReader& chk)
+{
+    if (!chk.has("multifab/flood_maps")) {
+        chk.fail("written with flume.flood_maps = 0: it holds no maps to continue");
+    }
+    // In place: m_alias stays a view of m_maps.
+    chk.get_multifab("flood_maps", m_maps);
+}
+
+void
 FloodMaps::update (const amrex::MultiFab& state, double time)
 {
     update_flood_maps(m_maps, state, m_dry_depth, m_arrival_depth,

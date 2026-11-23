@@ -169,7 +169,8 @@ Water-balance log
 Unless ``flume.log_int = 0``, the I/O rank writes ``water_balance.txt`` in
 the working directory: one line at the start, one every ``flume.log_int``
 steps, and one at the last step. An existing file of that name is
-overwritten (plotfiles are renamed instead). At the end the run prints the
+overwritten (plotfiles are renamed instead), except on a restart
+(:ref:`sec:Restart`). At the end the run prints the
 last line as ``FLUME: water balance (m3): ...``. Each line holds, in m\ :sup:`3` and summed from the start of the run,
 the water on the surface, the water each source has added or removed, the
 water that has left through each outflow segment, and the residual of the
@@ -221,7 +222,8 @@ Gauges
 ~~~~~~
 
 Each gauge of ``flume.gauges.names`` writes ``gauge_<name>.txt`` in the
-working directory (overwriting a file of that name) at the lines of the
+working directory (overwriting a file of that name, except on a restart) at
+the lines of the
 water-balance log:
 
 .. code-block:: text
@@ -238,3 +240,67 @@ direction, and a point on the high edge of the domain
 the last cell. The start-up log names the cell of each gauge. The velocity
 is 0 in a dry cell. The values are printed with the digits that give back
 the stored number.
+
+.. _sec:Restart:
+
+Checkpoint and restart
+~~~~~~~~~~~~~~~~~~~~~~
+
+With ``flume.check_int > 0`` the run writes a checkpoint directory
+``<flume.check_file><step>`` (the step in at least five digits) every
+``flume.check_int`` steps and at the last step. An existing directory of
+that name is first renamed, as plotfiles are. A checkpoint holds the step
+and the time, the state and the bed, the infiltrated depth (and, for the
+curve number, the rain fallen on each cell), the flood maps, and the
+water-balance totals with their compensation terms. The fields are AMReX
+``VisMF`` files of the valid cells; ``Header`` is a text file of keys and
+values, with times and volumes written to 17 digits.
+
+``flume.restart=<dir>`` continues the run from that checkpoint:
+
+.. code-block:: bash
+
+   mpiexec -n 2 ./flume inputs flume.check_int=400 flume.max_step=550
+   mpiexec -n 1 ./flume inputs flume.check_int=400 flume.restart=chk00400
+
+The restart reads the same inputs. ``flume.stop_time`` and
+``flume.max_step`` count from the start of the run, not from the
+checkpoint. A restart with a later ``flume.stop_time`` than the first part
+continues the run, but the last step of the first part was shortened to end
+at its ``flume.stop_time``, so the result differs from that of one run to
+the later time.
+
+The restart writes no plotfile, log line or checkpoint at the step it
+starts from. ``water_balance.txt`` and the gauge files are cut back in
+place: the lines of later steps are removed, and so is a line cut short by
+a run that was stopped while writing it (a line with fewer fields than the
+header names). The line of the checkpoint's step is kept when that step is
+a multiple of ``flume.log_int``, as in the run without a break. A missing
+file is started again with its header, from the checkpoint's step;
+``Tests/check_balance.py``, which needs the line of step 0, does not accept
+such a file. Plotfiles and checkpoints of later steps that the first part
+wrote are not removed; the restart overwrites those of the steps it reaches
+(the old ones are renamed), and a plotfile the first part wrote at its last
+step, off the plot interval, stays. ``flume.check_file`` must differ from
+``flume.plot_file``.
+
+The run stops with a message naming ``flume.restart`` when the checkpoint
+does not match the inputs: another grid, domain or set of periodic sides,
+another list of sources, a bed that differs in any cell, other water-balance
+columns (rain, infiltration and outflow segments), outflow segments on other
+faces, gauges in other cells, a build of the other precision, a checkpoint
+written with ``flume.log_int = 0`` when the restart keeps a log, or one
+without maps when ``flume.flood_maps = 1``. It also stops on a checkpoint of
+another version, one with a key given twice, and a state that is not finite
+in some cell. Other inputs, such as the CFL number, the Manning coefficient
+or ``flume.bed.continue_slope`` (which sets the bed outside the domain), are
+not checked: a change there changes the result from the checkpoint on.
+
+The restart may use another rank count and other boxes. The state, the
+infiltrated depth, the maps, the plotfiles and the gauge files are then
+those of the run without a break, to the last bit. The water-balance totals
+of the outflow and the rain are sums over the ranks: on another rank count
+they are continued from their sum over the ranks, and the log agrees with
+the run without a break to round-off (below :math:`10^{-14}` of the largest
+value of a column in the tests), not to the bit. On the same rank count and
+boxes the log is the same byte for byte.

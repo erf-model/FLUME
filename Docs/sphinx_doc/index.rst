@@ -41,8 +41,9 @@ expansion of the name is a draft.
      - Infiltration: Green-Ampt and the runoff curve number
      - Storm-drain inlets
    * - Output
-     - AMReX plotfiles, flood maps, water-balance log, gauge time series
-     - Checkpoint and restart
+     - AMReX plotfiles, flood maps, water-balance log, gauge time series,
+       checkpoint and restart
+     -
 
 .. toctree::
    :caption: USER GUIDE

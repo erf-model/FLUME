@@ -367,6 +367,49 @@ Water balance, flood maps and gauges
      - The flood maps and a gauge of the wet-bed dam break against the exact
        Riemann solution.
 
+Checkpoint and restart
+----------------------
+
+.. list-table::
+   :header-rows: 1
+   :widths: 34 66
+
+   * - Tests
+     - What is checked
+   * - ``restart_reference_np1``, ``_np2``, ``restart_boxes_8_np1``
+     - A moving storm cell over a sloped bed with a bowl, second order,
+       curve-number infiltration, an outflow segment, flood maps and two
+       gauges: the run on 2 ranks, and on 1 rank in boxes of 8 cells, gives
+       every value of every plotfile of the 1-rank run to the last bit.
+   * - ``restart_first_order_reference``, ``restart_first_order_no_log``
+     - A dam break with rain and Green-Ampt infiltration, first order:
+       the plotfiles of the 2-rank run with the log, and of the 1-rank run
+       in boxes of 8 cells without it, agree to the last bit.
+   * - ``restart_np1_np1``, ``restart_np2_np2``
+     - A run continued from a checkpoint on the same ranks and boxes gives
+       the plotfiles to the last bit and the log and gauge files byte for
+       byte; the first part logs past the checkpoint (the logs are cut
+       back, and a line cut short at their end is removed), or stops at it
+       (the checkpoint of the last step).
+   * - ``restart_np1_np1_off_interval``
+     - The same from the checkpoint of the first part's last step, 405, off
+       the log interval: its log line is removed.
+   * - ``restart_np1_np2``, ``restart_np2_np1_boxes_8``,
+       ``restart_np2_np2_boxes_8``
+     - The same on another rank count or other boxes: plotfiles and gauge
+       files to the last bit, the log within :math:`10^{-14}` of the largest
+       value of each column.
+   * - ``restart_first_order_np2``
+     - The same for Green-Ampt at first order.
+   * - ``abort_restart_*``, ``abort_check_*``
+     - Each check of the checkpoint keys, and a checkpoint that does not
+       match the inputs: a plotfile, another grid, domain, bed, source
+       list, set of periodic sides, water-balance columns, outflow segment
+       or gauge cell, maps asked of a checkpoint without them, and a log
+       asked of a checkpoint without a balance. Copies of a checkpoint
+       altered by ``Tests/Restart/make_bad_checkpoints.py``: another
+       version, the other precision, a key given twice, a negative step, and a NaN in the state.
+
 Input checks
 ------------
 

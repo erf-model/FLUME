@@ -4,6 +4,7 @@ add_library(flume_lib STATIC
     FLUME_Advance.cpp
     FLUME_Boundary.cpp
     FLUME_Buildings.cpp
+    FLUME_Checkpoint.cpp
     FLUME_Flood.cpp
     FLUME_FloodMaps.cpp
     FLUME_Forcing.cpp

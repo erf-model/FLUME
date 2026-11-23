@@ -49,6 +49,11 @@ public:
     //! at most the rounding of a depth), which is not yet in the state.
     [[nodiscard]] double balance_volume () const override;
 
+    //! The rounding carried to the next step (m_carry) and this rank's
+    //! volume (m_volume, m_volume_carry).
+    void write_checkpoint (CheckpointWriter& chk) const override;
+    void read_checkpoint (const CheckpointReader& chk) override;
+
 private:
     const Forcing& m_forcing;
     amrex::MultiFab m_depth;  //!< rain depth of the step, m: one component, no ghost cells

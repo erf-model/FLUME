@@ -106,6 +106,17 @@ struct Inputs
     //! always logged; 0 writes neither and keeps no balance.
     int log_int = 1;
 
+    //! Checkpoint name prefix (flume.check_file; default "chk"; not empty)
+    std::string check_file = "chk";
+
+    //! Steps between checkpoints (flume.check_int; default 0; >= 0). With a
+    //! value above 0 the last step is also written; 0 writes none.
+    int check_int = 0;
+
+    //! Checkpoint to continue from (flume.restart; default none: the run
+    //! starts from the initial state; not empty)
+    std::string restart;
+
     //! Whether the plotfiles carry the flood maps: maximum depth, maximum
     //! speed, maximum depth times speed and first arrival time
     //! (flume.flood_maps; default 0; 0 or 1)

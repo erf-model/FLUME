@@ -51,11 +51,20 @@ class Flood
 {
 public:
     //! Build the grid and fill the bed and the initial state. Aborts if any
-    //! initial value is not finite.
+    //! initial value is not finite. With flume.restart, then continue from
+    //! that checkpoint (restart()).
     explicit Flood (const Inputs& in);
 
-    //! Write the initial plotfile, run the time loop, write the last plotfile.
+    //! Write the initial plotfile (not on a restart), run the time loop,
+    //! write the last plotfile, and the checkpoints with flume.check_int.
     void evolve ();
+
+    /**
+     * Write <check_file><step>: the time and step, the state, the bed, what
+     * each source carries from step to step, the water-balance totals and
+     * the flood maps. Collective.
+     */
+    void write_checkpoint () const;
 
     /**
      * The next time step, s: cfl / max_wave_rate(), or with rain falling
@@ -97,6 +106,15 @@ private:
     //! The water-balance line and the gauge lines of the current step.
     void write_logs ();
 
+    /**
+     * Continue from the checkpoint `dir`: the time, step, state, sources,
+     * balance and maps; the logs are cut back to its step and appended to.
+     * Aborts, naming flume.restart, when the checkpoint does not match the
+     * inputs: another precision, grid, periodicity, bed, list of sources
+     * or of outflow segments, or no maps with flume.flood_maps = 1.
+     */
+    void restart (const std::string& dir);
+
     Inputs m_in;
     amrex::Geometry m_geom;
     amrex::BoxArray m_ba;
@@ -131,6 +149,8 @@ private:
     //! steps stops growing after about 2^24 steps.
     double m_time = 0.0;
     int m_step = 0;
+    //! The step of the checkpoint the run continues from, or -1
+    int m_restart_step = -1;
 };
 
 } // namespace flume

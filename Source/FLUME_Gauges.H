@@ -31,8 +31,20 @@ namespace flume {
 class Gauges
 {
 public:
-    //! Find the cell of each gauge of `in`; open the files on the I/O rank.
+    //! Find the cell of each gauge of `in`.
     Gauges (const Inputs& in, const amrex::Geometry& geom);
+
+    //! Open the files on the I/O rank, each new with its header.
+    void start ();
+
+    //! Open the files on the I/O rank to continue a run from step `step`:
+    //! each file cut back to that step (rewind_log; the line of `step` itself
+    //! is kept only with `keep_step`) and appended to, or new with its header
+    //! when there is none.
+    void resume (int step, bool keep_step);
+
+    //! Each gauge as <name>:<i>:<j>, its cell: kept in a checkpoint.
+    [[nodiscard]] std::vector<std::string> words () const;
 
     //! One line per gauge at step `step`, time `time`, s. Every rank calls
     //! it (one reduction).
@@ -44,7 +56,10 @@ public:
     [[nodiscard]] const amrex::IntVect& cell (std::size_t n) const { return m_cells[n]; }
 
 private:
+    void open (int resume_step, bool keep_step);
+
     std::vector<std::string> m_names;
+    std::vector<amrex::Array<amrex::Real, 2>> m_locations;
     std::vector<amrex::IntVect> m_cells;
     amrex::Real m_dry_depth = amrex::Real(0.0);
     std::vector<std::unique_ptr<std::ofstream>> m_files;  //!< open on the I/O rank only

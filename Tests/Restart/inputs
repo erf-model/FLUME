@@ -1,0 +1,41 @@
+# Restart deck: a moving rain cell on a rough, tilted plane with a mound,
+# curve-number infiltration, Manning friction, an outflow segment on the
+# high-x side, the flood maps and two gauges, at second order. 48 x 32 cells
+# of 2 m in boxes of 16, so 6 boxes over the ranks. Every quantity a
+# checkpoint carries changes during the run.
+flume.n_cell        = 48 32
+flume.prob_lo       = 0.0 0.0
+flume.prob_hi       = 96.0 64.0
+flume.max_grid_size = 16
+flume.order         = 2
+flume.stop_time     = 240.0
+flume.plot_file     = plt
+flume.plot_int      = 100
+flume.log_int       = 10
+
+flume.bed.elevation   = 2.0
+flume.bed.slope       = -0.02 -0.005
+flume.bed.bowl_depth  = -0.3
+flume.bed.bowl_radius = 15.0
+flume.bed.noise       = 0.02
+
+flume.bc.segments    = out
+flume.bc.out.side    = xhi
+flume.bc.out.type    = outflow
+flume.bc.out.range   = 8 24
+
+flume.friction.manning = 0.03
+
+flume.rain.type          = moving_cell
+flume.rain.cell.peak_rate = 1000.0
+flume.rain.cell.sigma    = 20.0
+flume.rain.cell.center   = 60.0 30.0
+flume.rain.cell.velocity = 0.1 0.03
+
+flume.infiltration.type      = curve_number
+flume.infiltration.cn.number = 95
+
+flume.flood_maps = 1
+flume.gauges.names = mid low
+flume.gauges.mid.location = 47.0 31.0
+flume.gauges.low.location = 93.0 15.0

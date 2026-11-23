@@ -151,6 +151,7 @@ Flood::Flood (const Inputs& in) : m_in(in), m_boundary(in, make_geometry(in))
     m_balance = std::make_unique<WaterBalance>(in, m_geom);
     if (in.flood_maps == 1) { m_maps = std::make_unique<FloodMaps>(in, m_ba, m_dm); }
     m_gauges = std::make_unique<Gauges>(in, m_geom);
+    if (!in.restart.empty()) { restart(in.restart); }
 }
 
 amrex::Real
@@ -260,12 +261,20 @@ Flood::write_logs ()
 void
 Flood::evolve ()
 {
-    if (m_maps) { m_maps->update(m_state, m_time); }
-    write_plotfile();
+    // A restart has written its logs, plotfile and checkpoint at this step.
+    const bool restarted = m_restart_step >= 0;
+    if (!restarted) {
+        if (m_maps) { m_maps->update(m_state, m_time); }
+        write_plotfile();
+        m_balance->start(m_state, m_sources);
+        if (m_in.log_int > 0) {
+            m_gauges->start();
+            m_gauges->log(m_state, m_bed, m_step, m_time);
+        }
+    }
     int last_plot = m_step;
-    m_balance->start(m_state, m_sources);
-    if (m_in.log_int > 0) { m_gauges->log(m_state, m_bed, m_step, m_time); }
     int last_log = m_step;
+    int last_check = restarted ? m_step : -1;
 
     const bool limited = m_in.max_step.has_value() || m_in.stop_time.has_value();
     if (!limited) {
@@ -328,7 +337,8 @@ Flood::evolve ()
         // logs would take the square root of, or divide, an overflowed depth.
         const bool log_now = m_in.log_int > 0 && m_step % m_in.log_int == 0;
         const bool plot_now = m_in.plot_int > 0 && m_step % m_in.plot_int == 0;
-        if (m_maps || log_now || plot_now) { check_state(); }
+        const bool check_now = m_in.check_int > 0 && m_step % m_in.check_int == 0;
+        if (m_maps || log_now || plot_now || check_now) { check_state(); }
         if (m_maps) { m_maps->update(m_state, m_time); }
         if (log_now) {
             write_logs();
@@ -339,6 +349,10 @@ Flood::evolve ()
             write_plotfile();
             last_plot = m_step;
         }
+        if (check_now) {
+            write_checkpoint();
+            last_check = m_step;
+        }
     }
 
     if (last_plot != m_step) {
@@ -346,6 +360,7 @@ Flood::evolve ()
         write_plotfile();
     }
     if (m_in.log_int > 0 && last_log != m_step) { write_logs(); }
+    if (m_in.check_int > 0 && last_check != m_step) { write_checkpoint(); }
     m_balance->print_summary();
     amrex::Print() << "FLUME: " << m_step << " step(s), time " << m_time << " s\n";
 }

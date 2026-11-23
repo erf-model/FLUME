@@ -1,0 +1,33 @@
+# Restart deck at first order: a dam break on a rough, gently tilted bed
+# with a mound, constant rain, Green-Ampt infiltration and Manning friction,
+# walls on every side, no flood maps and no gauges. The same grid and boxes as
+# Tests/Restart/inputs.
+flume.n_cell        = 48 32
+flume.prob_lo       = 0.0 0.0
+flume.prob_hi       = 96.0 64.0
+flume.max_grid_size = 16
+flume.order         = 1
+flume.stop_time     = 60.0
+flume.plot_file     = plt
+flume.plot_int      = 100
+flume.log_int       = 10
+
+flume.bed.elevation   = 0.0
+flume.bed.slope       = 0.005 0.002
+flume.bed.bowl_depth  = -0.2
+flume.bed.bowl_radius = 12.0
+flume.bed.noise       = 0.02
+
+flume.init.surface_elevation      = 0.25
+flume.init.dam_position           = 30.0
+flume.init.dam_surface_elevation  = 0.05
+
+flume.friction.manning = 0.02
+
+flume.rain.type = constant
+flume.rain.rate = 100.0
+
+flume.infiltration.type                   = green_ampt
+flume.infiltration.green_ampt.conductivity = 10.0
+flume.infiltration.green_ampt.suction      = 110.0
+flume.infiltration.green_ampt.deficit      = 0.3
