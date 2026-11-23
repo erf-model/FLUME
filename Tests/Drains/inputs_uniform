@@ -1,0 +1,29 @@
+# Four inlets, one in each cell: 2 x 2 cells of 10 m in boxes of one cell
+# (4 boxes), walls on all four sides, flat bed at 0, still water 0.8 m deep,
+# no rain. Each inlet is a grate of perimeter 2 m and open area 0.5 m2 with
+# the default coefficients (weir 1.66, orifice 0.67), so the weir and orifice
+# rates are equal at a depth of 0.4469 m. Every cell is the same, so the water
+# stays level and still, and each cell drains as the closed form of
+# Source/FLUME_Drains.H: orifice flow to 0.4469 m at 30.4 s, then weir flow.
+flume.n_cell        = 2 2
+flume.prob_hi       = 20.0 20.0
+flume.max_grid_size = 1
+flume.plot_file     = uni
+flume.plot_int      = 40
+flume.stop_time     = 600.0
+
+flume.init.surface_elevation = 0.8
+
+flume.drains.names           = a b c d
+flume.drains.a.location      = 5.0 5.0
+flume.drains.a.perimeter     = 2.0
+flume.drains.a.area          = 0.5
+flume.drains.b.location      = 15.0 5.0
+flume.drains.b.perimeter     = 2.0
+flume.drains.b.area          = 0.5
+flume.drains.c.location      = 5.0 15.0
+flume.drains.c.perimeter     = 2.0
+flume.drains.c.area          = 0.5
+flume.drains.d.location      = 15.0 15.0
+flume.drains.d.perimeter     = 2.0
+flume.drains.d.area          = 0.5

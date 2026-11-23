@@ -24,7 +24,7 @@ hydrostatic reconstruction), writing plotfiles.
 | Bed        | Plane, bowl or raster; building footprints from a raster.         |
 | Friction   | Manning, one coefficient or a raster map.                         |
 | Rain       | Constant, hyetograph, gridded (ESRI ASCII series), moving cell.   |
-| Losses     | Infiltration: Green-Ampt and the runoff curve number.             |
+| Losses     | Infiltration (Green-Ampt, curve number); storm-drain inlets.      |
 | Output     | Plotfiles, flood maps, water-balance log, gauges, checkpoints.    |
 
 It is verified against a lake at rest, the wet and dry dam-break solutions,

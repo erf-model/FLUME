@@ -544,6 +544,83 @@ read_inputs ()
         }
     }
 
+    // drains.names and drains.<name>.*: inlets inside the domain (on its edge
+    // too), each with a name of letters, digits and _.
+    if (pp.contains("drains.names")) {
+        std::vector<std::string> names;
+        pp.getarr("drains.names", names);
+        double area_cell = 1.0;
+        for (int d = 0; d < 2; ++d) {
+            area_cell *= (static_cast<double>(in.prob_hi[d]) - static_cast<double>(in.prob_lo[d]))
+                         / static_cast<double>(in.n_cell[d]);
+        }
+        for (const auto& name : names) {
+            const bool ok_name = !name.empty()
+                && std::all_of(name.begin(), name.end(), [] (char c) {
+                       return std::isalnum(static_cast<unsigned char>(c)) != 0 || c == '_';
+                   });
+            if (!ok_name) {
+                amrex::Abort("flume.drains.names: a name may hold only letters, digits and _; "
+                             "it is \"" + name + "\"");
+            }
+            for (const auto& d : in.drains) {
+                if (d.name == name) { amrex::Abort("flume.drains.names lists " + name + " twice"); }
+            }
+            DrainInlet d;
+            d.name = name;
+            const std::string key = "drains." + name + ".";
+            bool complete = true;
+            if (!query_finite_pair(pp, key + "location", d.location)) {
+                defer("flume.drains.names lists " + name + ", which needs flume." + key
+                      + "location: the x and y of the inlet, m");
+                complete = false;
+            } else {
+                for (int dd = 0; dd < 2; ++dd) {
+                    if (!(d.location[dd] >= in.prob_lo[dd] && d.location[dd] <= in.prob_hi[dd])) {
+                        std::string msg = "flume." + key + "location must be inside the domain: from ";
+                        msg += all_digits(in.prob_lo[dd]);
+                        msg += " to ";
+                        msg += all_digits(in.prob_hi[dd]);
+                        msg += " in ";
+                        msg += dir_name[dd];
+                        msg += " (flume.prob_lo and flume.prob_hi); it is ";
+                        msg += all_digits(d.location[dd]);
+                        amrex::Abort(msg);
+                    }
+                }
+            }
+            if (!query_finite(pp, key + "perimeter", d.perimeter)) {
+                defer("flume.drains.names lists " + name + ", which needs flume." + key
+                      + "perimeter: the weir length of the inlet, m");
+                complete = false;
+            } else if (!(d.perimeter > amrex::Real(0.0))) {
+                amrex::Abort("flume." + key + "perimeter must be > 0; it is "
+                             + all_digits(d.perimeter));
+            }
+            if (!query_finite(pp, key + "area", d.area)) {
+                defer("flume.drains.names lists " + name + ", which needs flume." + key
+                      + "area: the open area of the inlet, m2");
+                complete = false;
+            } else if (!(d.area > amrex::Real(0.0)
+                         && static_cast<double>(d.area) <= area_cell)) {
+                amrex::Abort("flume." + key + "area must be > 0 and <= the area of a cell ("
+                             + all_digits(area_cell) + " m2); it is " + all_digits(d.area));
+            }
+            if (query_finite(pp, key + "weir_coefficient", d.weir_coefficient)
+                && !(d.weir_coefficient > amrex::Real(0.0))) {
+                amrex::Abort("flume." + key + "weir_coefficient must be > 0; it is "
+                             + all_digits(d.weir_coefficient));
+            }
+            if (query_finite(pp, key + "orifice_coefficient", d.orifice_coefficient)
+                && !(d.orifice_coefficient > amrex::Real(0.0)
+                     && d.orifice_coefficient <= amrex::Real(1.0))) {
+                amrex::Abort("flume." + key + "orifice_coefficient must be > 0 and <= 1; it is "
+                             + all_digits(d.orifice_coefficient));
+            }
+            if (complete) { in.drains.push_back(d); }
+        }
+    }
+
     // friction.manning: optional, one finite real >= 0
     query_finite(pp, "friction.manning", in.friction_manning);
     if (!(in.friction_manning >= amrex::Real(0.0))) {

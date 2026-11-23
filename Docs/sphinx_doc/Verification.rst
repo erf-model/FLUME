@@ -397,6 +397,48 @@ domain with a hyetograph, a conductivity map and buildings (second order, 3
 ranks), the water on the surface plus the infiltrated water equals the rain
 to :math:`5.7 \times 10^{-14}` of 28.8 m\ :sup:`3` per m\ :sup:`2` of cell.
 
+.. _sec:VerifyDrains:
+
+Storm-drain inlets
+------------------
+
+The inlets of :ref:`sec:Drains` (``Tests/Drains``) are checked against the
+exact solution of :math:`dh/dt = -\min(a h^{3/2}, b h^{1/2})`, which the
+check evaluates through its inverse, the time to reach a depth. With level,
+still water over an inlet in each of 4 cells of 100 m\ :sup:`2`
+(:math:`P = 2` m, :math:`A = 0.5` m\ :sup:`2`), every cell holds that
+solution at the time of each plotfile:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 64 36
+
+   * - Case
+     - Largest difference
+   * - From 0.8 m: orifice to :math:`d^* = 0.4469` m at 30.4 s, then weir, to
+       8.34 mm at 600 s
+     - 0.8 epsilons of 0.8 m
+   * - From 0.3 m, below :math:`d^*`: weir only, to 7.20 mm at 600 s
+     - 1.0 epsilon of 0.3 m
+   * - :math:`C_w = 1.5`, :math:`C_o = 0.6` (:math:`d^* = 0.4429` m)
+     - 3.4 epsilons of 0.8 m
+   * - Drained volume of the first case, 316.6641978 m\ :sup:`3`
+     - 1e-15 relative
+
+One inlet (:math:`P = 0.5` m, :math:`A = 0.05` m\ :sup:`2`) in a closed
+basin of 256 m\ :sup:`2`, still water 0.3 m deep, drains 0.979 to 0.987
+times the volume of the closed form for one cell of the basin's area over
+20 min (0.976 to 0.984 at second order). The lumped form is an upper bound
+while the inlet cell is the lowest point of the water, since the rate grows
+with the depth; the check takes 0.95 as the lower bound, from the run. The run is the
+same to the last bit on 3 ranks in 16 boxes, and after a restart from a
+checkpoint on 2 ranks. A 1 mm film over an inlet of :math:`P = 100` m on a
+1 m cell, which an explicit step at the weir rate would let take 13 mm,
+keeps every depth at or above 0; the depth it drains in the first step is
+that of the exact solution to 0.2 epsilons of 1 mm. In every plotfile of these runs the depth
+plus the drained depth summed over the cells is that of the start to 8
+epsilons.
+
 Water balance and flood maps
 ----------------------------
 

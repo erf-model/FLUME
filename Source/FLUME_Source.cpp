@@ -1,4 +1,5 @@
 #include "FLUME_Source.H"
+#include "FLUME_Drains.H"
 #include "FLUME_Friction.H"
 #include "FLUME_Infiltration.H"
 #include "FLUME_Rain.H"
@@ -28,6 +29,9 @@ make_sources (const Inputs& in, const amrex::Geometry& geom, const amrex::BoxArr
         // read_inputs requires rain with the curve number.
         AMREX_ALWAYS_ASSERT(rain != nullptr);
         sources.push_back(std::make_unique<CurveNumber>(in, geom, ba, dm, buildings, *rain));
+    }
+    if (!in.drains.empty()) {
+        sources.push_back(std::make_unique<Drains>(in, geom, ba, dm, buildings));
     }
     if (!in.friction_manning_file.empty()) {
         sources.push_back(std::make_unique<Friction>(ba, dm, geom, in.friction_manning_file,

@@ -1,0 +1,21 @@
+# One inlet in a filled basin: 16 x 16 cells of 1 m in boxes of 8 (4 boxes),
+# walls on all four sides, flat bed at 0, still water 0.3 m deep, no rain.
+# The inlet, at (8.5, 8.5) m in cell (8, 8), has a perimeter of 0.5 m and an
+# open area of 0.05 m2: orifice flow above 0.1788 m, weir flow below. The
+# basin is still draining at 20 min (0.077 m left in the closed form), while
+# a wave crosses it in 10 s, so the water
+# stays nearly level and the mean depth follows the closed form for one cell
+# of the basin's area.
+flume.n_cell        = 16 16
+flume.prob_hi       = 16.0 16.0
+flume.max_grid_size = 8
+flume.plot_file     = plt
+flume.plot_int      = 500
+flume.stop_time     = 1200.0
+
+flume.init.surface_elevation = 0.3
+
+flume.drains.names            = grate
+flume.drains.grate.location   = 8.5 8.5
+flume.drains.grate.perimeter  = 0.5
+flume.drains.grate.area       = 0.05

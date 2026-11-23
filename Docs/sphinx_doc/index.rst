@@ -38,8 +38,9 @@ expansion of the name is a draft.
      - Bed, buildings and Manning map from ESRI ASCII grids
      - Other raster formats through GDAL
    * - Losses
-     - Infiltration: Green-Ampt and the runoff curve number
-     - Storm-drain inlets
+     - Infiltration: Green-Ampt and the runoff curve number; storm-drain
+       inlets (weir and orifice capacity)
+     -
    * - Output
      - AMReX plotfiles, flood maps, water-balance log, gauge time series,
        checkpoint and restart

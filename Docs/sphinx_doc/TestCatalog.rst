@@ -313,6 +313,42 @@ Green-Ampt equation).
        rain's negative carry does not take a depth below 0 in the next,
        dry step, and the water balances.
 
+Storm-drain inlets
+------------------
+
+Decks in ``Tests/Drains``, checked by ``check_drains.py``, which computes the
+exact solution through its inverse (the time to reach a depth),
+independently of the solver.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 34 66
+
+   * - Tests
+     - What is checked
+   * - ``drains_uniform``, ``_weir``, ``_coefficients``
+     - Level, still water over an inlet in each of 4 cells: every cell
+       against the exact solution, from above the switch depth (orifice,
+       then weir), from below it (weir only), and with other coefficients
+       (16 eps of the starting depth).
+   * - ``balance_drains_uniform``
+     - The ``drained`` and ``stored`` columns against the closed form.
+   * - ``drains_basin``, ``_order2``
+     - One inlet in a closed basin of 256 cells: the drained volume within
+       0.95 and 1 times that of one cell of the basin's area, at both orders.
+   * - ``drains_basin_boxes_4_np3``
+     - The basin on 3 ranks in 16 boxes: the plotfiles to the last bit.
+   * - ``drains_restart_np4_np2``
+     - The basin continued from a checkpoint on 2 ranks: the plotfiles to
+       the last bit, ``drained_depth`` among them.
+   * - ``drains_film``
+     - A 1 mm film over an inlet that an explicit step would let take 13 mm:
+       no depth below 0, and the depth drained in the first step that of
+       the exact solution (16 eps of 1 mm).
+   * - ``abort_restart_drains_moved``, ``_coefficient``
+     - A restart with the inlet in another cell, or with another weir
+       coefficient, stops with a message naming the inlets.
+
 Water balance, flood maps and gauges
 ------------------------------------
 
@@ -432,6 +468,10 @@ Input checks
      - Each infiltration key: ranges, missing and excluded keys, a value
        with a file, the curve number without rain, and files with values
        out of range or NODATA cells.
+   * - ``abort_drains_*``
+     - Each drain key: names, missing keys, ranges, a location outside the
+       domain, an unknown key, a key of a name not listed, two inlets in one
+       cell and an inlet in a building cell.
    * - ``abort_log_*``, ``abort_flood_maps_*``, ``abort_arrival_depth_*``,
        ``abort_gauge_*``, ``abort_gauges_*``
      - Each check of the log, map and gauge keys: ranges, a non-finite
