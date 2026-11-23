@@ -10,6 +10,7 @@
 #include <AMReX_MFParallelFor.H>
 #include <AMReX_Print.H>
 
+#include <algorithm>
 #include <cmath>
 #include <iomanip>
 #include <limits>
@@ -59,7 +60,11 @@ Drains::Drains (const Inputs& in, const amrex::Geometry& geom, const amrex::BoxA
         // single-precision build the kernel's, from a and b rounded to
         // amrex::Real, differs from this one by about 1e-7).
         const double ds = b / a;
-        amrex::Print() << "FLUME: drain inlet " << d.name << " at (" << d.location[0] << ", "
+        // The inputs are amrex::Real: at most its own digits10 (and the 10
+        // of the default stream), so a single-precision build prints 1.66
+        // for an input of 1.66 rather than its float, 1.659999967.
+        amrex::Print().SetPrecision(std::min(10, std::numeric_limits<amrex::Real>::digits10))
+                       << "FLUME: drain inlet " << d.name << " at (" << d.location[0] << ", "
                        << d.location[1] << ") m in cell (" << iv[0] << ", " << iv[1]
                        << "): perimeter " << d.perimeter << " m, open area " << d.area
                        << " m2, weir coefficient " << d.weir_coefficient

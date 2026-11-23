@@ -75,7 +75,9 @@ python3 <repo>/Tests/Drains/check_drains.py plt --basin 0.3 0.95 1.0 --grate 0.5
 | `abort_restart_drains_moved`, `_coefficient` | a restart from `drains_basin` with the inlet in cell (3, 3), or a weir coefficient of 1.5, stops |
 
 In every plotfile, the depth plus the drained depth summed over the cells
-is that of the first plotfile to 8 epsilons. The numbers are what the runs
+is that of the first plotfile to 8 epsilons; in the basin runs, where the
+water moves, to 8 + sqrt(n) epsilons after n steps (1 epsilon in double
+precision and 17 in single precision over 6095 steps). The numbers are what the runs
 give in double precision, not the bounds the checks use
 (`DrainsTests.cmake`, `Docs/sphinx_doc/Verification.rst`). The basin drains
 less than the lumped form because the inlet cell is drawn below the mean

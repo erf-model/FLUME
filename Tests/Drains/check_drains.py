@@ -14,6 +14,11 @@ the surface, then drained_depth. Every mode checks, in every plotfile:
     of depth plus drained_depth is that of the first plotfile, within
     --ledger-eps epsilons of it: each cell keeps its own depth plus
     drained_depth to a few epsilons (the compensated sum of remove_water).
+    With --basin the water moves, and every step rounds the depth of every
+    wet cell by up to half an epsilon, with no preferred sign: the bound
+    grows by sqrt(n) epsilons of the sum, n the steps from the first
+    plotfile (the basin drifts by 17 epsilons over 6095 steps in single
+    precision, 1 in double).
 
 An inlet of perimeter P, open area A, weir coefficient C_w and orifice
 coefficient C_o (--grate P A [C_w C_o]) in a cell of area S drains it at
@@ -163,11 +168,15 @@ def main():
                 errors.append(f"{pf.name} cell ({i}, {j}): drained_depth {v[I_D]!r} below 0")
         # Exact sums of the stored numbers.
         total = math.fsum(v[I_H] for v in cells.values()) + math.fsum(v[I_D] for v in cells.values())
+        step = int(pf.name[len(a.prefix):])
         if first_total is None:
             first_total = total
-        elif abs(total - first_total) > a.ledger_eps * eps * first_total:
-            errors.append(f"{pf.name}: depth + drained_depth sums to {total!r}, "
-                          f"at the start {first_total!r}")
+            first_step = step
+        else:
+            ledger = a.ledger_eps + (math.sqrt(step - first_step) if a.basin is not None else 0.0)
+            if abs(total - first_total) > ledger * eps * first_total:
+                errors.append(f"{pf.name}: depth + drained_depth sums to {total!r}, "
+                              f"at the start {first_total!r}")
 
         if a.uniform is not None:
             h0 = a.uniform
