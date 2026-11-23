@@ -7,8 +7,8 @@ Check that FLUME reads ESRI ASCII grids (`.asc`) for the bed
 `flume.buildings.height`) and the Manning coefficient
 (`flume.friction.manning_file`), and that every malformed file stops the run
 with a message naming the key and the file. The format and the sampling are
-described in `Docs/sphinx_doc/Inputs.rst` (Raster files) and
-`Docs/sphinx_doc/Model.rst`.
+described in `Docs/sphinx_doc/InputFiles.rst` (Raster files) and
+`Docs/sphinx_doc/theory/Terrain.rst`.
 
 ## Files
 
@@ -85,4 +85,4 @@ The numbers are what the runs give, not the bounds the checks use.
 `raster_manning_rows`, `raster_manning_rows_second_order`,
 `raster_manning_ties`, `raster_manning_uniform_value`,
 `raster_manning_uniform_file`, and the `abort_raster_*` tests. All run on one
-rank. See `Docs/sphinx_doc/Testing.rst`.
+rank. See `Docs/sphinx_doc/Verification.rst`.

@@ -31,7 +31,7 @@ struct SourceContext
  *
  * Each source acts once per step, after the fluxes and the bed slope of all
  * the stages of the step, on the valid cells of the state at the end of the
- * step (Docs/sphinx_doc/Model.rst, "Source terms"). Sources act one after
+ * step (Docs/sphinx_doc/theory/SourceTerms.rst). Sources act one after
  * another in the order of the list that make_sources() returns. A source
  * keeps any field it needs (a coefficient map, a running total) and switches
  * itself on from its own inputs.

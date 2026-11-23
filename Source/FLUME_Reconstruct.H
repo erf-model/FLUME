@@ -41,7 +41,7 @@ struct CellSides
 
 /**
  * Piecewise-linear reconstruction of cell `c` along the direction of the unit
- * vector `e` (Docs/sphinx_doc/Model.rst). `a` is the state, `z` the bed;
+ * vector `e` (Docs/sphinx_doc/theory/Discretization.rst). `a` is the state, `z` the bed;
  * `i_norm` and `i_tang` are the components of the discharge along and across
  * the direction. Reads the cells c - e, c and c + e.
  *

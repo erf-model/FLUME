@@ -4,18 +4,16 @@ Building
 Requirements
 ------------
 
-* CMake 3.25 or newer (required by the pinned AMReX).
+* CMake 3.25 or newer.
 * A C++20 compiler.
 * MPI (optional; on by default).
-* Python 3 for the tests. Without it the configure step stops, unless
-  ``-DFLUME_ENABLE_TESTS=OFF`` is given.
+* Python 3 for the tests (or ``-DFLUME_ENABLE_TESTS=OFF``).
 
 Getting the code
 ----------------
 
-FLUME needs two submodules: ERF, and the AMReX that ERF pins. ERF's other
-submodules (RRTMGP, Noah-MP, WW3, EKAT, GoogleTest) are not used by the
-stand-alone build and need not be fetched.
+FLUME needs two submodules: ERF, and the AMReX that ERF pins. The stand-alone
+build compiles no ERF code and needs none of ERF's other submodules.
 
 .. code-block:: bash
 
@@ -24,10 +22,7 @@ stand-alone build and need not be fetched.
    git submodule update --init Submodules/ERF
    git -C Submodules/ERF submodule update --init --depth 1 Submodules/AMReX
 
-``git clone --recursive`` also works. It fetches every submodule of ERF.
-
-FLUME has no AMReX pin of its own. AMReX is built from
-``Submodules/ERF/Submodules/AMReX``. The stand-alone build compiles no ERF code.
+``git clone --recursive`` also works; it fetches every submodule of ERF.
 
 Configure, build and test
 -------------------------
@@ -38,18 +33,14 @@ Configure, build and test
    cmake --build build-rel -j 8
    ctest --test-dir build-rel --output-on-failure
 
-The executable is ``build-rel/flume``. Without ``CMAKE_BUILD_TYPE`` the build
-is ``Release``. Name each build directory
-``build-<something>``; those names are ignored by git.
+The executable is ``build-rel/flume``. The default build type is ``Release``.
+Build directories named ``build-<something>`` are ignored by git.
 
-The flood grid is two-dimensional. AMReX is built in three dimensions and the
-boxes are one cell thick, so the same code can later link with ERF.
+The flood grid is two-dimensional. AMReX is built in three dimensions with
+boxes one cell thick, so the same code can later link with ERF.
 
 CMake options
 -------------
-
-FLUME builds without OpenMP: parallel runs use MPI ranks, and GPUs through
-AMReX. ``FLUME_OMP=ON`` stops the configure step with a message.
 
 .. list-table::
    :header-rows: 1
@@ -63,33 +54,30 @@ AMReX. ``FLUME_OMP=ON`` stops the configure step with a message.
      - Build with MPI.
    * - ``FLUME_PRECISION``
      - ``DOUBLE``
-     - Floating-point precision: ``DOUBLE`` or ``SINGLE``.
+     - ``DOUBLE`` or ``SINGLE``.
    * - ``FLUME_GPU_BACKEND``
      - ``NONE``
-     - GPU backend: ``NONE``, ``CUDA``, ``HIP`` or ``SYCL``. HIP and SYCL need
-       the vendor compiler as ``CMAKE_CXX_COMPILER``; HIP also needs
-       ``AMReX_AMD_ARCH``. For CUDA on a machine without a GPU, give
-       ``CMAKE_CUDA_ARCHITECTURES``: AMReX's default is the GPU of the build
-       machine.
+     - ``NONE``, ``CUDA``, ``HIP`` or ``SYCL``. HIP and SYCL need the vendor
+       compiler as ``CMAKE_CXX_COMPILER``; HIP also needs ``AMReX_AMD_ARCH``.
+       For CUDA on a machine without a GPU, give ``CMAKE_CUDA_ARCHITECTURES``.
    * - ``FLUME_TESTING``
      - ``OFF``
-     - Turn on AMReX's assertions and its testing mode, in which new arrays are
-       filled with signalling NaNs.
+     - AMReX's assertions and testing mode: new arrays are filled with
+       signalling NaNs.
    * - ``FLUME_ENABLE_TESTS``
      - ``ON``
      - Register the tests with CTest. Needs Python 3.
    * - ``FLUME_WERROR``
      - ``OFF``
-     - Treat warnings in FLUME's own sources as errors. CPU builds only: with
-       a GPU backend FLUME adds no warning flags and this option has no
-       effect. The continuous integration turns it on.
+     - Warnings in FLUME's sources are errors. CPU builds only.
    * - ``FLUME_MPIEXEC_PREFLAGS``
      - empty
-     - Extra ``mpiexec`` flags for the tests, for example ``--oversubscribe``.
-       With MPI the tests need a launcher (``MPIEXEC_EXECUTABLE``).
+     - Extra ``mpiexec`` flags for the tests, for example
+       ``--oversubscribe``.
 
-A value of ``FLUME_PRECISION`` or ``FLUME_GPU_BACKEND`` outside its list stops
-the configure step.
+A value outside the list of ``FLUME_PRECISION`` or ``FLUME_GPU_BACKEND`` stops
+the configure step. FLUME builds without OpenMP; ``FLUME_OMP=ON`` stops the
+configure step.
 
 Moving the ERF submodule
 ------------------------
@@ -101,7 +89,7 @@ Moving the ERF submodule
    git -C Submodules/ERF submodule update --init --depth 1 Submodules/AMReX
    git add Submodules/ERF
 
-AMReX moves with ERF, so rebuild and run the tests after moving the pin.
+AMReX moves with ERF: rebuild and run the tests afterwards.
 
 Building the documentation
 --------------------------

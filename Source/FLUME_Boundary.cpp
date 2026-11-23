@@ -35,7 +35,7 @@ using Pieces = amrex::Array<amrex::Array<std::vector<Boundary::Piece>, 2>, 2>;
  * is weakly unstable: the face to the outside carries the whole discharge of
  * the boundary cell and the face inside, after the hydrostatic
  * reconstruction, only a part of it, and a disturbance grows by a fraction of
- * a percent per step (docs/source/Model.rst, "Sides of the domain").
+ * a percent per step (Docs/sphinx_doc/theory/Boundaries.rst).
  *
  * Every fab whose ghost cells reach outside the side is filled, not only
  * those whose box touches it: a box one cell short of the side holds the

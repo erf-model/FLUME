@@ -3,7 +3,7 @@
 # between walls the water never reaches. The surface is a plane tilted along
 # x that turns about the axis of the bowl once in 2 pi / sqrt(2 g h0) =
 # 4.4857 s; the shoreline moves over the dry bed. Three periods (Thacker's
-# planar solution with eta = 0.5; Docs/sphinx_doc/Testing.rst).
+# planar solution with eta = 0.5; Docs/sphinx_doc/Verification.rst).
 flume.n_cell        = 100 100
 flume.prob_hi       = 4.0 4.0
 flume.max_grid_size = 25

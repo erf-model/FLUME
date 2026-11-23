@@ -106,7 +106,7 @@ flume_add_regtest(rain_basin_volume NPROCS 2
     CHECK ${check_rain} basin --hyetograph ${rain_dir}/hyetograph_triangle.txt --linear
           --added-volume)
 # Rain on an impermeable plane (Tests/Rain/inputs_plane) against the
-# kinematic-wave solution (Docs/sphinx_doc/Testing.rst), to 900 s, past
+# kinematic-wave solution (Docs/sphinx_doc/Verification.rst), to 900 s, past
 # equilibrium at 349 s. First order, every 400 steps: depth L1 error at most
 # 5.5 %, outlet discharge within 5.7 % of i L; at equilibrium the outlet
 # passes i L to round-off. Bounds 6 % and 6.5 %. Second order at cfl 0.125,
