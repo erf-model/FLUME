@@ -2,7 +2,8 @@ Water balance
 =============
 
 The water on the surface changes only through the sources (rain in,
-infiltration and drain inlets out) and through the faces of the outflow segments. The
+infiltration and drain inlets out) and through the faces of the outflow and
+discharge segments. The
 balance log (:ref:`sec:WaterBalanceLog`) counts each of these where it
 happens and checks that they add up.
 
@@ -12,12 +13,13 @@ Residual
 With :math:`V(t)` the volume on the surface at time :math:`t`,
 :math:`V_0 = V(0)`, :math:`S_n(t)` the volume source :math:`n` has added
 since the start (below 0 for a sink) and :math:`Q_m(t)` the volume that has
-left through outflow segment :math:`m` (below 0 where water has come in),
-the residual is
+left through outflow segment :math:`m` (below 0 where water has come in)
+and :math:`P_l(t)` the volume that has entered through discharge segment
+:math:`l`, the residual is
 
 .. math::
 
-   R(t) = V(t) - V_0 - \sum_n S_n(t) + \sum_m Q_m(t) ,
+   R(t) = V(t) - V_0 - \sum_n S_n(t) + \sum_m Q_m(t) - \sum_l P_l(t) ,
 
 which is zero in exact arithmetic.
 
@@ -37,6 +39,9 @@ which is zero in exact arithmetic.
   :math:`w_k` the weight of each stage: 1 at first order and
   :math:`\tfrac{1}{2}` for each of the two stages at second order, whose
   mean is the step.
+* :math:`P_l` is formed as :math:`Q_m` on the faces of the discharge
+  segment, with the opposite sign: :math:`\sigma_f = -1` on a high side
+  and :math:`+1` on a low side.
 
 **Why count each term where it happens.** :math:`R` then measures how well
 the update, the outflow limit and the sources keep the water they account
@@ -46,7 +51,7 @@ zero up to the rounding of one product, and what it carries shows in
 :math:`R`.
 
 All sums are formed in double precision, also in a single-precision build.
-The rain and outflow totals add a volume each step to a compensated (Kahan)
+The rain, outflow and inflow totals add a volume each step to a compensated (Kahan)
 sum, so their rounding does not grow with the steps; the infiltration total
 is summed again from the cells at each line.
 

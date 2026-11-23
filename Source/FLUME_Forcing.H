@@ -2,6 +2,7 @@
 #define FLUME_FORCING_H_
 
 #include "FLUME_Inputs.H"
+#include "FLUME_TimeTable.H"
 
 #include <AMReX_BoxArray.H>
 #include <AMReX_DistributionMapping.H>
@@ -61,7 +62,8 @@ public:
  * modes. A table of one entry is constant rain (flume.rain.type = constant).
  *
  * The depth over an interval is I(t1) - I(t0), with I the integral of the
- * rate from t_0, exact for the piecewise-constant or piecewise-linear rate.
+ * rate from t_0, exact for the piecewise-constant or piecewise-linear rate
+ * (TimeTable, FLUME_TimeTable.H).
  */
 class UniformRain : public Forcing
 {
@@ -76,15 +78,12 @@ public:
     [[nodiscard]] double max_rain_rate (double t0, double t1) const override;
 
     //! The rate at time t, m/s.
-    [[nodiscard]] double rate (double t) const;
+    [[nodiscard]] double rate (double t) const { return m_table.value(t); }
     //! The integral of the rate from t_0 to t, m (negative before t_0).
-    [[nodiscard]] double integral (double t) const;
+    [[nodiscard]] double integral (double t) const { return m_table.integral(t); }
 
 private:
-    std::vector<double> m_time;
-    std::vector<double> m_rate;
-    std::vector<double> m_cumulative;  //!< integral from t_0 to t_k, m
-    RainInterpolation m_mode = RainInterpolation::step;
+    TimeTable m_table;  //!< the rate, m/s
     std::string m_label;
 };
 
@@ -93,7 +92,8 @@ private:
 inline constexpr double mm_per_h = 1.0 / 3.6e6;
 
 /**
- * Read a hyetograph file (flume.rain.file): lines of two numbers, a time in
+ * Read a hyetograph file (flume.rain.file; read_time_table of
+ * FLUME_TimeTable.H): lines of two numbers, a time in
  * s and a rain rate in mm/h, with the times strictly increasing; `#` starts a
  * comment that runs to the end of the line, and blank lines are skipped. The
  * I/O rank reads the file and sends the table to every rank. Every rank

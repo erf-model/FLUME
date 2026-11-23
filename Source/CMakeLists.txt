@@ -11,6 +11,7 @@ add_library(flume_lib STATIC
     FLUME_Forcing.cpp
     FLUME_Friction.cpp
     FLUME_Gauges.cpp
+    FLUME_Inflow.cpp
     FLUME_Infiltration.cpp
     FLUME_IO.cpp
     FLUME_Init.cpp
@@ -20,6 +21,7 @@ add_library(flume_lib STATIC
     FLUME_Raster.cpp
     FLUME_Source.cpp
     FLUME_TimeStep.cpp
+    FLUME_TimeTable.cpp
     FLUME_WaterBalance.cpp)
 
 target_include_directories(flume_lib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

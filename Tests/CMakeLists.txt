@@ -1671,17 +1671,14 @@ flume_add_abort_test(abort_segment_side_two
     EXPECT "flume\\.bc\\.a\\.side needs exactly 1 value. it has 2"
     ARGS ${ok} ${seg} flume.bc.a.side=xlo\ xhi flume.bc.a.type=wall)
 flume_add_abort_test(abort_segment_type_missing
-    EXPECT "flume\\.bc\\.a\\.type is required: wall or outflow"
+    EXPECT "flume\\.bc\\.a\\.type is required: wall, outflow or discharge"
     ARGS ${ok} ${seg} flume.bc.a.side=xlo)
 flume_add_abort_test(abort_segment_type_unknown
-    EXPECT "flume\\.bc\\.a\\.type must be wall or outflow. it is inflow"
+    EXPECT "flume\\.bc\\.a\\.type must be wall, outflow or discharge. it is inflow"
     ARGS ${ok} ${seg} flume.bc.a.side=xlo flume.bc.a.type=inflow)
-# The names of the two types that later versions add.
-flume_add_abort_test(abort_segment_type_discharge
-    EXPECT "flume\\.bc\\.a\\.type = discharge is reserved for a later version \\(a prescribed inflow discharge from a time series\\)"
-    ARGS ${ok} ${seg} flume.bc.a.side=xlo flume.bc.a.type=discharge)
+# The name of the type a later version adds.
 flume_add_abort_test(abort_segment_type_stage
-    EXPECT "flume\\.bc\\.a\\.type = stage is reserved for a later version \\(a prescribed water level from a time series\\)"
+    EXPECT "flume\\.bc\\.a\\.type = stage is reserved for a later version \\(a prescribed water level from a time series\\) and is not available yet: use wall, outflow or discharge"
     ARGS ${ok} ${seg} flume.bc.a.side=xlo flume.bc.a.type=stage)
 flume_add_abort_test(abort_segment_periodic_side
     EXPECT "flume\\.bc\\.a\\.side is yhi, but flume\\.periodic is 1 in y: a periodic side has no boundary to set"
@@ -1825,5 +1822,6 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/RainField/RainFieldTests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/Infiltration/InfiltrationTests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/WaterBalance/WaterBalanceTests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/Restart/RestartTests.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/Inflow/InflowTests.cmake)
 # After the restart tests, whose function it uses.
 include(${CMAKE_CURRENT_SOURCE_DIR}/Drains/DrainsTests.cmake)

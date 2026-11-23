@@ -1,0 +1,5 @@
+# A triangle: 0 to 2 m3/s in 60 s, back to 0 at 200 s, then none.
+# Linear in time: 200 m3. Step in time: 280 m3.
+0   0
+60  2
+200 0

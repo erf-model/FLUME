@@ -179,19 +179,21 @@ overwritten (plotfiles are renamed instead), except on a restart
 (:ref:`sec:Restart`). At the end the run prints the
 last line as ``FLUME: water balance (m3): ...``. Each line holds, in m\ :sup:`3` and summed from the start of the run,
 the water on the surface, the water each source has added or removed, the
-water that has left through each outflow segment, and the residual of the
+water that has left through each outflow segment, the water that has
+entered through each discharge segment, and the residual of the
 balance (:doc:`theory/WaterBalance`). The header names the columns:
 
 .. code-block:: text
 
    # FLUME water balance: volumes in m3, cumulative from step 0
    # epsilon 2.2204460492503131e-16 (machine epsilon of the double-precision state)
-   # residual = stored - stored at step 0 - (added) + (removed) + (out)
+   # residual = stored - stored at step 0 - (added) + (removed) + (out) - (in)
    # added: rain
    # removed: infiltrated
    # out: out_out
-   # step time stored rain infiltrated out_out residual
-   0 0 0 0 0 0 0
+   # in: in_inlet
+   # step time stored rain infiltrated out_out in_inlet residual
+   0 0 0 0 0 0 0 0
 
 .. list-table::
    :header-rows: 1
@@ -215,13 +217,17 @@ balance (:doc:`theory/WaterBalance`). The header names the columns:
    * - ``out_<segment>``
      - Water that has left through outflow segment ``<segment>``; below 0
        where more has come in than gone out.
+   * - ``in_<segment>``
+     - Water that has entered through discharge segment ``<segment>``: the
+       integral of its hydrograph from the start, to round-off.
    * - ``residual``
-     - Stored water minus that at step 0, minus the water added, plus the
-       water removed and out; zero in exact arithmetic.
+     - Stored water minus that at step 0, minus the water added and in,
+       plus the water removed and out; zero in exact arithmetic.
 
-The ``# added:``, ``# removed:`` and ``# out:`` lines list the columns that
-enter the residual with each sign. ``# epsilon`` is the machine epsilon of the build.
-A domain without outflow segments, rain, infiltration or drain inlets has only ``stored``
+The ``# added:``, ``# removed:``, ``# out:`` and ``# in:`` lines list the columns that
+enter the residual with each sign; ``# in:`` (and the ``- (in)`` of the
+residual line) appear only with a discharge segment. ``# epsilon`` is the machine epsilon of the build.
+A domain without outflow or discharge segments, rain, infiltration or drain inlets has only ``stored``
 and ``residual``. ``Tests/check_balance.py`` checks a log against the bound
 of :doc:`theory/WaterBalance`; the regression tests run it on every log.
 
@@ -296,20 +302,21 @@ step, off the plot interval, stays. ``flume.check_file`` must differ from
 The run stops with a message naming ``flume.restart`` when the checkpoint
 does not match the inputs: another grid, domain or set of periodic sides,
 another list of sources, a bed that differs in any cell, other water-balance
-columns (rain, infiltration, drain inlets and outflow segments), outflow
-segments on other faces, gauges in other cells, drain inlets with another
+columns (rain, infiltration, drain inlets, outflow and discharge segments),
+outflow or discharge segments on other faces, gauges in other cells, drain inlets with another
 name, cell, perimeter, area or coefficient, a build of the other precision, a checkpoint
 written with ``flume.log_int = 0`` when the restart keeps a log, or one
 without maps when ``flume.flood_maps = 1``. It also stops on a checkpoint of
 another version, one with a key given twice, and a state that is not finite
-in some cell. Other inputs, such as the CFL number, the Manning coefficient
-or ``flume.bed.continue_slope`` (which sets the bed outside the domain), are
-not checked: a change there changes the result from the checkpoint on.
+in some cell. Other inputs, such as the CFL number, the Manning coefficient,
+``flume.bed.continue_slope`` (which sets the bed outside the domain), or the
+hydrograph file and interpolation of a discharge segment, are not checked: a
+change there changes the result from the checkpoint on.
 
 The restart may use another rank count and other boxes. The state, the
 infiltrated depth, the drained depth, the maps, the plotfiles and the gauge files are then
 those of the run without a break, to the last bit. The water-balance totals
-of the outflow and the rain are sums over the ranks: on another rank count
+of the outflow, the inflow and the rain are sums over the ranks: on another rank count
 they are continued from their sum over the ranks, and the log agrees with
 the run without a break to round-off (below :math:`10^{-14}` of the largest
 value of a column in the tests), not to the bit. On the same rank count and

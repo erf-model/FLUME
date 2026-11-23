@@ -15,13 +15,14 @@ namespace flume {
 inline constexpr int n_cell_max = 1073741824;
 
 //! The type of a boundary segment (flume.bc.<name>.type).
-enum class BoundaryType : int { wall, outflow };
+enum class BoundaryType : int { wall, outflow, discharge };
 
 //! Where the rain comes from (flume.rain.type).
 enum class RainType : int { none, constant, hyetograph, gridded, moving_cell };
 
 //! How a hyetograph's rate, or a gridded rain field, runs between its entries
-//! (flume.rain.interpolation).
+//! (flume.rain.interpolation); also the discharge of an inflow hydrograph
+//! (flume.bc.<name>.interpolation).
 enum class RainInterpolation : int { step, linear };
 
 //! The infiltration loss model (flume.infiltration.type).
@@ -51,6 +52,12 @@ struct BoundarySegment
     BoundaryType type = BoundaryType::wall;
     int cell_lo = 0;    //!< first boundary cell along the side
     int cell_hi = -1;   //!< last boundary cell along the side
+    //! With type = discharge: the hydrograph file, lines of a time in s and
+    //! a discharge in m3/s (flume.bc.<name>.file; required; not empty)
+    std::string file;
+    //! With type = discharge: how the discharge runs between the entries of
+    //! the file (flume.bc.<name>.interpolation; default linear; step or linear)
+    RainInterpolation interpolation = RainInterpolation::linear;
 };
 
 //! A gauge point (flume.gauges.<name>.location): the time series of the
@@ -101,8 +108,9 @@ struct Inputs
     amrex::Array<int, 2> periodic{{0, 0}};
 
     //! Segments of the sides that are not periodic (flume.bc.segments and
-    //! flume.bc.<name>.side, .type, .range; default none: every such side is
-    //! a wall), in the order listed.
+    //! flume.bc.<name>.side, .type, .range, and with type = discharge .file
+    //! and .interpolation; default none: every such side is a wall), in the
+    //! order listed.
     std::vector<BoundarySegment> bc_segments;
 
     //! Largest box edge in cells (flume.max_grid_size; default 64; >= 1)

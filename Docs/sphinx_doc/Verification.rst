@@ -437,7 +437,10 @@ checkpoint on 2 ranks. A 1 mm film over an inlet of :math:`P = 100` m on a
 keeps every depth at or above 0; the depth it drains in the first step is
 that of the exact solution to 0.2 epsilons of 1 mm. In every plotfile of these runs the depth
 plus the drained depth summed over the cells is that of the start to 8
-epsilons.
+epsilons; in the basin, where the water moves and every step rounds each
+wet depth, to :math:`8 + \sqrt{n}` epsilons after :math:`n` steps (the
+runs drift by 1 epsilon in double precision and 17 in single precision
+over 6095 steps).
 
 Water balance and flood maps
 ----------------------------
@@ -501,6 +504,95 @@ over half its length and a wall over the rest. In the open rows the L1 error
 against Ritter's solution is 0.75 % (order 1) and 0.20 % (order 2) of the
 depth. In the wall rows the depth at the wall is within 4.3 % of the bore
 depth from the jump conditions.
+
+Inflow hydrograph
+-----------------
+
+A channel 200 m long and 4 m wide, two cells across and 0.5 m cells along
+it (1 m in the uniform and normal-depth runs), flat and without friction
+unless stated, fed through a discharge segment on one side
+(:ref:`sec:Inflow`, ``Tests/Inflow``), with :math:`g` = 9.81 m/s\ :sup:`2`.
+
+* **Uniform.** Water 1 m deep at 1 m/s, fed with 1 m\ :sup:`2`/s, is a
+  steady state. After 300 s (3419 steps) on 4 ranks every cell holds it
+  within 250 machine epsilons in the depth and 1030 in the discharge at
+  both orders.
+* **Rarefaction.** The same flow when the discharge drops to
+  0.5 m\ :sup:`2`/s. The invariant :math:`u - 2\sqrt{g h}` is kept across
+  the rarefaction, so next to the side
+  :math:`0.5 / h_b - 2\sqrt{g h_b} = 1 - 2\sqrt{g}` and
+  :math:`h_b` = 0.869019 m. The same on each of the four sides.
+* **Dry fan.** 1 m\ :sup:`2`/s onto a dry bed. The face is at the critical
+  depth :math:`h_c` = 0.467136 m and a rarefaction runs from it to the dry
+  front, :math:`c = c_c - x / (3t)`, :math:`c_c = \sqrt{g h_c}`, compared
+  at 30 s over the first 60 m.
+* **Normal depth.** 1 m\ :sup:`2`/s down a slope of 0.02 with
+  :math:`n` = 0.03 s/m\ :sup:`1/3`, 1 m cells, from dry to 600 s:
+  :math:`h_n = (q n / \sqrt{S})^{3/5}` = 0.394424 m (Froude number 1.29),
+  compared from 40 m to 190 m.
+
+.. list-table:: Inflow channel: largest relative error
+   :header-rows: 1
+   :widths: 40 15 15 15 15
+
+   * - Run
+     - Depth, order 1
+     - Discharge, order 1
+     - Depth, order 2
+     - Discharge, order 2
+   * - Rarefaction, 20 s, first 50 m
+     - 2.2e-4
+     - 6.8e-4
+     - 5.6e-5
+     - 2.8e-4
+   * - Dry fan, 30 s, first 60 m
+     - 1.07e-2
+     - 2.5e-3
+     - 7.5e-3
+     - 1.1e-3
+   * - Normal depth, 600 s
+     - 7.7e-3
+     - 4.6e-13
+     - 2.1e-3
+     - 3.5e-3
+
+The fan error is largest next to the side, where the fan starts at the
+critical speed. The first-order normal depth is raised by the bias of the
+first-order bed-slope term, :math:`g S (h - S \Delta x / 2)`: with 1 m
+cells it gives :math:`h` = 0.397451 m, 0.767 % above :math:`h_n`; at second
+order the depth error falls to 1.1e-3 and 6e-4 with cells of 0.5 m and
+0.25 m.
+
+On a closed basin of 40 by 40 m with 0.5 m of water and two segments, the
+water that has entered by 300 s equals the integral of each hydrograph:
+
+.. list-table:: Inflow basin: water entered and stored at 300 s, m\ :sup:`3`
+   :header-rows: 1
+   :widths: 40 15 15 15 15
+
+   * - Run
+     - Segment a
+     - Segment b
+     - Stored
+     - Difference
+   * - Triangle linear, steps held, 4 ranks
+     - 200
+     - 260
+     - 1260
+     - 2.3e-13
+   * - Triangle held, steps linear
+     - 280
+     - 205
+     - 1285
+     - 0
+   * - First entry at 50 s
+     - 600
+     - 0
+     - 1400
+     - 0
+
+The difference is that of the stored water from 800 m\ :sup:`3` plus the
+two integrals. The steps do not land on the times of the files.
 
 Rasters
 -------

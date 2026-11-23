@@ -83,6 +83,27 @@ Rules:
   of rate 0; a storm that ends needs a last line of rate 0. The run prints a
   note when the first time is after 0 with a rate above 0.
 
+.. _sec:HydrographFiles:
+
+Hydrograph files
+----------------
+
+``flume.bc.<name>.file`` of a ``discharge`` segment holds lines of a time
+in s and a discharge in m\ :sup:`3`/s, for the whole segment:
+
+.. code-block:: text
+
+   # time (s)  discharge (m3/s)
+   0      0
+   60     2    # the peak
+   200    0
+
+The rules are those of the hyetograph files above, with the discharge in
+place of the rate: the same reader takes both. The run prints the number of
+entries, the interpolation, the largest discharge and the width of the
+segment, and a note when the first time is after 0 with a discharge above
+0. A hydrograph that ends needs a last line of discharge 0.
+
 .. _sec:RainIndexFiles:
 
 Gridded rain index files

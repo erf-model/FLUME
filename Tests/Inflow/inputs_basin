@@ -1,0 +1,30 @@
+# A closed basin fed by two inflow hydrographs (Tests/Inflow/README.md):
+# 40 x 40 m, 20 x 20 cells of 2 m in 9 boxes, flat bed at 0, still water
+# 0.5 m deep at the start (400 x 0.5 = 800 m3). Walls everywhere except two
+# discharge segments: "a" on side xlo from y = 10 to 30 m (10 cells, 20 m)
+# and "b" on side yhi from x = 0 to 10 m (5 cells, 10 m). The tests name the
+# files. No water leaves, so the stored volume is 800 m3 plus the integrals
+# of the two hydrographs.
+flume.n_cell        = 20 20
+flume.prob_hi       = 40.0 40.0
+flume.max_grid_size = 8
+flume.plot_file     = basin
+flume.plot_int      = 100
+flume.stop_time     = 300.0
+flume.cfl           = 0.5
+flume.order         = 2
+flume.log_int       = 10
+
+flume.bed.elevation          = 0.0
+flume.init.surface_elevation = 0.5
+
+flume.bc.segments = a b
+flume.bc.a.side   = xlo
+flume.bc.a.type   = discharge
+flume.bc.a.range  = 10 30
+flume.bc.a.file   = hydrograph_triangle.txt
+flume.bc.b.side   = yhi
+flume.bc.b.type   = discharge
+flume.bc.b.range  = 0 10
+flume.bc.b.file   = hydrograph_steps.txt
+flume.bc.b.interpolation = step

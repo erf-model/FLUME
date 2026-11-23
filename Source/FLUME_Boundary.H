@@ -32,6 +32,9 @@ namespace flume {
  *             order the limited slope of the first ghost layer is zero
  *             (minmod of a zero difference), so what the second layer holds
  *             changes no result; it is a copy so that it is finite.
+ *   discharge the ghost cells are filled as for outflow; the fluxes on the
+ *             faces of the side then come from the inflow hydrograph of the
+ *             segment, not from the ghost cells (FLUME_Inflow.H).
  *
  * No kernel reads a corner ghost cell (one that is outside the box in both x
  * and y). Those outside a side that is not periodic are not filled.
