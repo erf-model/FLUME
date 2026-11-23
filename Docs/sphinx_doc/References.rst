@@ -17,6 +17,19 @@ References
 * O. Delestre, F. Darboux, F. James, C. Lucas, C. Laguerre and S. Cordier
   (2014). FullSWOF: A free software package for the simulation of shallow
   water flows. arXiv:1401.4125. https://arxiv.org/abs/1401.4125
+* NRCS (2004). *National Engineering Handbook, Part 630 Hydrology*, chapter
+  10: Estimation of direct runoff from storm rainfall. United States
+  Department of Agriculture, Natural Resources Conservation Service.
+* L. A. Rossman and W. C. Huber (2016). *Storm Water Management Model
+  Reference Manual, Volume I: Hydrology (Revised)*. EPA/600/R-15/162A. United
+  States Environmental Protection Agency, Cincinnati, OH. Table 4-7 gives the
+  soil parameters of W. J. Rawls, D. L. Brakensiek and N. Miller (1983),
+  Green-Ampt infiltration parameters from soils data, *Journal of Hydraulic
+  Engineering* 109(1), 62-70.
 * D. Satyaprasad, S. N. Kuiry and S. Sundar (2024). A meshless geometric
   conservation weighted least square method for solving the shallow water
   equations. arXiv:2410.05968. https://arxiv.org/abs/2410.05968
+* D. E. Woodward, R. H. Hawkins, R. Jiang, A. T. Hjelmfelt, J. A. Van Mullem
+  and Q. D. Quan (2003). Runoff curve number method: examination of the
+  initial abstraction ratio. *World Water & Environmental Resources Congress
+  2003*, ASCE. https://doi.org/10.1061/40685(2003)308

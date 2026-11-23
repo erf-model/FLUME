@@ -7,6 +7,7 @@ add_library(flume_lib STATIC
     FLUME_Flood.cpp
     FLUME_Forcing.cpp
     FLUME_Friction.cpp
+    FLUME_Infiltration.cpp
     FLUME_IO.cpp
     FLUME_Init.cpp
     FLUME_Inputs.cpp

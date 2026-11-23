@@ -101,10 +101,15 @@ last state. An existing plotfile of the same name is first renamed to
      - m
      - Water-surface elevation, :math:`z_b + h`; the bed elevation in a dry
        cell.
+   * - ``infiltrated_depth``
+     - m
+     - Depth of water each cell has lost to the soil since the start
+       (:ref:`sec:Infiltration`). Written only with
+       ``flume.infiltration.type`` other than ``none``.
 
 The plotfile is three-dimensional with one cell in z, from 0 to 1 m; the z
 extent carries no meaning. ParaView, VisIt and yt read the format.
 
 The log reports, at start-up, the boundary cells of each segment, the active
-source terms, the rain, the range of the Manning map and the number of
-building cells.
+source terms, the rain, the infiltration parameters, the range of the Manning map and the
+number of building cells.

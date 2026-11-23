@@ -647,6 +647,85 @@ read_inputs ()
         }
     }
 
+    // infiltration.type: none, green_ampt or curve_number. Each soil
+    // parameter is one value or one file (not both), required with its model
+    // and read only with it; the range of each value is checked here, that of
+    // each file's values when the file is read (FLUME_Infiltration.cpp).
+    if (pp.contains("infiltration.type")) {
+        require_count(pp, "infiltration.type", 1);
+        std::string v;
+        pp.get("infiltration.type", v);
+        if (v == "none") {
+            in.infiltration_type = InfiltrationType::none;
+        } else if (v == "green_ampt") {
+            in.infiltration_type = InfiltrationType::green_ampt;
+        } else if (v == "curve_number") {
+            in.infiltration_type = InfiltrationType::curve_number;
+        } else {
+            amrex::Abort("flume.infiltration.type must be none, green_ampt or curve_number; it is "
+                         + v);
+        }
+    }
+    {
+        // Read flume.infiltration.<model>.<name> and <name>_file into `p`;
+        // `lo`, `hi` and whether each end is allowed give the range of the
+        // value. Returns whether either key was given.
+        const auto soil = [&] (const std::string& model, const std::string& name,
+                               SoilParameter& p, amrex::Real lo, bool lo_in, amrex::Real hi,
+                               bool hi_in, const std::string& range, bool used) {
+            const std::string key = "infiltration." + model + "." + name;
+            const std::string type = (model == "cn") ? std::string("curve_number") : model;
+            const bool value = query_finite(pp, key, p.value);
+            const bool file = query_file(pp, key + "_file", p.file);
+            if (value) {
+                const bool ok = (lo_in ? p.value >= lo : p.value > lo)
+                                && (hi_in ? p.value <= hi : p.value < hi);
+                if (!ok) {
+                    amrex::Abort("flume." + key + " must be " + range + "; it is "
+                                 + all_digits(p.value));
+                }
+            }
+            if (value && file) {
+                defer("flume." + key + "_file cannot be used with flume." + key
+                      + ": the file gives the value of every cell");
+            }
+            if (used && !value && !file) {
+                defer("flume.infiltration.type = " + type + " needs flume." + key + " or flume."
+                      + key + "_file");
+            }
+            if (!used && (value || file)) {
+                defer("flume." + key + (value ? "" : "_file")
+                      + " is read only with flume.infiltration.type = " + type);
+            }
+        };
+        const amrex::Real inf = std::numeric_limits<amrex::Real>::infinity();
+        const amrex::Real zero = amrex::Real(0.0);
+        const bool ga = in.infiltration_type == InfiltrationType::green_ampt;
+        const bool cn = in.infiltration_type == InfiltrationType::curve_number;
+        soil("green_ampt", "conductivity", in.ga_conductivity, zero, true, inf, false,
+             ">= 0 (mm/h)", ga);
+        soil("green_ampt", "suction", in.ga_suction, zero, true, inf, false, ">= 0 (mm)", ga);
+        soil("green_ampt", "deficit", in.ga_deficit, zero, true, amrex::Real(1.0), true,
+             ">= 0 and <= 1", ga);
+        soil("cn", "number", in.cn_number, zero, false, amrex::Real(100.0), true,
+             "> 0 and <= 100", cn);
+        if (query_finite(pp, "infiltration.cn.ia_ratio", in.cn_ia_ratio)) {
+            if (!(in.cn_ia_ratio >= zero && in.cn_ia_ratio < amrex::Real(1.0))) {
+                amrex::Abort("flume.infiltration.cn.ia_ratio must be >= 0 and < 1; it is "
+                             + all_digits(in.cn_ia_ratio));
+            }
+            if (!cn) {
+                defer("flume.infiltration.cn.ia_ratio is read only with flume.infiltration.type"
+                      " = curve_number");
+            }
+        }
+        // The curve number is a loss on the rain that falls on a cell.
+        if (cn && in.rain_type == RainType::none) {
+            defer("flume.infiltration.type = curve_number needs rain (flume.rain.type): the"
+                  " curve number takes its loss from the rain that falls on each cell");
+        }
+    }
+
     // init.surface_slope, init.surface_curvature: optional, finite
     const bool surface_slope = query_finite_pair(pp, "init.surface_slope", in.init_surface_slope);
     const bool surface_curvature = query_finite(pp, "init.surface_curvature",

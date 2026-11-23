@@ -279,6 +279,57 @@ Each ``flume.rain.cell.*`` key is allowed only with ``moving_cell``;
 ``flume.rain.file`` and ``flume.rain.interpolation`` are not allowed with
 it.
 
+Infiltration
+------------
+
+The models are in :ref:`sec:Infiltration`. Each soil parameter is one value
+for every cell or an ESRI ASCII grid (``_file``; each cell takes the raster
+cell that holds its centre, and every cell of the domain must take a value in
+the range), not both. A parameter is required with its model and allowed
+only with it. Building cells (``flume.buildings.file``) infiltrate nothing.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 26 12 12 50
+
+   * - Key
+     - Type
+     - Default
+     - Meaning and allowed values
+   * - ``flume.infiltration.type``
+     - string
+     - ``none``
+     - ``none``, ``green_ampt`` or ``curve_number``. ``curve_number`` needs
+       rain (``flume.rain.type``).
+   * - ``flume.infiltration.green_ampt.conductivity``,
+       ``_conductivity_file``
+     - real or string
+     - required with ``green_ampt``
+     - Saturated hydraulic conductivity :math:`K_s`, mm/h. Finite, at least
+       0; 0 is impervious.
+   * - ``flume.infiltration.green_ampt.suction``,
+       ``_suction_file``
+     - real or string
+     - required with ``green_ampt``
+     - Suction head at the wetting front :math:`\psi_s`, mm. Finite, at
+       least 0.
+   * - ``flume.infiltration.green_ampt.deficit``,
+       ``_deficit_file``
+     - real or string
+     - required with ``green_ampt``
+     - Initial moisture deficit :math:`\theta_d`, the porosity less the
+       initial moisture content (a fraction). Finite, from 0 to 1.
+   * - ``flume.infiltration.cn.number``, ``_number_file``
+     - real or string
+     - required with ``curve_number``
+     - Runoff curve number :math:`CN`. Finite, above 0 and at most 100;
+       100 is impervious. It must match ``ia_ratio`` (see below).
+   * - ``flume.infiltration.cn.ia_ratio``
+     - real
+     - ``0.2``
+     - Initial abstraction ratio :math:`\lambda = I_a / S`. Finite, at least
+       0 and below 1. Only with ``curve_number``.
+
 Initial state
 -------------
 

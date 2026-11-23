@@ -1,17 +1,34 @@
 #include "FLUME_Source.H"
 #include "FLUME_Friction.H"
+#include "FLUME_Infiltration.H"
 #include "FLUME_Rain.H"
 
+#include <AMReX.H>
 #include <AMReX_Print.H>
+
+#include <utility>
 
 namespace flume {
 
 std::vector<std::unique_ptr<Source>>
 make_sources (const Inputs& in, const amrex::Geometry& geom, const amrex::BoxArray& ba,
-              const amrex::DistributionMapping& dm, const Forcing* forcing)
+              const amrex::DistributionMapping& dm, const Forcing* forcing,
+              const amrex::MultiFab* buildings)
 {
     std::vector<std::unique_ptr<Source>> sources;
-    if (forcing != nullptr) { sources.push_back(std::make_unique<Rain>(ba, dm, *forcing)); }
+    const Rain* rain = nullptr;
+    if (forcing != nullptr) {
+        auto r = std::make_unique<Rain>(ba, dm, *forcing);
+        rain = r.get();
+        sources.push_back(std::move(r));
+    }
+    if (in.infiltration_type == InfiltrationType::green_ampt) {
+        sources.push_back(std::make_unique<GreenAmpt>(in, geom, ba, dm, buildings));
+    } else if (in.infiltration_type == InfiltrationType::curve_number) {
+        // read_inputs requires rain with the curve number.
+        AMREX_ALWAYS_ASSERT(rain != nullptr);
+        sources.push_back(std::make_unique<CurveNumber>(in, geom, ba, dm, buildings, *rain));
+    }
     if (!in.friction_manning_file.empty()) {
         sources.push_back(std::make_unique<Friction>(ba, dm, geom, in.friction_manning_file,
                                                      in.gravity, in.dry_depth));

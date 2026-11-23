@@ -12,9 +12,14 @@
 
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace flume {
+
+//! A field a source adds to the plotfiles: its name and the field (one
+//! component, the boxes of the state, no ghost cells needed).
+using PlotField = std::pair<std::string, const amrex::MultiFab*>;
 
 //! What a source may read besides the state. The references live as long as
 //! the call to Source::apply.
@@ -60,19 +65,27 @@ public:
     //! One step of `dt`, s, on the valid cells of `state`. The ghost cells of
     //! `state` are not filled and must not be read.
     virtual void apply (amrex::MultiFab& state, const SourceContext& ctx, amrex::Real dt) = 0;
+
+    //! The fields this source adds to the plotfiles, after the fields of the
+    //! state, in this order (none by default).
+    [[nodiscard]] virtual std::vector<PlotField> plot_fields () const { return {}; }
 };
 
 /**
  * The sources the inputs switch on, in the order they act: rain when
- * `forcing` is not null (flume.rain.type), then Manning friction
- * (flume.friction.manning > 0 or flume.friction.manning_file), which so
- * sees the depth after the rain. `forcing` must outlive the sources. Prints
- * the names, or "none", at start-up.
+ * `forcing` is not null (flume.rain.type), then infiltration
+ * (flume.infiltration.type), which so sees the rain of the step, then
+ * Manning friction (flume.friction.manning > 0 or
+ * flume.friction.manning_file), which sees the depth after both.
+ * `forcing` must outlive the sources. `buildings` (may be null) is the
+ * building height of each cell (flume.buildings.file): building cells
+ * infiltrate nothing. Prints the names, or "none", at start-up.
  */
 std::vector<std::unique_ptr<Source>> make_sources (const Inputs& in, const amrex::Geometry& geom,
                                                    const amrex::BoxArray& ba,
                                                    const amrex::DistributionMapping& dm,
-                                                   const Forcing* forcing);
+                                                   const Forcing* forcing,
+                                                   const amrex::MultiFab* buildings);
 
 } // namespace flume
 

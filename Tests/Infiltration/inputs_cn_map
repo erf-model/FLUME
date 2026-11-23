@@ -1,0 +1,22 @@
+# Curve-number infiltration from a map, with flow: the sloped, walled domain
+# of inputs_balance (first order), under 36 mm/h for 30 minutes (18 mm).
+# The curve numbers are columns (curve_number_columns.asc: 100, then 98 to
+# 34.74), and the buildings of Tests/Raster/streets_heights.asc infiltrate
+# nothing; Tests/Infiltration/InfiltrationTests.cmake gives both files on
+# the command line. The water runs between cells, but the loss of each cell
+# is the curve-number loss of the rain that fell on it.
+flume.n_cell        = 40 40
+flume.prob_hi       = 40.0 40.0
+flume.max_grid_size = 14
+flume.plot_file     = cnm
+flume.plot_int      = 300
+flume.stop_time     = 1800.0
+
+flume.friction.manning = 0.03
+flume.bed.elevation    = 1.0
+flume.bed.slope        = 0.02 0.01
+
+flume.rain.type     = constant
+flume.rain.rate     = 36.0
+
+flume.infiltration.type = curve_number

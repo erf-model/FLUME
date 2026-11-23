@@ -1,0 +1,16 @@
+# Curve-number infiltration: the closed, flat, dry domain of inputs_ponded
+# under 36 mm/h for 2 h (72 mm), CN = 75 with Ia = 0.2 S: S = 84.67 mm,
+# Ia = 16.93 mm. All the rain infiltrates until P = Ia at 1693 s; then
+# part of it stays on the surface.
+flume.n_cell        = 8 8
+flume.prob_hi       = 80.0 80.0
+flume.max_grid_size = 4
+flume.plot_file     = cn
+flume.plot_int      = 100
+flume.stop_time     = 7200.0
+
+flume.rain.type     = constant
+flume.rain.rate     = 36.0
+
+flume.infiltration.type      = curve_number
+flume.infiltration.cn.number = 75

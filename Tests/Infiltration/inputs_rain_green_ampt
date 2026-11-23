@@ -1,0 +1,20 @@
+# Green-Ampt infiltration under rain: the closed, flat, dry domain of
+# inputs_ponded under 36 mm/h for 2 h. Sandy loam of Rossman and Huber
+# (2016, Table 4-7): K = 0.43 in/h = 10.922 mm/h, psi = 4.33 in =
+# 109.982 mm, with a moisture deficit of 0.3. All the rain infiltrates until
+# F_s = K M / (i - K) = 14.37 mm at t_p = 1437 s; then the surface is
+# saturated and water ponds.
+flume.n_cell        = 8 8
+flume.prob_hi       = 80.0 80.0
+flume.max_grid_size = 4
+flume.plot_file     = rga
+flume.plot_int      = 100
+flume.stop_time     = 7200.0
+
+flume.rain.type     = constant
+flume.rain.rate     = 36.0
+
+flume.infiltration.type                    = green_ampt
+flume.infiltration.green_ampt.conductivity = 10.922
+flume.infiltration.green_ampt.suction      = 109.982
+flume.infiltration.green_ampt.deficit      = 0.3

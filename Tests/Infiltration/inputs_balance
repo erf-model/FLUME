@@ -1,0 +1,27 @@
+# Water balance with Green-Ampt infiltration: 40 x 40 cells of 1 m on
+# [0, 40]^2 m in 9 boxes, walls on every side, second order. The bed slopes
+# down towards x = 0 and y = 0, so the rain runs off the soil, ponds against
+# the walls and runs on over other soils. The conductivity is a map of
+# columns (conductivity_columns.asc: two impervious columns and five soil
+# classes), and the buildings of Tests/Raster/streets_heights.asc stand in
+# the flow and infiltrate nothing; Tests/Infiltration/InfiltrationTests.cmake
+# gives both files and the hyetograph (Tests/Rain/hyetograph_steps.txt) on
+# the command line. The water on the surface plus the water infiltrated is
+# the rain that fell, to round-off.
+flume.n_cell        = 40 40
+flume.prob_hi       = 40.0 40.0
+flume.max_grid_size = 14
+flume.order         = 2
+flume.plot_file     = bal
+flume.plot_int      = 400
+flume.stop_time     = 1800.0
+
+flume.friction.manning = 0.03
+flume.bed.elevation    = 1.0
+flume.bed.slope        = 0.02 0.01
+
+flume.rain.type     = hyetograph
+
+flume.infiltration.type                = green_ampt
+flume.infiltration.green_ampt.suction  = 109.982
+flume.infiltration.green_ampt.deficit  = 0.3
