@@ -1,6 +1,7 @@
 #ifndef FLUME_FLOODMAPS_H_
 #define FLUME_FLOODMAPS_H_
 
+#include "FLUME_Checkpoint.H"
 #include "FLUME_Inputs.H"
 #include "FLUME_Source.H"
 
@@ -43,6 +44,12 @@ public:
     //! max_depth (m), max_speed (m/s), max_depth_speed (m2/s),
     //! arrival_time (s).
     [[nodiscard]] std::vector<PlotField> plot_fields () const;
+
+    //! The four maps, as the field "flood_maps". Collective.
+    void write_checkpoint (CheckpointWriter& chk) const;
+    //! Read the maps back; aborts if the checkpoint holds none (it was
+    //! written with flume.flood_maps = 0). Collective.
+    void read_checkpoint (const CheckpointReader& chk);
 
 private:
     //! max_depth, max_speed, max_depth_speed, arrival_time; no ghost cells

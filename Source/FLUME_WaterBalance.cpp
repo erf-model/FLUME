@@ -1,4 +1,5 @@
 #include "FLUME_WaterBalance.H"
+#include "FLUME_Checkpoint.H"
 #include "FLUME_State.H"
 
 #include <AMReX.H>
@@ -106,11 +107,8 @@ WaterBalance::totals (const amrex::MultiFab& state,
 }
 
 void
-WaterBalance::start (const amrex::MultiFab& state,
-                     const std::vector<std::unique_ptr<Source>>& sources)
+WaterBalance::set_columns (const std::vector<std::unique_ptr<Source>>& sources)
 {
-    if (!m_on) { return; }
-    static_assert(State::h == 0, "local_sum reads component 0 of the state");
     m_source_names.clear();
     m_source_removes.clear();
     for (const auto& s : sources) {
@@ -118,35 +116,123 @@ WaterBalance::start (const amrex::MultiFab& state,
         m_source_names.push_back(s->balance_name());
         m_source_removes.push_back(s->balance_removes());
     }
+}
+
+void
+WaterBalance::open_file (int resume_step, bool keep_step)
+{
+    if (!amrex::ParallelDescriptor::IOProcessor()) { return; }
+    const std::string path = "water_balance.txt";
+    if (resume_step >= 0 && rewind_log(path, resume_step, keep_step)) {
+        m_file.open(path, std::ios::app);
+        if (!m_file) { amrex::Abort("FLUME: cannot open " + path + " for writing"); }
+        return;
+    }
+    m_file.open(path);
+    if (!m_file) { amrex::Abort("FLUME: cannot open " + path + " for writing"); }
+    m_file << "# FLUME water balance: volumes in m3, cumulative from step 0\n"
+           << "# epsilon " << std::setprecision(17)
+           << std::numeric_limits<amrex::Real>::epsilon() << " (machine epsilon of the"
+           << (sizeof(amrex::Real) == sizeof(double) ? " double" : " single")
+           << "-precision state)\n"
+           << "# residual = stored - stored at step 0 - (added) + (removed) + (out)\n"
+           << "# added:";
+    for (std::size_t n = 0; n < m_source_names.size(); ++n) {
+        if (!m_source_removes[n]) { m_file << " " << m_source_names[n]; }
+    }
+    m_file << "\n# removed:";
+    for (std::size_t n = 0; n < m_source_names.size(); ++n) {
+        if (m_source_removes[n]) { m_file << " " << m_source_names[n]; }
+    }
+    m_file << "\n# out:";
+    for (const auto& s : m_segments) { m_file << " out_" << s.name; }
+    m_file << "\n# step time stored";
+    for (std::size_t n = 0; n < m_source_names.size(); ++n) {
+        m_file << " " << m_source_names[n];
+    }
+    for (const auto& s : m_segments) { m_file << " out_" << s.name; }
+    m_file << " residual\n";
+    m_file.flush();
+}
+
+void
+WaterBalance::start (const amrex::MultiFab& state,
+                     const std::vector<std::unique_ptr<Source>>& sources)
+{
+    if (!m_on) { return; }
+    static_assert(State::h == 0, "local_sum reads component 0 of the state");
+    set_columns(sources);
     const std::vector<double> t = totals(state, sources);
     m_v0 = t[0];
-    if (amrex::ParallelDescriptor::IOProcessor()) {
-        m_file.open("water_balance.txt");
-        if (!m_file) { amrex::Abort("FLUME: cannot open water_balance.txt for writing"); }
-        m_file << "# FLUME water balance: volumes in m3, cumulative from step 0\n"
-               << "# epsilon " << std::setprecision(17)
-               << std::numeric_limits<amrex::Real>::epsilon() << " (machine epsilon of the"
-               << (sizeof(amrex::Real) == sizeof(double) ? " double" : " single")
-               << "-precision state)\n"
-               << "# residual = stored - stored at step 0 - (added) + (removed) + (out)\n"
-               << "# added:";
-        for (std::size_t n = 0; n < m_source_names.size(); ++n) {
-            if (!m_source_removes[n]) { m_file << " " << m_source_names[n]; }
-        }
-        m_file << "\n# removed:";
-        for (std::size_t n = 0; n < m_source_names.size(); ++n) {
-            if (m_source_removes[n]) { m_file << " " << m_source_names[n]; }
-        }
-        m_file << "\n# out:";
-        for (const auto& s : m_segments) { m_file << " out_" << s.name; }
-        m_file << "\n# step time stored";
-        for (std::size_t n = 0; n < m_source_names.size(); ++n) {
-            m_file << " " << m_source_names[n];
-        }
-        for (const auto& s : m_segments) { m_file << " out_" << s.name; }
-        m_file << " residual\n";
-    }
+    open_file(-1, false);
     write_line(0, 0.0, t);
+}
+
+std::vector<std::string>
+WaterBalance::column_names (const std::vector<std::unique_ptr<Source>>& sources) const
+{
+    std::vector<std::string> c;
+    for (const auto& s : sources) {
+        if (!s->balance_name().empty()) { c.push_back(s->balance_name()); }
+    }
+    for (const auto& s : m_segments) { c.push_back("out_" + s.name); }
+    return c;
+}
+
+void
+WaterBalance::write_checkpoint (CheckpointWriter& chk,
+                                const std::vector<std::unique_ptr<Source>>& sources) const
+{
+    chk.put_ints("balance/on", {m_on ? std::int64_t{1} : std::int64_t{0}});
+    chk.put_words("balance/columns", column_names(sources));
+    chk.put("balance/v0", {m_v0});
+    chk.put_per_rank("balance/out", m_out);
+    chk.put_per_rank("balance/out_carry", m_out_carry);
+    chk.put_words("balance/segments", segment_words());
+}
+
+std::vector<std::string>
+WaterBalance::segment_words () const
+{
+    std::vector<std::string> w;
+    for (const auto& s : m_segments) {
+        const std::string side = std::string(s.d == 0 ? "x" : "y") + (s.high != 0 ? "hi" : "lo");
+        w.push_back(s.name + ":" + side + ":" + std::to_string(s.lo) + ":" + std::to_string(s.hi));
+    }
+    return w;
+}
+
+void
+WaterBalance::resume (const CheckpointReader& chk, const amrex::MultiFab& state,
+                      const std::vector<std::unique_ptr<Source>>& sources, int step,
+                      bool keep_step)
+{
+    if (chk.get_words("balance/columns") != column_names(sources)) {
+        std::string msg = "the water-balance columns of the checkpoint (";
+        for (const auto& w : chk.get_words("balance/columns")) { msg += " " + w; }
+        msg += " ) differ from those of the inputs (";
+        for (const auto& w : column_names(sources)) { msg += " " + w; }
+        chk.fail(msg + " ): the rain, infiltration and outflow segments must be those of the"
+                       " run that wrote it");
+    }
+    if (chk.get_words("balance/segments") != segment_words()) {
+        std::string msg = "its outflow segments (";
+        for (const auto& w : chk.get_words("balance/segments")) { msg += " " + w; }
+        msg += " ) cover other faces than those of the inputs (";
+        for (const auto& w : segment_words()) { msg += " " + w; }
+        chk.fail(msg + " ): name:side:first cell:last cell, from flume.bc.*");
+    }
+    if (!m_on) { return; }
+    if (chk.get_ints("balance/on", 1)[0] != 1) {
+        chk.fail("written with flume.log_int = 0, which keeps no water balance: restart with"
+                 " flume.log_int = 0");
+    }
+    set_columns(sources);
+    m_v0 = chk.get("balance/v0", 1)[0];
+    m_out = chk.get_per_rank("balance/out", m_segments.size());
+    m_out_carry = chk.get_per_rank("balance/out_carry", m_segments.size());
+    open_file(step, keep_step);
+    record(totals(state, sources));
 }
 
 void
@@ -158,7 +244,7 @@ WaterBalance::log (const amrex::MultiFab& state,
 }
 
 void
-WaterBalance::write_line (int step, double time, const std::vector<double>& t)
+WaterBalance::record (const std::vector<double>& t)
 {
     const std::size_t ns = m_source_names.size();
     // An infinite total (a state that overflows; the time step check aborts
@@ -175,6 +261,14 @@ WaterBalance::write_line (int step, double time, const std::vector<double>& t)
     }
     m_residual = r;
     m_last = t;
+}
+
+void
+WaterBalance::write_line (int step, double time, const std::vector<double>& t)
+{
+    record(t);
+    const std::size_t ns = m_source_names.size();
+    const double r = m_residual;
     if (amrex::ParallelDescriptor::IOProcessor()) {
         m_file << step << " " << std::setprecision(17) << time << " " << t[0];
         for (std::size_t n = 0; n < ns; ++n) {

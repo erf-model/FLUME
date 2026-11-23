@@ -113,6 +113,36 @@ Infiltration::balance_volume () const
              + volume(m_cell_area, local_sum(m_infiltrated_carry)));
 }
 
+void
+Infiltration::write_checkpoint (CheckpointWriter& chk) const
+{
+    chk.put_multifab(name() + "_depth", m_infiltrated);
+    chk.put_multifab(name() + "_depth_carry", m_infiltrated_carry);
+}
+
+void
+Infiltration::read_checkpoint (const CheckpointReader& chk)
+{
+    chk.get_multifab(name() + "_depth", m_infiltrated);
+    chk.get_multifab(name() + "_depth_carry", m_infiltrated_carry);
+}
+
+void
+CurveNumber::write_checkpoint (CheckpointWriter& chk) const
+{
+    Infiltration::write_checkpoint(chk);
+    chk.put_multifab(name() + "_rain", m_rain_total);
+    chk.put_multifab(name() + "_rain_carry", m_rain_carry);
+}
+
+void
+CurveNumber::read_checkpoint (const CheckpointReader& chk)
+{
+    Infiltration::read_checkpoint(chk);
+    chk.get_multifab(name() + "_rain", m_rain_total);
+    chk.get_multifab(name() + "_rain_carry", m_rain_carry);
+}
+
 GreenAmpt::GreenAmpt (const Inputs& in, const amrex::Geometry& geom, const amrex::BoxArray& ba,
                       const amrex::DistributionMapping& dm, const amrex::MultiFab* buildings)
     : Infiltration(ba, dm, geom, in.dry_depth), m_conductivity(ba, dm, 1, 0), m_storage(ba, dm, 1, 0)

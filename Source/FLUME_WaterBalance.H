@@ -88,6 +88,24 @@ public:
     void log (const amrex::MultiFab& state, const std::vector<std::unique_ptr<Source>>& sources,
               int step, double time);
 
+    //! Write V_0, the outflow totals of every rank, the list of columns and
+    //! the side and cells of each outflow segment. Collective.
+    void write_checkpoint (CheckpointWriter& chk,
+                           const std::vector<std::unique_ptr<Source>>& sources) const;
+
+    /**
+     * Continue the log from the checkpoint `chk` of step `step`, in place of
+     * start(): abort unless its columns are those of `sources` and the
+     * segments, and its segments cover the same faces; with the log on,
+     * abort if the checkpoint kept no balance, restore V_0 and the outflow
+     * totals, cut water_balance.txt back to `step` (rewind_log; the line of
+     * `step` itself is kept only with `keep_step`) and append to it, or
+     * start a new file with its header when there is none. Writes no line.
+     * Collective.
+     */
+    void resume (const CheckpointReader& chk, const amrex::MultiFab& state,
+                 const std::vector<std::unique_ptr<Source>>& sources, int step, bool keep_step);
+
     //! Print the totals of the last line logged.
     void print_summary () const;
 
@@ -110,6 +128,17 @@ private:
     std::vector<double> totals (const amrex::MultiFab& state,
                                 const std::vector<std::unique_ptr<Source>>& sources) const;
     void write_line (int step, double time, const std::vector<double>& t);
+    //! Keep the totals `t` and their residual as those of the last line.
+    void record (const std::vector<double>& t);
+    void set_columns (const std::vector<std::unique_ptr<Source>>& sources);
+    //! The names of the source and segment columns, in log order.
+    [[nodiscard]] std::vector<std::string> column_names (
+        const std::vector<std::unique_ptr<Source>>& sources) const;
+    //! Open water_balance.txt on the I/O rank: a new file with its header,
+    //! or with `resume_step` >= 0 the file cut back to that step, appended to.
+    void open_file (int resume_step, bool keep_step);
+    //! Each segment as <name>:<side>:<first cell>:<last cell>.
+    [[nodiscard]] std::vector<std::string> segment_words () const;
 
     amrex::Geometry m_geom;
     double m_cell_area = 0.0;

@@ -33,6 +33,22 @@ Rain::balance_volume () const
 }
 
 void
+Rain::write_checkpoint (CheckpointWriter& chk) const
+{
+    chk.put_multifab(name() + "_carry", m_carry);
+    chk.put_per_rank(name() + "/volume", {m_volume, m_volume_carry});
+}
+
+void
+Rain::read_checkpoint (const CheckpointReader& chk)
+{
+    chk.get_multifab(name() + "_carry", m_carry);
+    const std::vector<double> v = chk.get_per_rank(name() + "/volume", 2);
+    m_volume = v[0];
+    m_volume_carry = v[1];
+}
+
+void
 add_rain_depth (amrex::MultiFab& state, const amrex::MultiFab& depth, amrex::MultiFab& carry)
 {
     const auto& s = state.arrays();

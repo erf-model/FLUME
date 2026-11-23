@@ -24,6 +24,8 @@ hydrostatic reconstruction), writing plotfiles.
 | Bed        | Plane, bowl or raster; building footprints from a raster.         |
 | Friction   | Manning, one coefficient or a raster map.                         |
 | Rain       | Constant, hyetograph, gridded (ESRI ASCII series), moving cell.   |
+| Losses     | Infiltration: Green-Ampt and the runoff curve number.             |
+| Output     | Plotfiles, flood maps, water-balance log, gauges, checkpoints.    |
 
 It is verified against a lake at rest, the wet and dry dam-break solutions,
 Thacker's solutions in a bowl, a smooth wave (rate of convergence), uniform
@@ -41,9 +43,7 @@ flow with friction and the kinematic wave of rain on a plane.
 - A water-balance log, flood outputs (maximum depth, speed, arrival time),
   checkpoint and restart.
 
-Not yet available: infiltration, storm-drain inlets, the
-coupling to ERF, the water-balance log, the flood outputs, and checkpoint
-and restart.
+Not yet available: storm-drain inlets and the coupling to ERF.
 
 ## Layout
 
