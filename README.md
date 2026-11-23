@@ -8,6 +8,9 @@ decomposition of the atmosphere and is advanced inside ERF's time loop, the way
 the fire front is in [FLARE](https://github.com/erf-model/FLARE). Rainfall-driven
 flooding comes first. River inflow and coastal surge come later.
 
+Documentation of the FLUME theory and implementation is available
+[here](https://erf-model.github.io/FLUME/).
+
 The expansion of the name is a draft.
 
 ## Status
