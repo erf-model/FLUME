@@ -23,7 +23,7 @@ hydrostatic reconstruction), writing plotfiles.
 | Sides      | Walls, outflow over a whole side or over segments, periodic.      |
 | Bed        | Plane, bowl or raster; building footprints from a raster.         |
 | Friction   | Manning, one coefficient or a raster map.                         |
-| Rain       | Constant rate or a hyetograph file.                               |
+| Rain       | Constant, hyetograph, gridded (ESRI ASCII series), moving cell.   |
 
 It is verified against a lake at rest, the wet and dry dam-break solutions,
 Thacker's solutions in a bowl, a smooth wave (rate of convergence), uniform
@@ -41,7 +41,7 @@ flow with friction and the kinematic wave of rain on a plane.
 - A water-balance log, flood outputs (maximum depth, speed, arrival time),
   checkpoint and restart.
 
-Not yet available: infiltration, storm-drain inlets, gridded rain, the
+Not yet available: infiltration, storm-drain inlets, the
 coupling to ERF, the water-balance log, the flood outputs, and checkpoint
 and restart.
 

@@ -239,6 +239,38 @@ Rain
      - Depth and outlet discharge against the kinematic-wave solution to
        900 s.
 
+Rain that varies in space
+-------------------------
+
+Decks in ``Tests/RainField``, checked by ``check_rain_field.py``, which
+computes the rain from the grid files or the cell's numbers independently of
+the solver.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 34 66
+
+   * - Tests
+     - What is checked
+   * - ``rain_gridded_cells_linear_np1``, ``_np2``,
+       ``rain_gridded_cells_fine``
+     - One step on a closed, flat, dry domain: every cell holds the rain of
+       its area, on grids that share no edge with the solver's (16 eps).
+   * - ``rain_gridded_cells_aligned_nodata_ring``
+     - Grid edges on solver edges, NODATA just outside the domain: no abort,
+       every cell within 32 eps.
+   * - ``rain_gridded_volume_step``, ``_volume_linear_shifted``
+     - Water in the domain to 1200 s equals the integral of three grids,
+       held and linear (4 eps per step).
+   * - ``rain_gridded_dry_burst_no_stop_time``
+     - A grid ahead of the run's time sets the step of a dry domain.
+   * - ``rain_cell_at_rest_np*``, ``rain_cell_fast_step``,
+       ``rain_cell_volume``
+     - The moving cell against the closed form: at rest (16 eps), 29 m in
+       one step (1e-11), leaving the domain over 1200 s (volume).
+   * - ``rain_cell_zero_peak_long_step``
+     - A cell of peak 0 takes one step of 1e7 s and adds no water.
+
 Input checks
 ------------
 
@@ -257,6 +289,10 @@ Input checks
    * - ``abort_rain_*``
      - Each check of the rain inputs and of the hyetograph reader, on files
        in ``Tests/Rain/bad``.
+   * - ``abort_rain_gridded_*``, ``abort_rain_cell_*``
+     - Each check of the index reader and the grids (files in
+       ``Tests/RainField/bad``), each cell key, cell keys with another type,
+       and a step that needs more than :math:`10^4` sub-intervals.
 
 Not repeated at second order: the closed forms of one first-order step, the
 lower bound of ``dam_break_dry_x_no_tolerance``, and the draining columns at

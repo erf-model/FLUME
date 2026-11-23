@@ -57,8 +57,74 @@ rain brings no horizontal momentum. Rain falls on every cell, wet or dry.
 
 The solver asks a forcing provider (``Source/FLUME_Forcing.H``) for the depth
 of rain over an interval and for the largest rate over an interval
-(:ref:`sec:RainStep`). Rain that varies in space will be added as further
-providers.
+(:ref:`sec:RainStep`). Rain that varies in space comes from two further
+providers (:ref:`sec:RainSpace`).
+
+.. _sec:RainSpace:
+
+Rain that varies in space
+-------------------------
+
+Both providers give each cell the integral of the rate over the cell and
+the step, divided by the cell area. The compensated sum and the step bound
+are those of :ref:`sec:Rain`.
+
+**Gridded rain** (``gridded``). Entry :math:`k` of the index file is a time
+:math:`T_k` and a grid of rates :math:`g_{k,m}` (m/s) on cells :math:`A_m`.
+On a solver cell :math:`\Omega_{ij}` of area :math:`|\Omega_{ij}|`,
+
+.. math::
+
+   M_{k,ij} = \frac{1}{|\Omega_{ij}|} \sum_m |\Omega_{ij} \cap A_m|\, g_{k,m} ,
+   \qquad
+   \Delta h_{ij} = \sum_k w_k\, M_{k,ij} , \qquad
+   w_k = W_k(t^{n+1}) - W_k(t^{n}) ,
+
+where :math:`W_k(t)` is the integral up to :math:`t` of the weight of entry
+:math:`k` in the rate: 1 from :math:`T_k` to :math:`T_{k+1}` (``step``), or
+the hat function that is 1 at :math:`T_k` and 0 at :math:`T_{k\pm1}`
+(``linear``); the first weight is 1 before :math:`T_0` and the last after
+:math:`T_N`.
+
+* Cell edges are formed in grid units by one formula, so neighbouring cells
+  share each edge to the last bit and the rain on the domain is the
+  integral of the grid over it, to round-off.
+* An edge within 16 epsilons of a whole grid unit is set to it, so a grid
+  cell beyond it is not read through a sliver of round-off.
+* The weights are differences of :math:`W_k`, so the weights of all steps
+  add up to those of the run: the volume delivered is the integral of the
+  input, whatever the steps.
+* The step bound is the largest mapped rate of the grids an interval uses.
+
+**Moving cell** (``moving_cell``). With peak rate :math:`P`, standard
+deviation :math:`\sigma`, centre :math:`\mathbf{c}_0` at :math:`t = 0` and
+velocity :math:`\mathbf{v}`,
+
+.. math::
+
+   r(\mathbf{x}, t) = P \exp\left(-\frac{|\mathbf{x} - \mathbf{c}(t)|^2}{2\sigma^2}\right),
+   \qquad
+   \mathbf{c}(t) = \mathbf{c}_0 + \mathbf{v}\, t .
+
+The mean over a cell :math:`[x_a, x_b] \times [y_a, y_b]` at one time is
+exact:
+
+.. math::
+
+   \frac{P}{|\Omega_{ij}|}\, \frac{\pi \sigma^2}{2}\,
+   \left[\mathrm{erf}\,\frac{x_b - c_x}{\sqrt{2}\sigma} - \mathrm{erf}\,\frac{x_a - c_x}{\sqrt{2}\sigma}\right]
+   \left[\mathrm{erf}\,\frac{y_b - c_y}{\sqrt{2}\sigma} - \mathrm{erf}\,\frac{y_a - c_y}{\sqrt{2}\sigma}\right] .
+
+* Each difference is formed from :math:`\mathrm{erfc}` on the side away
+  from the centre, so a cell far from the centre keeps its digits.
+* In time: the 4-point Gauss-Legendre rule on
+  :math:`n = \max(1, \lceil 4|\mathbf{v}|\,\Delta t/\sigma \rceil)`
+  sub-intervals, so the centre moves at most :math:`\sigma/4` in each. A
+  cell at rest is exact with one.
+* A cell of peak 0 adds nothing and is not integrated. A step that needs
+  more than :math:`10^4` sub-intervals stops the run.
+* Centre positions are formed in double precision relative to
+  ``flume.prob_lo``. The step bound is :math:`P`.
 
 .. _sec:Friction:
 

@@ -334,6 +334,30 @@ On 1 m of still water, rain of 0.36 mm/h (1.6e-8 m per step) is kept in
 single precision by the compensated sum. In a closed basin with moving
 water the volume grows by the rain fallen (8.9e-13 of an added 6.4e-3).
 
+Rain that varies in space (``Tests/RainField/inputs_flat``, 24 by 16 cells
+of 2 m in 6 boxes), against a reference computed from the files:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 64 36
+
+   * - Case
+     - Largest difference
+   * - Every cell, one step, grids of 3.7 by 2.9 m, linear in time
+     - 9.9e-16 of the largest depth
+   * - Every cell, one step, grid of 1.3 m
+     - 4.3e-16
+   * - Every cell, 1 m grid on solver edges, NODATA ring outside
+     - 17 eps
+   * - Water to 1200 s, three grids, step and linear
+     - 7.1e-16 of the water (3 eps)
+   * - Moving cell at rest, every cell
+     - 5.8e-16
+   * - Moving cell, 29 m in one step (20 sub-intervals)
+     - 1.1e-13 (1.3e-2 with one)
+   * - Moving cell leaving the domain, water to 1200 s
+     - 1.4e-16
+
 Partial outflow
 ---------------
 

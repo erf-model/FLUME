@@ -86,13 +86,13 @@ query_finite (const amrex::ParmParse& pp, const std::string& key, T& value)
 }
 
 //! Read two finite reals (x and y) if the key is given. Returns whether it was.
+template <typename T>
 bool
-query_finite_pair (const amrex::ParmParse& pp, const std::string& key,
-                   amrex::Array<amrex::Real, 2>& value)
+query_finite_pair (const amrex::ParmParse& pp, const std::string& key, amrex::Array<T, 2>& value)
 {
     if (!pp.contains(key)) { return false; }
     require_count(pp, key, 2);
-    amrex::Vector<amrex::Real> v;
+    amrex::Vector<T> v;
     pp.getarr(key, v);
     for (int d = 0; d < 2; ++d) {
         if (!std::isfinite(v[d])) {
@@ -457,8 +457,10 @@ read_inputs ()
               " gives the coefficient of every cell");
     }
 
-    // rain.type: none, constant or hyetograph; rain.rate (constant only),
-    // rain.file and rain.interpolation (hyetograph only)
+    // rain.type: none, constant, hyetograph, gridded or moving_cell;
+    // rain.rate (constant only), rain.file (hyetograph and gridded),
+    // rain.interpolation (hyetograph and gridded), rain.cell.* (moving_cell
+    // only)
     if (pp.contains("rain.type")) {
         require_count(pp, "rain.type", 1);
         std::string v;
@@ -469,33 +471,48 @@ read_inputs ()
             in.rain_type = RainType::constant;
         } else if (v == "hyetograph") {
             in.rain_type = RainType::hyetograph;
-        } else if (v == "gridded" || v == "moving_cell" || v == "microphysics") {
-            amrex::Abort("flume.rain.type = " + v + " is reserved for a later version and is not"
-                         " available yet: use none, constant or hyetograph");
+        } else if (v == "gridded") {
+            in.rain_type = RainType::gridded;
+        } else if (v == "moving_cell") {
+            in.rain_type = RainType::moving_cell;
+        } else if (v == "microphysics") {
+            amrex::Abort("flume.rain.type = microphysics is reserved for a later version and is"
+                         " not available yet: use none, constant, hyetograph, gridded or"
+                         " moving_cell");
         } else {
-            amrex::Abort("flume.rain.type must be none, constant or hyetograph; it is " + v);
+            amrex::Abort("flume.rain.type must be none, constant, hyetograph, gridded or"
+                         " moving_cell; it is " + v);
         }
     }
     {
+        const RainType type = in.rain_type;
+        const bool has_file = type == RainType::hyetograph || type == RainType::gridded;
         const bool rate = query_finite(pp, "rain.rate", in.rain_rate);
         if (!(in.rain_rate >= 0.0)) {
             amrex::Abort("flume.rain.rate must be >= 0 (mm/h); it is " + all_digits(in.rain_rate));
         }
-        if (in.rain_type == RainType::constant && !rate) {
+        if (type == RainType::constant && !rate) {
             defer("flume.rain.type = constant needs flume.rain.rate: the rain rate in mm/h");
         }
-        if (in.rain_type != RainType::constant && rate) {
+        if (type != RainType::constant && rate) {
             defer("flume.rain.rate is read only with flume.rain.type = constant");
         }
         const bool file = query_file(pp, "rain.file", in.rain_file,
-                                     "a hyetograph file (a time in s and a rain rate in mm/h"
-                                     " per line)");
-        if (in.rain_type == RainType::hyetograph && !file) {
+                                     type == RainType::gridded
+                                         ? "an index file (a time in s and an ESRI ASCII grid of"
+                                           " the rain rate in mm/h per line)"
+                                         : "a hyetograph file (a time in s and a rain rate in"
+                                           " mm/h per line)");
+        if (type == RainType::hyetograph && !file) {
             defer("flume.rain.type = hyetograph needs flume.rain.file: lines of a time in s and"
                   " a rain rate in mm/h");
         }
-        if (in.rain_type != RainType::hyetograph && file) {
-            defer("flume.rain.file is read only with flume.rain.type = hyetograph");
+        if (type == RainType::gridded && !file) {
+            defer("flume.rain.type = gridded needs flume.rain.file: an index file, lines of a"
+                  " time in s and an ESRI ASCII grid of the rain rate in mm/h");
+        }
+        if (!has_file && file) {
+            defer("flume.rain.file is read only with flume.rain.type = hyetograph or gridded");
         }
         if (pp.contains("rain.interpolation")) {
             require_count(pp, "rain.interpolation", 1);
@@ -508,9 +525,42 @@ read_inputs ()
             } else {
                 amrex::Abort("flume.rain.interpolation must be step or linear; it is " + v);
             }
-            if (in.rain_type != RainType::hyetograph) {
-                defer("flume.rain.interpolation is read only with flume.rain.type = hyetograph");
+            if (!has_file) {
+                defer("flume.rain.interpolation is read only with flume.rain.type = hyetograph"
+                      " or gridded");
             }
+        }
+
+        // rain.cell.*: the moving Gaussian cell
+        const bool cell = type == RainType::moving_cell;
+        const bool peak = query_finite(pp, "rain.cell.peak_rate", in.rain_cell_peak_rate);
+        if (!(in.rain_cell_peak_rate >= 0.0)) {
+            amrex::Abort("flume.rain.cell.peak_rate must be >= 0 (mm/h); it is "
+                         + all_digits(in.rain_cell_peak_rate));
+        }
+        const bool sigma = query_finite(pp, "rain.cell.sigma", in.rain_cell_sigma);
+        if (sigma && !(in.rain_cell_sigma > 0.0)) {
+            amrex::Abort("flume.rain.cell.sigma must be > 0 (m); it is "
+                         + all_digits(in.rain_cell_sigma));
+        }
+        const bool center = query_finite_pair(pp, "rain.cell.center", in.rain_cell_center);
+        const bool velocity = query_finite_pair(pp, "rain.cell.velocity", in.rain_cell_velocity);
+        if (cell && !peak) {
+            defer("flume.rain.type = moving_cell needs flume.rain.cell.peak_rate: the rain rate"
+                  " at the centre of the cell in mm/h");
+        }
+        if (cell && !sigma) {
+            defer("flume.rain.type = moving_cell needs flume.rain.cell.sigma: the standard"
+                  " deviation of the cell's Gaussian rate in m");
+        }
+        if (cell && !center) {
+            defer("flume.rain.type = moving_cell needs flume.rain.cell.center: x and y of the"
+                  " centre of the cell at t = 0 in m");
+        }
+        if (!cell && (peak || sigma || center || velocity)) {
+            const char* k = peak ? "peak_rate" : sigma ? "sigma" : center ? "center" : "velocity";
+            defer("flume.rain.cell." + std::string(k)
+                  + " is read only with flume.rain.type = moving_cell");
         }
     }
 

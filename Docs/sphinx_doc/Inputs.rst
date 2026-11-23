@@ -237,23 +237,47 @@ Rain
    * - ``flume.rain.type``
      - string
      - ``none``
-     - ``none``, ``constant`` or ``hyetograph`` (:ref:`sec:Rain`).
-       ``gridded``, ``moving_cell`` and ``microphysics`` are reserved and
-       stop the run.
+     - ``none``, ``constant``, ``hyetograph`` (:ref:`sec:Rain`),
+       ``gridded`` or ``moving_cell`` (:ref:`sec:RainSpace`).
+       ``microphysics`` is reserved and stops the run.
    * - ``flume.rain.rate``
      - real
      - required with ``constant``
      - Rain rate, mm/h. Finite, at least 0. Only with ``constant``.
    * - ``flume.rain.file``
      - string
-     - required with ``hyetograph``
-     - Hyetograph file (:ref:`sec:HyetographFiles`). Only with
-       ``hyetograph``.
+     - required with ``hyetograph`` or ``gridded``
+     - Hyetograph file (:ref:`sec:HyetographFiles`) or index of rain grids
+       (:ref:`sec:RainIndexFiles`). Only with ``hyetograph`` or ``gridded``.
    * - ``flume.rain.interpolation``
      - string
      - ``step``
-     - ``step`` holds each rate until the next time; ``linear`` interpolates
-       in time. Only with ``hyetograph``.
+     - ``step`` holds each rate (or grid) until the next time; ``linear``
+       interpolates in time. Only with ``hyetograph`` or ``gridded``.
+   * - ``flume.rain.cell.peak_rate``
+     - real
+     - required with ``moving_cell``
+     - Rate at the centre of the cell, mm/h. Finite, at least 0.
+   * - ``flume.rain.cell.sigma``
+     - real
+     - required with ``moving_cell``
+     - Standard deviation of the Gaussian, m. Finite, above 0.
+   * - ``flume.rain.cell.center``
+     - 2 reals
+     - required with ``moving_cell``
+     - Centre at :math:`t = 0`, m, in the coordinates of ``flume.prob_lo``.
+       Both finite.
+   * - ``flume.rain.cell.velocity``
+     - 2 reals
+     - ``0 0``
+     - Velocity of the centre, m/s. Both finite. A step over which the
+       centre moves more than 2500 ``sigma`` stops the run. The step bound
+       stays the peak rate after the cell has left the domain, so a dry run
+       needs ``flume.stop_time`` or ``flume.max_step``.
+
+Each ``flume.rain.cell.*`` key is allowed only with ``moving_cell``;
+``flume.rain.file`` and ``flume.rain.interpolation`` are not allowed with
+it.
 
 Initial state
 -------------

@@ -32,8 +32,8 @@ expansion of the name is a draft.
      - Manning, one coefficient or a map
      -
    * - Rain
-     - Constant rate, hyetograph
-     - Gridded rain, moving storm cell, ERF microphysics
+     - Constant rate, hyetograph, gridded rain, moving storm cell
+     - ERF microphysics
    * - Terrain
      - Bed, buildings and Manning map from ESRI ASCII grids
      - Other raster formats through GDAL

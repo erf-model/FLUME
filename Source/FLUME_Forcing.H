@@ -3,6 +3,9 @@
 
 #include "FLUME_Inputs.H"
 
+#include <AMReX_BoxArray.H>
+#include <AMReX_DistributionMapping.H>
+#include <AMReX_Geometry.H>
 #include <AMReX_MultiFab.H>
 
 #include <memory>
@@ -21,9 +24,11 @@ namespace flume {
  * time: the water the run receives is then the integral of the forcing to
  * round-off, whatever the steps are.
  *
- * Providers that read the rain from a gridded file or from ERF's
- * microphysics, and the wind and pressure that a storm surge needs, are
- * added behind this interface later (flume.rain.type reserves their names).
+ * Rain the same in every cell (UniformRain), rain from a time series of
+ * grids and a moving rain cell (FLUME_RainField.H) are providers today. A
+ * provider for ERF's microphysics, and the wind and pressure that a storm
+ * surge needs, are added behind this interface later (flume.rain.type
+ * reserves the name microphysics).
  */
 class Forcing
 {
@@ -102,8 +107,11 @@ void read_hyetograph (const std::string& path, std::vector<double>& time,
                       std::vector<double>& rate_mm_per_h);
 
 //! The provider the inputs ask for (flume.rain.*), or nullptr with
-//! flume.rain.type = none. Prints what it is at start-up.
-std::unique_ptr<Forcing> make_forcing (const Inputs& in);
+//! flume.rain.type = none, for the cells of `geom` in the boxes `ba` on the
+//! ranks `dm`. Prints what it is at start-up.
+std::unique_ptr<Forcing> make_forcing (const Inputs& in, const amrex::Geometry& geom,
+                                       const amrex::BoxArray& ba,
+                                       const amrex::DistributionMapping& dm);
 
 } // namespace flume
 

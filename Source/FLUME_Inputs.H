@@ -18,9 +18,10 @@ inline constexpr int n_cell_max = 1073741824;
 enum class BoundaryType : int { wall, outflow };
 
 //! Where the rain comes from (flume.rain.type).
-enum class RainType : int { none, constant, hyetograph };
+enum class RainType : int { none, constant, hyetograph, gridded, moving_cell };
 
-//! How a hyetograph's rate runs between its entries (flume.rain.interpolation).
+//! How a hyetograph's rate, or a gridded rain field, runs between its entries
+//! (flume.rain.interpolation).
 enum class RainInterpolation : int { step, linear };
 
 /**
@@ -113,23 +114,44 @@ struct Inputs
     std::string friction_manning_file;
 
     //! Where the rain comes from (flume.rain.type; default none; none,
-    //! constant or hyetograph; gridded, moving_cell and microphysics are
-    //! reserved and abort)
+    //! constant, hyetograph, gridded or moving_cell; microphysics is reserved
+    //! and aborts)
     RainType rain_type = RainType::none;
 
     //! Rain rate, mm/h (flume.rain.rate; finite, >= 0; required with
     //! flume.rain.type = constant and read only with it)
     double rain_rate = 0.0;
 
-    //! Hyetograph file: lines of a time in s and a rate in mm/h
-    //! (flume.rain.file; not empty; required with flume.rain.type =
-    //! hyetograph and read only with it)
+    //! With flume.rain.type = hyetograph, a hyetograph file: lines of a time
+    //! in s and a rate in mm/h. With flume.rain.type = gridded, an index
+    //! file: lines of a time in s and an ESRI ASCII grid of the rate in mm/h
+    //! (flume.rain.file; not empty; required with these two types and read
+    //! only with them)
     std::string rain_file;
 
-    //! How the hyetograph's rate runs between entries
+    //! How the rate runs between the entries of the hyetograph or the index
     //! (flume.rain.interpolation; default step; step or linear; read only
-    //! with flume.rain.type = hyetograph)
+    //! with flume.rain.type = hyetograph or gridded)
     RainInterpolation rain_interpolation = RainInterpolation::step;
+
+    //! Peak rain rate of the moving cell, mm/h, at its centre
+    //! (flume.rain.cell.peak_rate; finite, >= 0; required with
+    //! flume.rain.type = moving_cell and read only with it)
+    double rain_cell_peak_rate = 0.0;
+
+    //! Standard deviation of the moving cell's Gaussian rate, m
+    //! (flume.rain.cell.sigma; finite, > 0; required with flume.rain.type =
+    //! moving_cell and read only with it)
+    double rain_cell_sigma = 0.0;
+
+    //! Centre of the moving cell at t = 0, m (flume.rain.cell.center; x y;
+    //! finite; required with flume.rain.type = moving_cell and read only
+    //! with it)
+    amrex::Array<double, 2> rain_cell_center{{0.0, 0.0}};
+
+    //! Velocity of the moving cell, m/s (flume.rain.cell.velocity; x y;
+    //! default 0 0; finite; read only with flume.rain.type = moving_cell)
+    amrex::Array<double, 2> rain_cell_velocity{{0.0, 0.0}};
 
     //! Bed elevation at the lower corner of the domain, m, on the absolute
     //! vertical datum (flume.bed.elevation; default 0; finite)

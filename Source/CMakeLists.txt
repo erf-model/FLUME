@@ -11,6 +11,7 @@ add_library(flume_lib STATIC
     FLUME_Init.cpp
     FLUME_Inputs.cpp
     FLUME_Rain.cpp
+    FLUME_RainField.cpp
     FLUME_Raster.cpp
     FLUME_Source.cpp
     FLUME_TimeStep.cpp)

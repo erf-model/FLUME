@@ -1,0 +1,11 @@
+# Gridded rain on a closed, flat, dry domain: 24 x 16 cells of 2 m in 6
+# boxes, walls on all four sides, bed at 0. The rain differs from cell to
+# cell, so the water moves; the walls keep it in the domain.
+flume.n_cell        = 24 16
+flume.prob_hi       = 48.0 32.0
+flume.max_grid_size = 8
+flume.plot_file     = flat
+flume.plot_int      = 50
+flume.stop_time     = 1200.0
+
+flume.rain.type     = gridded

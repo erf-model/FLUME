@@ -134,13 +134,11 @@ flume_add_regtest(rain_plane_kinematic_wave_order2 NPROCS 2
 # Rain inputs. ${ok} is the 8 x 8 deck of the input checks above.
 set(rain_bad ${rain_dir}/bad)
 set(rbad "flume\\.rain\\.file \\([^)]*\\)")
-foreach(type gridded moving_cell microphysics)
-    flume_add_abort_test(abort_rain_type_${type}
-        EXPECT "flume\\.rain\\.type = ${type} is reserved for a later version and is not available yet: use none, constant or hyetograph"
-        ARGS ${ok} flume.rain.type=${type})
-endforeach()
+flume_add_abort_test(abort_rain_type_microphysics
+    EXPECT "flume\\.rain\\.type = microphysics is reserved for a later version and is not available yet: use none, constant, hyetograph, gridded or moving_cell"
+    ARGS ${ok} flume.rain.type=microphysics)
 flume_add_abort_test(abort_rain_type_unknown
-    EXPECT "flume\\.rain\\.type must be none, constant or hyetograph; it is drizzle"
+    EXPECT "flume\\.rain\\.type must be none, constant, hyetograph, gridded or moving_cell; it is drizzle"
     ARGS ${ok} flume.rain.type=drizzle)
 flume_add_abort_test(abort_rain_rate_negative
     EXPECT "flume\\.rain\\.rate must be >= 0 \\(mm/h\\); it is -1"
@@ -162,17 +160,17 @@ flume_add_abort_test(abort_rain_file_missing_key
     EXPECT "flume\\.rain\\.type = hyetograph needs flume\\.rain\\.file: lines of a time in s and a rain rate in mm/h"
     ARGS ${ok} flume.rain.type=hyetograph)
 flume_add_abort_test(abort_rain_file_with_constant
-    EXPECT "flume\\.rain\\.file is read only with flume\\.rain\\.type = hyetograph"
+    EXPECT "flume\\.rain\\.file is read only with flume\\.rain\\.type = hyetograph or gridded"
     ARGS ${ok} flume.rain.type=constant flume.rain.rate=10
          flume.rain.file=${rain_dir}/hyetograph_steps.txt)
 flume_add_abort_test(abort_rain_interpolation_with_constant
-    EXPECT "flume\\.rain\\.interpolation is read only with flume\\.rain\\.type = hyetograph"
+    EXPECT "flume\\.rain\\.interpolation is read only with flume\\.rain\\.type = hyetograph or gridded"
     ARGS ${ok} flume.rain.type=constant flume.rain.rate=10 flume.rain.interpolation=linear)
 flume_add_abort_test(abort_rain_file_without_type
-    EXPECT "flume\\.rain\\.file is read only with flume\\.rain\\.type = hyetograph"
+    EXPECT "flume\\.rain\\.file is read only with flume\\.rain\\.type = hyetograph or gridded"
     ARGS ${ok} flume.rain.file=${rain_dir}/hyetograph_steps.txt)
 flume_add_abort_test(abort_rain_interpolation_without_type
-    EXPECT "flume\\.rain\\.interpolation is read only with flume\\.rain\\.type = hyetograph"
+    EXPECT "flume\\.rain\\.interpolation is read only with flume\\.rain\\.type = hyetograph or gridded"
     ARGS ${ok} flume.rain.interpolation=linear)
 flume_add_abort_test(abort_rain_interpolation_unknown
     EXPECT "flume\\.rain\\.interpolation must be step or linear; it is cubic"

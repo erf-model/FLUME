@@ -83,6 +83,38 @@ Rules:
   of rate 0; a storm that ends needs a last line of rate 0. The run prints a
   note when the first time is after 0 with a rate above 0.
 
+.. _sec:RainIndexFiles:
+
+Gridded rain index files
+------------------------
+
+With ``flume.rain.type = gridded``, ``flume.rain.file`` holds lines of a
+time in s and the path of an ESRI ASCII grid of the rain rate in mm/h:
+
+.. code-block:: text
+
+   # time (s)  grid of the rate (mm/h)
+   0      radar_0000.asc
+   300    radar_0300.asc   # five minutes later
+   600    radar_0600.asc
+
+Rules:
+
+* ``#`` starts a comment. Blank lines are skipped. Each line holds exactly
+  two items, so a grid path holds no space and no ``#``. The times are
+  finite and increase strictly. At least one line.
+* A relative grid path is taken from the directory of the index file.
+* Each grid has its own cells. It must hold the whole domain, hold no
+  ``NODATA_value`` in a cell that shares area with the domain, and hold no
+  rate below 0 anywhere. Every grid is read and checked at start-up; a
+  failed check names the key, the index file, the entry and the time.
+* Before the first time the first grid holds, and after the last time the
+  last one.
+* During the run a grid is read again when a step needs it. The grids a
+  later step can use are kept (one with ``step``, two with ``linear``); a
+  grid only the current step uses is read and freed at once. A grid of no
+  rain is not read again. The files must not change during the run.
+
 .. _sec:Precision:
 
 Single precision and large coordinates
