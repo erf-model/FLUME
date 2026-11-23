@@ -53,6 +53,14 @@ struct BoundarySegment
     int cell_hi = -1;   //!< last boundary cell along the side
 };
 
+//! A gauge point (flume.gauges.<name>.location): the time series of the
+//! cell that holds it is written to gauge_<name>.txt.
+struct GaugePoint
+{
+    std::string name;
+    amrex::Array<amrex::Real, 2> location{{amrex::Real(0.0), amrex::Real(0.0)}};  //!< x y, m
+};
+
 /**
  * The run's inputs, all in the "flume" namespace of the inputs file.
  *
@@ -92,6 +100,25 @@ struct Inputs
     //! Steps between plotfiles (flume.plot_int; default 0; >= 0). The first
     //! and the last state are always written; 0 writes only those.
     int plot_int = 0;
+
+    //! Steps between lines of the water-balance log and of the gauge files
+    //! (flume.log_int; default 1; >= 0). The first and the last step are
+    //! always logged; 0 writes neither and keeps no balance.
+    int log_int = 1;
+
+    //! Whether the plotfiles carry the flood maps: maximum depth, maximum
+    //! speed, maximum depth times speed and first arrival time
+    //! (flume.flood_maps; default 0; 0 or 1)
+    int flood_maps = 0;
+
+    //! Depth above which water has arrived in a cell, m
+    //! (flume.flood_maps.arrival_depth; default flume.dry_depth; finite,
+    //! >= 0; needs flume.flood_maps = 1)
+    amrex::Real arrival_depth = amrex::Real(0.0);
+
+    //! Gauge points (flume.gauges.names and flume.gauges.<name>.location;
+    //! default none), in the order listed. Each writes gauge_<name>.txt.
+    std::vector<GaugePoint> gauges;
 
     //! Time at which the run stops, s (flume.stop_time; no default; finite, >= 0).
     //! In double precision in every build, as the time is.

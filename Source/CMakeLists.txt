@@ -5,8 +5,10 @@ add_library(flume_lib STATIC
     FLUME_Boundary.cpp
     FLUME_Buildings.cpp
     FLUME_Flood.cpp
+    FLUME_FloodMaps.cpp
     FLUME_Forcing.cpp
     FLUME_Friction.cpp
+    FLUME_Gauges.cpp
     FLUME_Infiltration.cpp
     FLUME_IO.cpp
     FLUME_Init.cpp
@@ -15,7 +17,8 @@ add_library(flume_lib STATIC
     FLUME_RainField.cpp
     FLUME_Raster.cpp
     FLUME_Source.cpp
-    FLUME_TimeStep.cpp)
+    FLUME_TimeStep.cpp
+    FLUME_WaterBalance.cpp)
 
 target_include_directories(flume_lib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(flume_lib PUBLIC AMReX::amrex)

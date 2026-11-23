@@ -2,9 +2,12 @@
 #define FLUME_FLOOD_H_
 
 #include "FLUME_Boundary.H"
+#include "FLUME_FloodMaps.H"
 #include "FLUME_Forcing.H"
+#include "FLUME_Gauges.H"
 #include "FLUME_Inputs.H"
 #include "FLUME_Source.H"
+#include "FLUME_WaterBalance.H"
 
 #include <AMReX_Array.H>
 #include <AMReX_BoxArray.H>
@@ -39,6 +42,10 @@ namespace flume {
  * forcing provider (FLUME_Forcing.H, FLUME_Rain.H), then infiltration
  * (FLUME_Infiltration.H), then Manning friction, implicit in the discharge
  * (FLUME_Friction.H).
+ *
+ * After each step the flood maps take the new state (FLUME_FloodMaps.H),
+ * and every flume.log_int steps, and at the last step, the water balance
+ * (FLUME_WaterBalance.H) and the gauges (FLUME_Gauges.H) write a line.
  */
 class Flood
 {
@@ -70,7 +77,8 @@ public:
 
     //! Write <plot_file><step>: depth, discharge_x, discharge_y,
     //! bed_elevation, surface_elevation (bed + depth), then the fields of the
-    //! sources (Source::plot_fields; infiltrated_depth with infiltration).
+    //! sources (Source::plot_fields; infiltrated_depth with infiltration),
+    //! then the flood maps (with flume.flood_maps = 1).
     void write_plotfile () const;
 
     [[nodiscard]] double time () const { return m_time; }
@@ -78,10 +86,16 @@ public:
     [[nodiscard]] const amrex::MultiFab& state () const { return m_state; }
     [[nodiscard]] const amrex::MultiFab& bed () const { return m_bed; }
     [[nodiscard]] const amrex::Geometry& geom () const { return m_geom; }
+    [[nodiscard]] const WaterBalance& balance () const { return *m_balance; }
 
 private:
     //! One forward-Euler stage of `dt` on m_state, at the order of the run.
-    void advance_stage (amrex::Real dt);
+    //! The water balance counts the outflow of the stage over `dt_weight`, s:
+    //! the step, or half of it for each stage of the two-stage step.
+    void advance_stage (amrex::Real dt, double dt_weight);
+
+    //! The water-balance line and the gauge lines of the current step.
+    void write_logs ();
 
     Inputs m_in;
     amrex::Geometry m_geom;
@@ -107,6 +121,12 @@ private:
     std::unique_ptr<Forcing> m_forcing;
     //! The source terms, applied in order at the end of each step
     std::vector<std::unique_ptr<Source>> m_sources;
+    //! The water-balance log (flume.log_int)
+    std::unique_ptr<WaterBalance> m_balance;
+    //! The flood maps (flume.flood_maps = 1), or null
+    std::unique_ptr<FloodMaps> m_maps;
+    //! The gauge points (flume.gauges.*)
+    std::unique_ptr<Gauges> m_gauges;
     //! Time, s. In double precision in every build: a single-precision sum of
     //! steps stops growing after about 2^24 steps.
     double m_time = 0.0;

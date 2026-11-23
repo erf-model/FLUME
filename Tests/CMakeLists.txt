@@ -29,10 +29,11 @@ endfunction()
 
 # flume_add_regtest(<name> NPROCS <n> INPUTS <file> [ARGS <key=value>...]
 #                   [OUTPUT <regular expression the run's output must match>]
+#                   [NO_OUTPUT <regular expression the run's output must not match>]
 #                   CHECK <command and arguments, run in the test directory>)
 # Without MPI only the NPROCS 1 tests are registered.
 function(flume_add_regtest name)
-    cmake_parse_arguments(T "" "NPROCS;INPUTS;OUTPUT" "ARGS;CHECK" ${ARGN})
+    cmake_parse_arguments(T "" "NPROCS;INPUTS;OUTPUT;NO_OUTPUT" "ARGS;CHECK" ${ARGN})
     if(NOT T_NPROCS OR NOT T_INPUTS OR NOT T_CHECK)
         message(FATAL_ERROR "flume_add_regtest(${name}): NPROCS, INPUTS and CHECK are required")
     endif()
@@ -43,6 +44,9 @@ function(flume_add_regtest name)
     set(output "")
     if(T_OUTPUT)
         set(output --expect-output ${T_OUTPUT})
+    endif()
+    if(T_NO_OUTPUT)
+        list(APPEND output --reject-output ${T_NO_OUTPUT})
     endif()
     add_test(NAME ${name}
         COMMAND ${Python3_EXECUTABLE} ${FLUME_RUN_CASE}
@@ -1819,3 +1823,4 @@ flume_add_abort_test(abort_raster_buildings_negative
 include(${CMAKE_CURRENT_SOURCE_DIR}/Rain/RainTests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/RainField/RainFieldTests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/Infiltration/InfiltrationTests.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/WaterBalance/WaterBalanceTests.cmake)

@@ -1,0 +1,22 @@
+# Uniform supercritical flow out of a side: water 1 m deep moving at 10 m/s
+# in x on a flat, frictionless bed, 300 x 20 cells of 1 m in boxes of at
+# most 16 cells, walls on every side but the outflow segments the tests give
+# on the command line. With g = 9.81 m/s2 the wave speed is 3.13 m/s and the
+# Froude number 3.2. The wall at x = 0 starts a rarefaction whose head runs
+# at u + c = 13.13 m/s, 26 m by 2 s; about 66 steps reach 2 s, and even a
+# numerical domain of dependence of 4 cells a step (two stages of second
+# order; the outflow limit, which would widen it, is inactive while the
+# water out of a cell in a step, 0.31 m, is below its depth) stays 36 cells
+# short of x = 300 m. The state at the outflow side
+# stays uniform, so each step carries h u = 10 m2/s out of every metre of
+# the side, and the water that leaves by 2 s is 20 m3 per metre of outflow.
+flume.n_cell        = 300 20
+flume.prob_hi       = 300.0 20.0
+flume.max_grid_size = 16
+flume.plot_file     = out
+flume.plot_int      = 100000
+flume.stop_time     = 2.0
+
+flume.bed.elevation          = 0.0
+flume.init.surface_elevation = 1.0
+flume.init.velocity          = 10.0 0.0

@@ -1,0 +1,27 @@
+# Rain on a closed, flat, dry domain with flood maps and gauges: the domain
+# and rain of Tests/Rain/inputs_flat (24 x 16 cells of 2 m in 6 boxes, walls,
+# 36 mm/h to 600 s), with the bed at 5 m. The water stays level and still,
+# so every cell, and every gauge, holds the rain fallen since the start
+# (6 mm at 600 s; the surface elevation is 5 m plus that). Water arrives in
+# a cell when its depth passes 3 mm, which the rain gives at 300 s. The
+# gauges stand on a face between two cells (x = 24 m), on the high corner
+# of the domain and on the low edge inside a cell.
+flume.n_cell        = 24 16
+flume.prob_hi       = 48.0 32.0
+flume.max_grid_size = 8
+flume.plot_file     = rg
+flume.plot_int      = 100000
+flume.stop_time     = 600.0
+
+flume.bed.elevation = 5.0
+
+flume.rain.type     = constant
+flume.rain.rate     = 36.0
+
+flume.flood_maps               = 1
+flume.flood_maps.arrival_depth = 0.003
+
+flume.gauges.names           = face corner inside
+flume.gauges.face.location   = 24.0 7.0
+flume.gauges.corner.location = 48.0 32.0
+flume.gauges.inside.location = 3.5 0.0

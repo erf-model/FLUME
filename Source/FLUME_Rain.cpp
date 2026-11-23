@@ -1,5 +1,6 @@
 #include "FLUME_Rain.H"
 #include "FLUME_State.H"
+#include "FLUME_WaterBalance.H"
 
 #include <AMReX_GpuDevice.H>
 #include <AMReX_GpuQualifiers.H>
@@ -8,8 +9,9 @@
 namespace flume {
 
 Rain::Rain (const amrex::BoxArray& ba, const amrex::DistributionMapping& dm,
-            const Forcing& forcing)
-    : m_forcing(forcing), m_depth(ba, dm, 1, 0), m_carry(ba, dm, 1, 0)
+            const amrex::Geometry& geom, const Forcing& forcing)
+    : m_forcing(forcing), m_depth(ba, dm, 1, 0), m_carry(ba, dm, 1, 0),
+      m_cell_area(cell_area(geom))
 {
     m_carry.setVal(amrex::Real(0.0));
 }
@@ -21,6 +23,13 @@ Rain::apply (amrex::MultiFab& state, const SourceContext& ctx, amrex::Real /*dt*
     // single precision the step dt differs from time_end - time by rounding.
     m_forcing.rain_depth(m_depth, ctx.time, ctx.time_end);
     add_rain_depth(state, m_depth, m_carry);
+    compensated_add(m_volume, m_volume_carry, volume(m_cell_area, local_sum(m_depth)));
+}
+
+double
+Rain::balance_volume () const
+{
+    return m_volume - volume(m_cell_area, local_sum(m_carry));
 }
 
 void

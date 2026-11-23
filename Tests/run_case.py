@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Run one test case in its own directory, then check it.
 
-    run_case.py --dir <dir> [--expect-output <regex>] --run <command...> --check <command...>
+    run_case.py --dir <dir> [--expect-output <regex>] [--reject-output <regex>]
+                --run <command...> --check <command...>
     run_case.py --dir <dir> --expect-abort <regex> --run <command...>
 
 The directory is removed and made again, so a test never reads the output of an
@@ -9,7 +10,8 @@ earlier run. With --check, the run must exit with 0 and the check command, run
 in the same directory, must exit with 0. With --expect-abort, the run must exit
 with a non-zero code and its output must match the regular expression. With
 --expect-output, the output of a run that is checked must also match that
-regular expression.
+regular expression; with --reject-output it must not match that one. A run that is checked and leaves water_balance.txt must
+also close its water balance to round-off (Tests/check_balance.py).
 """
 import re
 import shutil
@@ -17,10 +19,15 @@ import subprocess
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import check_balance  # noqa: E402
+
 
 def split_args(argv):
-    """Split argv at the --dir, --expect-abort, --expect-output, --run and --check markers."""
-    out = {"--dir": [], "--expect-abort": [], "--expect-output": [], "--run": [], "--check": []}
+    """Split argv at the --dir, --expect-abort, --expect-output, --reject-output, --run and
+    --check markers."""
+    out = {"--dir": [], "--expect-abort": [], "--expect-output": [], "--reject-output": [],
+           "--run": [], "--check": []}
     key = None
     for a in argv:
         if a in out and not (key == "--check" and a != "--run"):
@@ -49,6 +56,9 @@ def main():
     output = args["--expect-output"]
     if len(output) > 1 or (output and (expect or not output[0].strip())):
         sys.exit("run_case.py: --expect-output takes one expression that is not empty, and goes with --check")
+    reject = args["--reject-output"]
+    if len(reject) > 1 or (reject and (expect or not reject[0].strip())):
+        sys.exit("run_case.py: --reject-output takes one expression that is not empty, and goes with --check")
 
     run_dir = Path(args["--dir"][0])
     if run_dir.exists():
@@ -72,10 +82,21 @@ def main():
         sys.exit(f"FAIL: the run exited with {run.returncode}")
     if output and not re.search(output[0], run.stdout):
         sys.exit(f"FAIL: the output of the run does not match /{output[0]}/")
+    if reject and re.search(reject[0], run.stdout):
+        sys.exit(f"FAIL: the output of the run matches /{reject[0]}/")
     print("check:", " ".join(args["--check"]), flush=True)
     check = subprocess.run(args["--check"], cwd=run_dir)
     if check.returncode != 0:
         sys.exit(f"FAIL: the check exited with {check.returncode}")
+
+    # Every run that keeps a water balance (flume.log_int > 0, the default)
+    # must close it to round-off at every line (Tests/check_balance.py).
+    log = run_dir / "water_balance.txt"
+    if log.exists():
+        ok, msg, _ = check_balance.check(log)
+        print(f"balance: {msg}", flush=True)
+        if not ok:
+            sys.exit(f"FAIL: water balance: {msg}")
 
 
 if __name__ == "__main__":

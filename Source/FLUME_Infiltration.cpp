@@ -2,6 +2,7 @@
 #include "FLUME_Forcing.H"
 #include "FLUME_Raster.H"
 #include "FLUME_State.H"
+#include "FLUME_WaterBalance.H"
 
 #include <AMReX.H>
 #include <AMReX_GpuDevice.H>
@@ -94,16 +95,27 @@ zero_in_buildings (amrex::MultiFab& field, const amrex::MultiFab* buildings, amr
 } // namespace
 
 Infiltration::Infiltration (const amrex::BoxArray& ba, const amrex::DistributionMapping& dm,
-                            amrex::Real dry_depth)
-    : m_infiltrated(ba, dm, 1, 0), m_infiltrated_carry(ba, dm, 1, 0), m_dry_depth(dry_depth)
+                            const amrex::Geometry& geom, amrex::Real dry_depth)
+    : m_infiltrated(ba, dm, 1, 0), m_infiltrated_carry(ba, dm, 1, 0), m_dry_depth(dry_depth),
+      m_cell_area(cell_area(geom))
 {
     m_infiltrated.setVal(amrex::Real(0.0));
     m_infiltrated_carry.setVal(amrex::Real(0.0));
 }
 
+double
+Infiltration::balance_volume () const
+{
+    // Each cell has lost its total plus the carry of remove_water: with the
+    // carry the volume follows the state to round-off of a double, also in
+    // a single-precision build.
+    return -(volume(m_cell_area, local_sum(m_infiltrated))
+             + volume(m_cell_area, local_sum(m_infiltrated_carry)));
+}
+
 GreenAmpt::GreenAmpt (const Inputs& in, const amrex::Geometry& geom, const amrex::BoxArray& ba,
                       const amrex::DistributionMapping& dm, const amrex::MultiFab* buildings)
-    : Infiltration(ba, dm, in.dry_depth), m_conductivity(ba, dm, 1, 0), m_storage(ba, dm, 1, 0)
+    : Infiltration(ba, dm, geom, in.dry_depth), m_conductivity(ba, dm, 1, 0), m_storage(ba, dm, 1, 0)
 {
     const amrex::Real zero = amrex::Real(0.0);
     const amrex::Real inf = std::numeric_limits<amrex::Real>::infinity();
@@ -136,7 +148,7 @@ GreenAmpt::apply (amrex::MultiFab& state, const SourceContext& /*ctx*/, amrex::R
 CurveNumber::CurveNumber (const Inputs& in, const amrex::Geometry& geom,
                           const amrex::BoxArray& ba, const amrex::DistributionMapping& dm,
                           const amrex::MultiFab* buildings, const Rain& rain)
-    : Infiltration(ba, dm, in.dry_depth), m_rain(rain), m_retention(ba, dm, 1, 0),
+    : Infiltration(ba, dm, geom, in.dry_depth), m_rain(rain), m_retention(ba, dm, 1, 0),
       m_rain_total(ba, dm, 1, 0), m_rain_carry(ba, dm, 1, 0), m_ia_ratio(in.cn_ia_ratio)
 {
     const std::string cn = fill_soil(m_retention, in.cn_number, "cn.number", geom,

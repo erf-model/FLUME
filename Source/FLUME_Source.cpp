@@ -18,7 +18,7 @@ make_sources (const Inputs& in, const amrex::Geometry& geom, const amrex::BoxArr
     std::vector<std::unique_ptr<Source>> sources;
     const Rain* rain = nullptr;
     if (forcing != nullptr) {
-        auto r = std::make_unique<Rain>(ba, dm, *forcing);
+        auto r = std::make_unique<Rain>(ba, dm, geom, *forcing);
         rain = r.get();
         sources.push_back(std::move(r));
     }

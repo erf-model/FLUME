@@ -13,7 +13,10 @@ Running the tests
 Every test runs in its own directory, ``<build>/Tests/run/<name>``, made
 again at the start of the test. Nothing is written into the source tree.
 ``Tests/run_case.py`` runs the executable and then the check; the test fails
-if either fails. Without MPI only the 1-rank tests are registered.
+if either fails. A checked run that leaves ``water_balance.txt`` must also
+keep its residual within the bound of :doc:`theory/WaterBalance`
+(``Tests/check_balance.py``). Without MPI only the 1-rank tests are
+registered.
 
 .. list-table::
    :header-rows: 1

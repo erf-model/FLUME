@@ -38,11 +38,11 @@ expansion of the name is a draft.
      - Bed, buildings and Manning map from ESRI ASCII grids
      - Other raster formats through GDAL
    * - Losses
-     -
-     - Infiltration, storm-drain inlets
+     - Infiltration: Green-Ampt and the runoff curve number
+     - Storm-drain inlets
    * - Output
-     - AMReX plotfiles
-     - Checkpoint and restart, flood maps, water-balance log
+     - AMReX plotfiles, flood maps, water-balance log, gauge time series
+     - Checkpoint and restart
 
 .. toctree::
    :caption: USER GUIDE
@@ -64,6 +64,7 @@ expansion of the name is a draft.
    theory/WettingDrying
    theory/SourceTerms
    theory/Boundaries
+   theory/WaterBalance
    theory/TimeStep
 
 .. toctree::

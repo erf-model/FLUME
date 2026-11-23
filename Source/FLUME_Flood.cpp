@@ -148,6 +148,9 @@ Flood::Flood (const Inputs& in) : m_in(in), m_boundary(in, make_geometry(in))
     m_forcing = make_forcing(in, m_geom, m_ba, m_dm);
     m_sources = make_sources(in, m_geom, m_ba, m_dm, m_forcing.get(),
                              m_buildings.ok() ? &m_buildings : nullptr);
+    m_balance = std::make_unique<WaterBalance>(in, m_geom);
+    if (in.flood_maps == 1) { m_maps = std::make_unique<FloodMaps>(in, m_ba, m_dm); }
+    m_gauges = std::make_unique<Gauges>(in, m_geom);
 }
 
 amrex::Real
@@ -172,7 +175,7 @@ Flood::check_state () const
 }
 
 void
-Flood::advance_stage (amrex::Real dt)
+Flood::advance_stage (amrex::Real dt, double dt_weight)
 {
     // The update leaves the ghost cells of the state out of date.
     m_boundary.fill_state(m_state);
@@ -182,6 +185,7 @@ Flood::advance_stage (amrex::Real dt)
         compute_fluxes(m_flux, m_state, m_bed, m_in.gravity, m_in.dry_depth);
     }
     limit_outflow(m_flux, m_outflow_factor, m_state, m_geom, dt);
+    m_balance->add_outflow(m_flux, dt_weight);
     if (m_in.order == 2) {
         compute_bed_source_second_order(m_bed_source, m_state, m_bed, m_in.gravity,
                                         m_in.dry_depth);
@@ -247,10 +251,21 @@ Flood::compute_dt (bool& lands, bool& dry) const
 }
 
 void
+Flood::write_logs ()
+{
+    m_balance->log(m_state, m_sources, m_step, m_time);
+    m_gauges->log(m_state, m_bed, m_step, m_time);
+}
+
+void
 Flood::evolve ()
 {
+    if (m_maps) { m_maps->update(m_state, m_time); }
     write_plotfile();
     int last_plot = m_step;
+    m_balance->start(m_state, m_sources);
+    if (m_in.log_int > 0) { m_gauges->log(m_state, m_bed, m_step, m_time); }
+    int last_log = m_step;
 
     const bool limited = m_in.max_step.has_value() || m_in.stop_time.has_value();
     if (!limited) {
@@ -271,15 +286,18 @@ Flood::evolve ()
         if (!dry) {
             if (m_in.order == 2) {
                 // Two stages from the state, then the mean with it.
+                // The step in the precision of the state, as the update
+                // uses it, for the outflow of the balance.
+                const double half = 0.5 * static_cast<double>(dt_real);
                 amrex::MultiFab::Copy(m_state_old, m_state, 0, 0, State::ncomp, 0);
-                advance_stage(dt_real);
+                advance_stage(dt_real, half);
                 // The second stage does not start from a state that a step
                 // would stop on.
                 check_state();
-                advance_stage(dt_real);
+                advance_stage(dt_real, half);
                 average_with(m_state, m_state_old, m_in.dry_depth);
             } else {
-                advance_stage(dt_real);
+                advance_stage(dt_real, static_cast<double>(dt_real));
             }
         } else {
             // Every cell is dry: zero its discharges, as a step with fluxes
@@ -306,9 +324,18 @@ Flood::evolve ()
         ++m_step;
         amrex::Print() << "Step " << m_step << ": time " << m_time << " s, dt " << dt << " s\n";
 
-        if (m_in.plot_int > 0 && m_step % m_in.plot_int == 0) {
-            // A state that the next step would stop on is not written.
-            check_state();
+        // A state that the next step would stop on is not read: the maps and
+        // logs would take the square root of, or divide, an overflowed depth.
+        const bool log_now = m_in.log_int > 0 && m_step % m_in.log_int == 0;
+        const bool plot_now = m_in.plot_int > 0 && m_step % m_in.plot_int == 0;
+        if (m_maps || log_now || plot_now) { check_state(); }
+        if (m_maps) { m_maps->update(m_state, m_time); }
+        if (log_now) {
+            write_logs();
+            last_log = m_step;
+        }
+
+        if (plot_now) {
             write_plotfile();
             last_plot = m_step;
         }
@@ -318,6 +345,8 @@ Flood::evolve ()
         check_state();
         write_plotfile();
     }
+    if (m_in.log_int > 0 && last_log != m_step) { write_logs(); }
+    m_balance->print_summary();
     amrex::Print() << "FLUME: " << m_step << " step(s), time " << m_time << " s\n";
 }
 
