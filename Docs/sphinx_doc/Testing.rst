@@ -990,8 +990,59 @@ Current tests
    2012), and the outflow is subcritical, which a zero-gradient side does
    not hold (water ponds in the last cells). The test avoids both.
 
+``rain_gridded_cells_linear_np1``, ``_np2``, ``rain_gridded_cells_fine``
+   A closed, flat, dry domain of 24 x 16 cells of 2 m in 6 boxes
+   (``Tests/RainField/inputs_flat``), one step, so no fluxes act: every cell
+   holds the rain of its area and of the step, against
+   ``Tests/RainField/check_rain_field.py``, which computes it from the grid
+   files by the area each grid cell shares with the solver cell. The first
+   two use grids at -300 s and 600 s with linear interpolation, on cells of
+   3.7 x 2.9 m that share no edge with the solver's; the third a grid of
+   1.3 m cells given by their centre. Within 16 epsilons of the largest
+   depth (seen: 1e-15 relative).
+   ``rain_gridded_cells_aligned_nodata_ring``: 25 cells over 14 m on a grid
+   of 1 m cells ringed by NODATA just outside the domain; the last edge,
+   formed in grid cells, rounds a sliver past the ring's edge, which must
+   not count as read. Within 32 epsilons (seen: 17).
+
+``rain_gridded_volume_step``, ``rain_gridded_volume_linear_shifted``
+   The water in the closed domain in every plotfile to 1200 s against the
+   integral of three grids, on two grids of their own, over the domain and
+   the time: held, and linear on a domain moved to (10, 5). Within 4
+   epsilons times the water times the number of the step (seen: 7e-16 of
+   the water, 3 epsilons, at step 679).
+
+``rain_gridded_dry_burst_no_stop_time``
+   A dry domain with no stop time and grids of no rain around a burst: only
+   the grid ahead of the run's time sets a finite step before the burst.
+   The water against the rain.
+
+``rain_cell_at_rest_np1``, ``_np2``, ``rain_cell_fast_step``, ``rain_cell_volume``
+   The moving cell (120 mm/h, sigma 6 m), against error functions in space
+   and adaptive Simpson quadrature in time. At rest near a corner, so the
+   domain holds part of the cell: every cell within 16 epsilons. Moving 29 m
+   in one step: every cell within 1e-11 of the largest depth (seen: 1.1e-13;
+   with one Gauss-Legendre interval, 1.3e-2). Moving out of the domain over
+   1200 s: the water in every plotfile against the integral of the rate.
+   ``rain_cell_zero_peak_long_step``: a cell of no rain at 1000 m/s over a
+   dry domain takes one step of 1e7 s and adds no water.
+
+``abort_rain_gridded_*``, ``abort_rain_cell_*``
+   A gridded run without ``flume.rain.file`` or with an empty name; an index
+   that cannot be opened or is a directory; on files in
+   ``Tests/RainField/bad`` a line of one or three items, a time that is not a
+   number or is infinite, times that do not increase, an index with no entry, a grid that
+   cannot be opened (its path relative to the index), a grid that does not
+   hold the domain, a negative rate (with the position of its cell) and a
+   NODATA cell the domain reads. For the cell: each required key missing, a
+   negative peak, a zero sigma, a centre of one value, an infinite velocity,
+   each ``flume.rain.cell.*`` key with another rain type, a cell key with no
+   rain type, ``flume.rain.file`` and ``flume.rain.interpolation`` with
+   ``moving_cell``, and a step over which the cell moves more than 2500
+   sigma.
+
 ``abort_rain_*``
-   Each check of the rain inputs: the three reserved and an unknown
+   Each check of the rain inputs: the reserved ``microphysics`` and an unknown
    ``flume.rain.type``; a negative or infinite ``flume.rain.rate``; a missing
    rate or file for its type; a rate, file or interpolation given with the
    other type or with none; an unknown interpolation; a misspelled key, which is reported as unknown

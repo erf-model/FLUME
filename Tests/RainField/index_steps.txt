@@ -1,0 +1,5 @@
+# Rain grids for the gridded-rain tests: time (s) and grid (mm/h).
+# Paths are relative to this file.
+0     grid_a.asc
+300   grid_b.asc   # a peak near (30, 20)
+900   grid_c.asc

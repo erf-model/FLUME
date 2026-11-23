@@ -607,8 +607,8 @@ Rain
 for the rain that falls on each cell over an interval of time, and for the
 largest rain rate over an interval (for the `Time step`_). The provider gives
 the depth of rain over the interval, the integral of the rate, not the rate
-at one time. Today one provider exists: rain that is the same in every cell,
-with a rate :math:`r(t)` (m/s) given by a table of times
+at one time. Two kinds of provider exist. The first is rain that is the
+same in every cell, with a rate :math:`r(t)` (m/s) given by a table of times
 :math:`t_0 < t_1 < \dots < t_N` and rates :math:`r_0, \dots, r_N \ge 0`:
 
 * ``flume.rain.type = constant``: one entry, :math:`r(t) = r_0` at all times
@@ -624,9 +624,11 @@ with a rate :math:`r(t)` (m/s) given by a table of times
   starts later needs a first entry ``0 0``, and a storm that ends needs a
   last entry of rate 0.
 
-The names ``gridded``, ``moving_cell`` and ``microphysics`` of
-``flume.rain.type`` are reserved for rain that varies in space (from a file,
-a moving storm cell, or ERF's microphysics); they stop the run today.
+The second is rain that varies in space: a time series of grids
+(``gridded``) or a moving rain cell (``moving_cell``), described under
+`Rain that varies in space`_ below. The name ``microphysics`` of
+``flume.rain.type`` is reserved for rain from ERF's microphysics; it stops
+the run today.
 
 **Step.** With :math:`I(t) = \int_{t_0}^{t} r(\tau)\, d\tau`, the step from
 :math:`t^n` to :math:`t^{n+1}` adds to the depth of every cell
@@ -673,6 +675,79 @@ depth passes ``flume.dry_depth``.
 **Order.** Rain acts once per step, after the explicit stages, like friction
 (`Source terms`_). In time this is first order at both orders of the scheme;
 in space the rain is the same in every cell and needs no reconstruction.
+
+Rain that varies in space
+-------------------------
+
+Both providers give the depth of each cell over a step as an integral of the
+rate over the cell and over the step, divided by the area of the cell. The
+rain source, the compensated sum and the step bound are those of `Rain`_.
+
+**Gridded rain.** Entry :math:`k` of the index file (``flume.rain.file``)
+is a time :math:`T_k` and a grid of rates :math:`g_k` (m/s), constant on each
+of its own cells. On a solver cell :math:`\Omega_{ij}` of area
+:math:`|\Omega_{ij}|` the mapped rate is the mean of the grid,
+
+.. math::
+
+   M_{k,ij} = \frac{1}{|\Omega_{ij}|} \sum_{m} |\Omega_{ij} \cap A_m|\, g_{k,m} ,
+
+where :math:`A_m` are the cells of the grid. The edges of the solver cells
+are computed in the units of the grid by one formula, so two neighbouring
+cells share each edge to the last bit, and the overlaps of a row of cells add
+up to the width of the row. An edge within 16 epsilons of a grid edge is put
+on it, so a grid cell beyond it is not read through a sliver of round-off. The rain on the domain is then the integral of
+the grid over the domain, to round-off. In time,
+
+.. math::
+
+   \Delta h_{ij} = \sum_k w_k\, M_{k,ij} ,
+   \qquad
+   w_k = W_k(t^{n+1}) - W_k(t^{n}) ,
+
+where :math:`W_k(t)` is the integral from a fixed time to :math:`t` of the
+weight of entry :math:`k` in the rate: 1 from :math:`T_k` to
+:math:`T_{k+1}` with ``step``, the hat function that is 1 at :math:`T_k` and
+0 at :math:`T_{k-1}` and :math:`T_{k+1}` with ``linear``, and 1 before
+:math:`T_0` (for :math:`k = 0`) and after :math:`T_N` (for :math:`k = N`).
+**Why a difference of** :math:`W_k`: as for a hyetograph, the end of one step
+is the start of the next, so the weights of a run add up to those of the
+whole run, and the volume delivered is the integral of the input to
+round-off, whatever the steps are. The largest rain rate over an interval,
+for the step bound, is the largest mapped rate of the grids the interval
+uses.
+
+**Moving cell.** With peak rate :math:`P` (``flume.rain.cell.peak_rate``),
+standard deviation :math:`\sigma` (``flume.rain.cell.sigma``), centre
+:math:`\mathbf{c}_0` at :math:`t = 0` (``flume.rain.cell.center``) and
+velocity :math:`\mathbf{v}` (``flume.rain.cell.velocity``),
+
+.. math::
+
+   r(\mathbf{x}, t) = P \exp\left(-\frac{|\mathbf{x} - \mathbf{c}(t)|^2}{2\sigma^2}\right),
+   \qquad
+   \mathbf{c}(t) = \mathbf{c}_0 + \mathbf{v}\, t .
+
+The mean over a cell :math:`[x_a, x_b] \times [y_a, y_b]` at one time is
+exact,
+
+.. math::
+
+   \frac{P}{|\Omega_{ij}|}\, \frac{\pi \sigma^2}{2}\,
+   \left[\mathrm{erf}\,\frac{x_b - c_x}{\sqrt{2}\sigma} - \mathrm{erf}\,\frac{x_a - c_x}{\sqrt{2}\sigma}\right]
+   \left[\mathrm{erf}\,\frac{y_b - c_y}{\sqrt{2}\sigma} - \mathrm{erf}\,\frac{y_a - c_y}{\sqrt{2}\sigma}\right] ,
+
+with each difference formed from the complementary error function on the
+side away from the centre, so a cell far from the centre keeps its digits.
+The integral over the step is the 4-point Gauss-Legendre rule on
+:math:`n = \max\left(1, \lceil |\mathbf{v}|\, \Delta t / (\sigma/4) \rceil\right)`
+sub-intervals, over each of which the centre moves at most :math:`\sigma/4`.
+A cell at rest needs one sub-interval and is exact; a cell of peak 0 adds
+nothing and is not integrated. A step that would need more than
+10\ :sup:`4` sub-intervals (the centre crossing 2500 :math:`\sigma`) stops
+the run with a message. The positions of the
+centre are formed in double precision relative to ``flume.prob_lo``. The
+largest rate, for the step bound, is :math:`P`.
 
 Manning friction
 ----------------

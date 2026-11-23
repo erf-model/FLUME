@@ -1,0 +1,3 @@
+# Two grids around t = 0, so the first step of a run interpolates.
+-300  grid_a.asc
+600   grid_b.asc

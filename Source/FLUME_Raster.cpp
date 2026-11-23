@@ -335,17 +335,35 @@ placement (const Raster& r, const amrex::Geometry& geom)
     return p;
 }
 
+//! q, or the whole number nearest to it when within 16 epsilons of it (in
+//! raster cells, relative to max(|q|, 1)).
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE amrex::Real
+snap_whole (amrex::Real q) noexcept
+{
+    const amrex::Real whole = std::round(q);
+    const amrex::Real tol = amrex::Real(16.0) * std::numeric_limits<amrex::Real>::epsilon()
+                            * amrex::max(std::abs(q), amrex::Real(1.0));
+    return (std::abs(q - whole) <= tol) ? whole : q;
+}
+
 //! The raster cell that holds position q (in raster cells from the edge):
 //! a q within 16 epsilons of a whole number counts as that number, so a
 //! centre on a raster edge takes the cell above it whatever the round-off.
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE int
 holding_cell (amrex::Real q, int n) noexcept
 {
-    const amrex::Real whole = std::round(q);
-    const amrex::Real tol = amrex::Real(16.0) * std::numeric_limits<amrex::Real>::epsilon()
-                            * amrex::max(std::abs(q), amrex::Real(1.0));
-    const amrex::Real s = (std::abs(q - whole) <= tol) ? whole : q;
-    return amrex::Clamp(static_cast<int>(std::floor(s)), 0, n - 1);
+    return amrex::Clamp(static_cast<int>(std::floor(snap_whole(q))), 0, n - 1);
+}
+
+//! The length, in raster cells, that cell c (of n) shares with [a, b]
+//! (a <= b, in raster cells from the raster's edge). The first and the last
+//! cell extend without end beyond the raster's edges.
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE amrex::Real
+shared_length (amrex::Real a, amrex::Real b, int c, int n) noexcept
+{
+    const amrex::Real lo = (c == 0) ? a : amrex::max(a, static_cast<amrex::Real>(c));
+    const amrex::Real hi = (c == n - 1) ? b : amrex::min(b, static_cast<amrex::Real>(c + 1));
+    return amrex::max(hi - lo, amrex::Real(0.0));
 }
 
 } // namespace
@@ -459,6 +477,64 @@ sample_nearest (amrex::MultiFab& dst, int comp, const Raster& r, const amrex::Ge
             const amrex::Long m = ci + amrex::Long(p.nx) * cj;
             a[box_no](i, j, k, comp) = v[m];
             return {(flag[m] != 0) ? amrex::Long(1) : amrex::Long(0)};
+        });
+    abort_on_nodata(bad, r);
+}
+
+void
+sample_conservative (amrex::MultiFab& dst, int comp, const Raster& r, const amrex::Geometry& geom)
+{
+    const Placement p = placement(r, geom);
+    const DeviceRaster dr = to_device(r);
+    const amrex::Real* v = dr.value.data();
+    const int* flag = dr.nodata.data();
+    const auto& a = dst.arrays();
+    const amrex::Long bad = amrex::ParReduce(amrex::TypeList<amrex::ReduceOpSum>{},
+                                             amrex::TypeList<amrex::Long>{}, dst, amrex::IntVect(0),
+        [=] AMREX_GPU_DEVICE (int box_no, int i, int j, int k) noexcept
+            -> amrex::GpuTuple<amrex::Long>
+        {
+            const amrex::Real zero = amrex::Real(0.0);
+            // The cell's edges in raster cells from the raster's edge: the
+            // west edge of cell i is the east edge of cell i - 1, bit for bit.
+            // An edge within round-off of a raster edge is put on it, so a
+            // raster cell beyond it is not read through a sliver of round-off.
+            const auto edge_x = [&] (int ii) {
+                return snap_whole((p.ox + static_cast<amrex::Real>(ii - p.ilo) * p.gdx) / p.rdx);
+            };
+            const auto edge_y = [&] (int jj) {
+                return snap_whole((p.oy + static_cast<amrex::Real>(jj - p.jlo) * p.gdy) / p.rdy);
+            };
+            const amrex::Real xa = edge_x(i);
+            const amrex::Real xb = edge_x(i + 1);
+            const amrex::Real ya = edge_y(j);
+            const amrex::Real yb = edge_y(j + 1);
+            const int c0 = amrex::Clamp(static_cast<int>(std::floor(xa)), 0, p.nx - 1);
+            const int c1 = amrex::Clamp(static_cast<int>(std::floor(xb)), 0, p.nx - 1);
+            const int r0 = amrex::Clamp(static_cast<int>(std::floor(ya)), 0, p.ny - 1);
+            const int r1 = amrex::Clamp(static_cast<int>(std::floor(yb)), 0, p.ny - 1);
+            amrex::Real sum = zero;
+            amrex::Real area = zero;
+            amrex::Long no = 0;
+            for (int rr = r0; rr <= r1; ++rr) {
+                const amrex::Real ly = shared_length(ya, yb, rr, p.ny);
+                if (ly <= zero) { continue; }
+                for (int cc = c0; cc <= c1; ++cc) {
+                    const amrex::Real lx = shared_length(xa, xb, cc, p.nx);
+                    if (lx <= zero) { continue; }
+                    const amrex::Long m = cc + amrex::Long(p.nx) * rr;
+                    if (flag[m] != 0) { no = 1; }
+                    sum += lx * ly * v[m];
+                    area += lx * ly;
+                }
+            }
+            // area is the cell's area in raster cells (the shared lengths of
+            // a row of raster cells sum to xb - xa); dividing by it rather
+            // than by (xb - xa) (yb - ya) makes a uniform raster map to its
+            // value to round-off (to the last bit when few raster cells feed
+            // a cell).
+            a[box_no](i, j, k, comp) = (area > zero) ? sum / area : zero;
+            return {no};
         });
     abort_on_nodata(bad, r);
 }

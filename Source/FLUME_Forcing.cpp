@@ -1,4 +1,5 @@
 #include "FLUME_Forcing.H"
+#include "FLUME_RainField.H"
 
 #include <AMReX.H>
 #include <AMReX_ParallelDescriptor.H>
@@ -193,7 +194,8 @@ read_hyetograph (const std::string& path, std::vector<double>& time,
 }
 
 std::unique_ptr<Forcing>
-make_forcing (const Inputs& in)
+make_forcing (const Inputs& in, const amrex::Geometry& geom, const amrex::BoxArray& ba,
+              const amrex::DistributionMapping& dm)
 {
     if (in.rain_type == RainType::constant) {
         amrex::Print() << "FLUME: rain: constant, " << in.rain_rate << " mm/h\n";
@@ -219,6 +221,26 @@ make_forcing (const Inputs& in)
         amrex::Print() << "FLUME: rain: hyetograph from " << in.rain_file << ", "
                        << (linear ? "linear" : "step") << " in time, up to " << r_max << " mm/h\n";
         return rain;
+    }
+    if (in.rain_type == RainType::gridded) {
+        auto rain = std::make_unique<GriddedRain>(in.rain_file, in.rain_interpolation, geom, ba, dm);
+        const bool linear = in.rain_interpolation == RainInterpolation::linear;
+        amrex::Print() << "FLUME: rain: gridded from " << in.rain_file << ", " << rain->size()
+                       << " grid(s), " << (linear ? "linear" : "step") << " in time, up to "
+                       << rain->max_rain_rate(-std::numeric_limits<double>::infinity(),
+                                              std::numeric_limits<double>::infinity()) / mm_per_h
+                       << " mm/h on the solver's cells\n";
+        return rain;
+    }
+    if (in.rain_type == RainType::moving_cell) {
+        amrex::Print() << "FLUME: rain: moving cell, peak " << in.rain_cell_peak_rate
+                       << " mm/h, sigma " << in.rain_cell_sigma << " m, centre ("
+                       << in.rain_cell_center[0] << ", " << in.rain_cell_center[1]
+                       << ") m at t = 0, velocity (" << in.rain_cell_velocity[0] << ", "
+                       << in.rain_cell_velocity[1] << ") m/s\n";
+        return std::make_unique<MovingCellRain>(in.rain_cell_peak_rate * mm_per_h,
+                                                in.rain_cell_sigma, in.rain_cell_center,
+                                                in.rain_cell_velocity, geom);
     }
     return nullptr;
 }

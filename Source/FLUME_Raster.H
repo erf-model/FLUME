@@ -78,6 +78,22 @@ void sample_bilinear (amrex::MultiFab& dst, int comp, const Raster& r,
 void sample_nearest (amrex::MultiFab& dst, int comp, const Raster& r,
                      const amrex::Geometry& geom);
 
+/**
+ * Fill component `comp` of the valid cells of `dst` with the mean over each
+ * cell of `geom` of the raster, taken as constant on each raster cell: the
+ * sum of the raster values weighted by the area each raster cell shares with
+ * the cell, divided by the cell's area. The integral of the result over the
+ * domain is then the integral of the raster over the domain, to round-off,
+ * whatever the two grids are. The raster's edge cells extend beyond its edge
+ * (within the tolerance read_raster allows). The edges of the cells, in
+ * raster cells, are computed by one formula from their index, so neighbours
+ * share each edge exactly and the weights of a raster cell sum to the area
+ * it shares with the domain. Aborts, naming the key, when a cell reads a
+ * NODATA value with an area above zero.
+ */
+void sample_conservative (amrex::MultiFab& dst, int comp, const Raster& r,
+                          const amrex::Geometry& geom);
+
 } // namespace flume
 
 #endif

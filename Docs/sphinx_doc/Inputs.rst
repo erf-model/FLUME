@@ -155,11 +155,13 @@ a valid number.
    * - ``flume.rain.type``
      - string
      - ``none``
-     - ``none``, ``constant`` or ``hyetograph``: no rain, rain at a constant
-       rate, or a rate that changes in time from a file. The rain is the same
-       in every cell and adds depth without momentum (:doc:`Model`).
-       ``gridded``, ``moving_cell`` and ``microphysics`` are kept for later
-       versions and stop the run. The run prints the rain at start-up.
+     - ``none``, ``constant``, ``hyetograph``, ``gridded`` or
+       ``moving_cell``: no rain; rain at a constant rate, or at a rate that
+       changes in time from a file, the same in every cell; rain from a time
+       series of grids (`Gridded rain index files`_); or a rain cell that
+       moves at a constant velocity. Rain adds depth without momentum
+       (:doc:`Model`). ``microphysics`` is kept for a later version and stops
+       the run. The run prints the rain at start-up.
    * - ``flume.rain.rate``
      - real
      - required with ``constant``
@@ -167,17 +169,45 @@ a valid number.
        ``flume.rain.type = constant``.
    * - ``flume.rain.file``
      - string
-     - required with ``hyetograph``
-     - Hyetograph file (`Hyetograph files`_). Must not be empty. Only with
-       ``flume.rain.type = hyetograph``. A relative path is taken from the
-       directory the run starts in.
+     - required with ``hyetograph`` or ``gridded``
+     - Hyetograph file (`Hyetograph files`_) or index file of rain grids
+       (`Gridded rain index files`_). Must not be empty. Only with
+       ``flume.rain.type = hyetograph`` or ``gridded``. A relative path is
+       taken from the directory the run starts in.
    * - ``flume.rain.interpolation``
      - string
      - ``step``
-     - ``step`` holds each rate of the file until the next time; ``linear``
-       interpolates linearly in time between the entries. Before the first
-       time and after the last the rate is the first or the last one, in
-       both modes. Only with ``flume.rain.type = hyetograph``.
+     - ``step`` holds each rate (or grid) of the file until the next time;
+       ``linear`` interpolates linearly in time between the entries. Before
+       the first time and after the last the rate is the first or the last
+       one, in both modes. Only with ``flume.rain.type = hyetograph`` or
+       ``gridded``.
+   * - ``flume.rain.cell.peak_rate``
+     - real
+     - required with ``moving_cell``
+     - Rain rate at the centre of the cell, in mm/h. Must be finite and at
+       least 0. The rate falls off as a Gaussian of the distance from the
+       centre (:doc:`Model`). Only with ``flume.rain.type = moving_cell``.
+   * - ``flume.rain.cell.sigma``
+     - real
+     - required with ``moving_cell``
+     - Standard deviation of the Gaussian, in m. Must be finite and above 0.
+       Only with ``flume.rain.type = moving_cell``.
+   * - ``flume.rain.cell.center``
+     - 2 reals
+     - required with ``moving_cell``
+     - Position of the centre at :math:`t = 0`, in m, in the coordinates of
+       ``flume.prob_lo``. Both finite. Only with
+       ``flume.rain.type = moving_cell``.
+   * - ``flume.rain.cell.velocity``
+     - 2 reals
+     - ``0 0``
+     - Velocity of the centre, in m/s. Both finite. Only with
+       ``flume.rain.type = moving_cell``. The rain bound on the time step is
+       the peak rate even after the cell has left the domain, so a dry run
+       needs ``flume.stop_time`` or ``flume.max_step`` to end. A step over
+       which the centre moves more than 2500 ``sigma`` stops the run with a
+       message.
    * - ``flume.bed.file``
      - string
      - none
@@ -450,6 +480,43 @@ One rank reads the file and sends the table to the others. A file that
 cannot be opened, a path that is not a regular file, and each failed check
 stop the run on every rank with one message that names the key, the file
 and the line.
+
+Gridded rain index files
+------------------------
+
+With ``flume.rain.type = gridded``, ``flume.rain.file`` is a text file of
+lines of a time in s and the path of an ESRI ASCII grid of the rain rate in
+mm/h (`Raster files`_). For example::
+
+   # time (s)  grid of the rain rate (mm/h)
+   0      radar_0000.asc
+   300    radar_0300.asc   # five minutes later
+   600    radar_0600.asc
+
+* ``#`` starts a comment that runs to the end of the line; blank lines are
+  skipped. Each other line holds exactly two items, separated by spaces or
+  tabs, so a grid path cannot contain a space or a ``#``; the time is finite and above
+  the one before; the file holds at least one line.
+* A relative grid path is taken from the directory that holds the index
+  file, so an index and its grids can be moved together.
+* Each grid has its own cells, which need not be the solver's or the same
+  from one entry to the next. Each must hold the whole domain, hold no
+  ``NODATA_value`` in a cell that shares area with the domain, and hold no
+  rate below 0 anywhere in the grid. Every grid is read and checked at start-up; a failed
+  check stops the run with the key, the index file, the entry and the time
+  (and, for a negative rate, the value and the position of the cell).
+* Each grid is mapped to the solver's cells by the mean over each cell, so
+  the rain on the domain is the integral of the grid over the domain
+  (:doc:`Model`). In time each grid is held until the next entry
+  (``flume.rain.interpolation = step``) or the rate is linear between
+  entries (``linear``); before the first time and after the last the first
+  or the last grid holds.
+* During the run a grid is read again when a step needs it. The grids a
+  later step can use are kept (one with ``step``, two with ``linear``); a
+  grid that only the current step uses is added and dropped, so a step that
+  spans many entries holds one extra grid at a time. A grid of no rain is
+  not read again. The files must not change while the run reads them: the
+  checks are those of the start-up read.
 
 Single precision and large coordinates
 --------------------------------------

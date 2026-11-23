@@ -144,7 +144,7 @@ Flood::Flood (const Inputs& in) : m_in(in), m_boundary(in, make_geometry(in))
     amrex::Print() << "FLUME: " << in.n_cell[0] << " x " << in.n_cell[1] << " cells in "
                    << m_ba.size() << " box(es)\n";
 
-    m_forcing = make_forcing(in);
+    m_forcing = make_forcing(in, m_geom, m_ba, m_dm);
     m_sources = make_sources(in, m_geom, m_ba, m_dm, m_forcing.get());
 }
 

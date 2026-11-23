@@ -1817,3 +1817,4 @@ flume_add_abort_test(abort_raster_buildings_negative
 # --- Prescribed rain ---------------------------------------------------------------
 # In their own file, which uses the functions and ${ok} above.
 include(${CMAKE_CURRENT_SOURCE_DIR}/Rain/RainTests.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/RainField/RainFieldTests.cmake)
