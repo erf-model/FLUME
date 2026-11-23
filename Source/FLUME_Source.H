@@ -66,6 +66,20 @@ public:
     //! `state` are not filled and must not be read.
     virtual void apply (amrex::MultiFab& state, const SourceContext& ctx, amrex::Real dt) = 0;
 
+    //! The column of this source in the water-balance log
+    //! (FLUME_WaterBalance.H), or empty when the source neither adds nor
+    //! removes water (friction).
+    [[nodiscard]] virtual std::string balance_name () const { return {}; }
+
+    //! Whether the column counts water removed (a sink, such as
+    //! infiltration) instead of water added (rain).
+    [[nodiscard]] virtual bool balance_removes () const { return false; }
+
+    //! The volume, m3, this source has added to the surface water of this
+    //! rank's cells since the start of the run, in double precision; below 0
+    //! for water removed. Called on every rank; the caller sums the ranks.
+    [[nodiscard]] virtual double balance_volume () const { return 0.0; }
+
     //! The fields this source adds to the plotfiles, after the fields of the
     //! state, in this order (none by default).
     [[nodiscard]] virtual std::vector<PlotField> plot_fields () const { return {}; }

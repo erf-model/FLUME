@@ -6,6 +6,7 @@
 
 #include <AMReX_BoxArray.H>
 #include <AMReX_DistributionMapping.H>
+#include <AMReX_Geometry.H>
 #include <AMReX_MultiFab.H>
 #include <AMReX_REAL.H>
 
@@ -27,7 +28,8 @@ class Rain : public Source
 {
 public:
     //! `forcing` must outlive this source.
-    Rain (const amrex::BoxArray& ba, const amrex::DistributionMapping& dm, const Forcing& forcing);
+    Rain (const amrex::BoxArray& ba, const amrex::DistributionMapping& dm,
+          const amrex::Geometry& geom, const Forcing& forcing);
 
     [[nodiscard]] std::string name () const override { return "rain"; }
 
@@ -39,10 +41,21 @@ public:
     //! cells): set by apply, read by the curve-number infiltration.
     [[nodiscard]] const amrex::MultiFab& step_depth () const { return m_depth; }
 
+    [[nodiscard]] std::string balance_name () const override { return "rain"; }
+
+    //! The rain added to the depth of this rank's cells since the start, m3:
+    //! the cell area times the sum, over the steps, of the rain depth of each
+    //! step, less the part the compensated sum still holds back (`m_carry`,
+    //! at most the rounding of a depth), which is not yet in the state.
+    [[nodiscard]] double balance_volume () const override;
+
 private:
     const Forcing& m_forcing;
     amrex::MultiFab m_depth;  //!< rain depth of the step, m: one component, no ghost cells
     amrex::MultiFab m_carry;  //!< rain rounded away so far, m, added with the next step's
+    double m_cell_area = 0.0; //!< m2
+    double m_volume = 0.0;    //!< rain on this rank's cells since the start, m3
+    double m_volume_carry = 0.0;  //!< rounding carried in the sum m_volume
 };
 
 //! Add component 0 of `depth`, plus the rain that earlier additions rounded

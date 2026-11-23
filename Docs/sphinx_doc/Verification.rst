@@ -397,6 +397,60 @@ domain with a hyetograph, a conductivity map and buildings (second order, 3
 ranks), the water on the surface plus the infiltrated water equals the rain
 to :math:`5.7 \times 10^{-14}` of 28.8 m\ :sup:`3` per m\ :sup:`2` of cell.
 
+Water balance and flood maps
+----------------------------
+
+Every regression run that leaves a water-balance log has its residual
+checked (:doc:`theory/WaterBalance`), and its residual is recomputed from
+the columns. The largest change of the residual between two lines is 14.5
+times :math:`\varepsilon n (V + M) + \varepsilon_d C` in double precision
+(``rain_dry_start_discharge``) and 15.3 times in single precision
+(``infiltration_green_ampt_rain``), against the bound of 64. The columns are pinned against closed forms
+(``Tests/WaterBalance``):
+
+.. list-table::
+   :header-rows: 1
+   :widths: 46 30 24
+
+   * - Case
+     - Closed form
+     - Difference
+   * - Rain on a closed basin, 36 mm/h for 600 s on 1536 m\ :sup:`2`
+     - 9.216 m\ :sup:`3` rained and stored
+     - 7.1e-15 m\ :sup:`3`
+   * - Ponded Green-Ampt infiltration, 6 h on 102400 m\ :sup:`2`
+     - 9395.3755 m\ :sup:`3` infiltrated
+     - 1.1e-6 m\ :sup:`3`
+   * - Uniform flow at 10 m/s, 1 m deep, out of a 20 m side for 2 s
+     - 400 m\ :sup:`3` out
+     - 4.5e-13 m\ :sup:`3`
+   * - The same out of segments of 5 m and 15 m (second order)
+     - 100 and 300 m\ :sup:`3`
+     - 4.5e-13 m\ :sup:`3`
+   * - Uniform flow in a periodic domain
+     - 12288 m\ :sup:`3` stored
+     - 0
+
+The infiltration difference is the 3.7e-6 s lag of the first step
+(Infiltration, above). With rain, infiltration and outflow
+together on the kinematic-wave plane (second order, 5315 steps), the
+residual ends at -5.6e-16 m\ :sup:`3`. The log without any one of its three
+terms fails the check on at least 90 % of the pairs of lines between which
+that term changes (in fact on all of them in double precision, and on all
+but 4 of 5268 for the outflow in single precision), also with a line every
+25 steps.
+
+On the wet-bed dam break, with an arrival depth of 1.25 m between the two
+depths, the arrival time of each cell behind the shock is within 0.024 s
+(order 1) and 0.014 s (order 2) of :math:`(x - 50\,\mathrm{m})/S`, against
+a cell crossing time of 0.060 s plus one step. The maximum depth is within 0.40 % and
+0.027 % of :math:`h_m`, and the maximum speed and depth times speed within
+1.5 % and 0.11 % of :math:`u_m` and :math:`h_m u_m`. On the rain basin every
+cell's maximum depth is the rain fallen, its speeds are 0, and water arrives
+one step after the time the closed form gives. On a sloped bed with water in
+motion, three gauges in three boxes on 2 ranks hold exactly the values of
+their cells in the plotfile of the same step.
+
 Partial outflow
 ---------------
 

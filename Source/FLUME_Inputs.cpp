@@ -399,6 +399,9 @@ read_inputs ()
     // plot_int: optional, one integer in [0, INT_MAX]
     query_int(pp, "plot_int", 0, int_max, in.plot_int);
 
+    // log_int: optional, one integer in [0, INT_MAX]
+    query_int(pp, "log_int", 0, int_max, in.log_int);
+
     // stop_time: optional, one finite real >= 0
     {
         double v = 0.0;
@@ -440,6 +443,76 @@ read_inputs ()
     query_finite(pp, "dry_depth", in.dry_depth);
     if (!(in.dry_depth >= amrex::Real(0.0))) {
         amrex::Abort("flume.dry_depth must be >= 0; it is " + all_digits(in.dry_depth));
+    }
+
+    // flood_maps: optional, 0 or 1; flood_maps.arrival_depth: optional,
+    // finite, >= dry_depth (a shallower cell is dry, with speed 0), needs
+    // flood_maps = 1, default dry_depth
+    query_int(pp, "flood_maps", 0, 1, in.flood_maps);
+    in.arrival_depth = in.dry_depth;
+    if (query_finite(pp, "flood_maps.arrival_depth", in.arrival_depth)) {
+        if (!(in.arrival_depth >= in.dry_depth)) {
+            amrex::Abort("flume.flood_maps.arrival_depth must be >= flume.dry_depth ("
+                         + all_digits(in.dry_depth) + "); it is " + all_digits(in.arrival_depth));
+        }
+        if (in.flood_maps != 1) {
+            defer("flume.flood_maps.arrival_depth needs flume.flood_maps = 1");
+        }
+    }
+
+    // gauges.names and gauges.<name>.location: points inside the domain
+    // (on its edge too), each with a name of letters, digits and _.
+    if (pp.contains("gauges.names")) {
+        std::vector<std::string> names;
+        pp.getarr("gauges.names", names);
+        for (const auto& name : names) {
+            const bool ok_name = !name.empty()
+                && std::all_of(name.begin(), name.end(), [] (char c) {
+                       return std::isalnum(static_cast<unsigned char>(c)) != 0 || c == '_';
+                   });
+            if (!ok_name) {
+                amrex::Abort("flume.gauges.names: a name may hold only letters, digits and _; "
+                             "it is \"" + name + "\"");
+            }
+            const auto lower = [] (std::string s) {
+                for (auto& c : s) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+                return s;
+            };
+            for (const auto& g : in.gauges) {
+                if (g.name == name) { amrex::Abort("flume.gauges.names lists " + name + " twice"); }
+                if (lower(g.name) == lower(name)) {
+                    amrex::Abort("flume.gauges.names lists " + g.name + " and " + name
+                                 + ", which differ only in case: their files gauge_<name>.txt"
+                                   " are one file on a case-insensitive file system");
+                }
+            }
+            GaugePoint g;
+            g.name = name;
+            const std::string key = "gauges." + name + ".location";
+            if (!query_finite_pair(pp, key, g.location)) {
+                defer("flume.gauges.names lists " + name + ", which needs flume." + key
+                      + ": the x and y of the point, m");
+                continue;
+            }
+            for (int d = 0; d < 2; ++d) {
+                if (!(g.location[d] >= in.prob_lo[d] && g.location[d] <= in.prob_hi[d])) {
+                    std::string msg = "flume." + key + " must be inside the domain: from ";
+                    msg += all_digits(in.prob_lo[d]);
+                    msg += " to ";
+                    msg += all_digits(in.prob_hi[d]);
+                    msg += " in ";
+                    msg += dir_name[d];
+                    msg += " (flume.prob_lo and flume.prob_hi); it is ";
+                    msg += all_digits(g.location[d]);
+                    amrex::Abort(msg);
+                }
+            }
+            in.gauges.push_back(g);
+        }
+        if (in.log_int == 0) {
+            defer("flume.gauges.names needs flume.log_int > 0: the gauges are written with the"
+                  " water-balance log");
+        }
     }
 
     // friction.manning: optional, one finite real >= 0

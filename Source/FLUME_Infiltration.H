@@ -51,13 +51,21 @@ public:
     //! component, no ghost cells.
     [[nodiscard]] const amrex::MultiFab& infiltrated () const { return m_infiltrated; }
 
+    [[nodiscard]] std::string balance_name () const override { return "infiltrated"; }
+    [[nodiscard]] bool balance_removes () const override { return true; }
+
+    //! Minus the infiltrated volume of this rank's cells, m3: the cell area
+    //! times the sum of the infiltrated depth and the rounding carried in it.
+    [[nodiscard]] double balance_volume () const override;
+
 protected:
     Infiltration (const amrex::BoxArray& ba, const amrex::DistributionMapping& dm,
-                  amrex::Real dry_depth);
+                  const amrex::Geometry& geom, amrex::Real dry_depth);
 
     amrex::MultiFab m_infiltrated;
     amrex::MultiFab m_infiltrated_carry;  //!< rounding carried in the sum m_infiltrated
     amrex::Real m_dry_depth = amrex::Real(0.0);
+    double m_cell_area = 0.0;  //!< m2
 };
 
 /**

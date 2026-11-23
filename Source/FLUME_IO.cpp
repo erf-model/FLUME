@@ -23,6 +23,9 @@ Flood::write_plotfile () const
     for (const auto& s : m_sources) {
         for (const auto& f : s->plot_fields()) { extra.push_back(f); }
     }
+    if (m_maps) {
+        for (const auto& f : m_maps->plot_fields()) { extra.push_back(f); }
+    }
     const int i_bed = State::ncomp;
     const int i_surface = State::ncomp + 1;
     const int nvar = State::ncomp + 2 + static_cast<int>(extra.size());

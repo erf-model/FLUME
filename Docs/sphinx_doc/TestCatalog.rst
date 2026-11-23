@@ -313,6 +313,60 @@ Green-Ampt equation).
        rain's negative carry does not take a depth below 0 in the next,
        dry step, and the water balances.
 
+Water balance, flood maps and gauges
+------------------------------------
+
+.. list-table::
+   :header-rows: 1
+   :widths: 34 66
+
+   * - Tests
+     - What is checked
+   * - every regression test with a log
+     - The residual of ``water_balance.txt`` within the bound of
+       :doc:`theory/WaterBalance`, at every line, and equal to the residual
+       recomputed from the columns.
+   * - ``balance_rain_columns_np*``
+     - Rain on a closed basin: the rain column and the stored water against
+       the rain rate times the time and the area.
+   * - ``balance_rain_gauges_np*``
+     - The same basin on a raised bed, with maps and gauges: maximum depth,
+       zero speeds and the arrival time in every cell; three gauges (on a
+       face, on the high corner, on the low edge) read their cells, the
+       rain fallen and the surface elevation at every line.
+   * - ``gauge_face_rounding``
+     - A gauge whose coordinates round just below two faces reads the cell
+       above both.
+   * - ``gauge_cells_sloped_bed``
+     - Three gauges in three boxes on 2 ranks, on a sloped bed with water
+       in motion, hold exactly the values of their cells in the plotfile.
+   * - ``gauge_large_coordinates``
+     - A gauge 500 km from the origin, inside a cell, stays in that cell in
+       single precision.
+   * - ``balance_green_ampt_ponded``
+     - The infiltrated column of ponded Green-Ampt infiltration against the
+       closed form.
+   * - ``balance_outflow_side``, ``_two_segments``, ``_low_side``
+     - Uniform supercritical flow: the water out of a whole high side, out
+       of two segments at second order, and out of a low side, against the
+       discharge times the length and the time.
+   * - ``balance_periodic``
+     - A periodic domain keeps its water exactly; no outflow column.
+   * - ``balance_log_interval``
+     - ``flume.log_int = 5``: lines at the multiples of 5 and at the last
+       step.
+   * - ``balance_log_on``, ``balance_log_off``
+     - ``flume.log_int = 0`` writes no log, no gauge file and no summary
+       line, and the plotfiles are byte for byte those of the run with a
+       line every step.
+   * - ``balance_every_term``, ``_log_interval``
+     - Rain, infiltration and outflow at once, with a line every step and
+       every 25 steps: the log without any one term fails the check on at
+       least 90 % of the pairs of lines where that term changes.
+   * - ``flood_maps_dam_break``, ``_second_order``
+     - The flood maps and a gauge of the wet-bed dam break against the exact
+       Riemann solution.
+
 Input checks
 ------------
 
@@ -335,6 +389,12 @@ Input checks
      - Each infiltration key: ranges, missing and excluded keys, a value
        with a file, the curve number without rain, and files with values
        out of range or NODATA cells.
+   * - ``abort_log_*``, ``abort_flood_maps_*``, ``abort_arrival_depth_*``,
+       ``abort_gauge_*``, ``abort_gauges_*``
+     - Each check of the log, map and gauge keys: ranges, a non-finite
+       arrival depth or one below the dry depth, keys that need another,
+       gauge names (also two that differ only in case), missing and
+       unlisted locations, and points outside the domain.
    * - ``abort_rain_gridded_*``, ``abort_rain_cell_*``
      - Each check of the index reader and the grids (files in
        ``Tests/RainField/bad``), each cell key, cell keys with another type,

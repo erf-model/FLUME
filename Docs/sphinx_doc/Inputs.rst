@@ -106,6 +106,37 @@ Output
      - ``0``
      - Steps between plotfiles, from 0 to 2147483647. The first and the last
        state are always written.
+   * - ``flume.log_int``
+     - integer
+     - ``1``
+     - Steps between lines of the water-balance log ``water_balance.txt``
+       and of the gauge files, from 0 to 2147483647; 0 writes no log. With
+       a log, the first and the last step are always written
+       (:ref:`sec:WaterBalanceLog`). Each line adds a reduction over the
+       ranks; with outflow segments, every stage adds one reduction per
+       segment; ``0`` adds none.
+   * - ``flume.flood_maps``
+     - integer
+     - ``0``
+     - 1 adds the flood maps to the plotfiles (:ref:`sec:FloodMaps`); 0 or
+       1.
+   * - ``flume.flood_maps.arrival_depth``
+     - real
+     - ``flume.dry_depth``
+     - Depth, m, above which water has arrived in a cell. Finite and
+       :math:`\ge` ``flume.dry_depth`` (a shallower cell is dry); needs
+       ``flume.flood_maps = 1``.
+   * - ``flume.gauges.names``
+     - strings
+     - none
+     - Names of the gauges, each of letters, digits and ``_``, none twice.
+       Needs ``flume.log_int > 0`` (:ref:`sec:Gauges`).
+   * - ``flume.gauges.<name>.location``
+     - 2 reals
+     - none
+     - x and y of the gauge, m, inside the domain or on its edge. Required
+       for each name in ``flume.gauges.names``; a key for a name not listed
+       is unknown.
 
 Boundaries
 ----------
