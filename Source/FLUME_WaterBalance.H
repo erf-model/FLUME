@@ -8,6 +8,7 @@
 #include <AMReX_Geometry.H>
 #include <AMReX_MultiFab.H>
 
+#include <algorithm>
 #include <fstream>
 #include <memory>
 #include <string>
@@ -46,36 +47,41 @@ inline void compensated_add (double& sum, double& carry, double x)
  * (Docs/sphinx_doc/Running.rst).
  *
  * The volume of water on the surface, V, changes only through the sources
- * (rain in, infiltration out) and through the faces of the outflow segments.
- * With V_0 the volume at the start, S_n the volume source n has added since
- * the start (below 0 for a sink) and Q_m the volume that has left through
- * segment m (below 0 for water that entered), the residual
+ * (rain in, infiltration out) and through the faces of the outflow and
+ * discharge segments. With V_0 the volume at the start, S_n the volume
+ * source n has added since the start (below 0 for a sink), Q_m the volume
+ * that has left through outflow segment m (below 0 for water that entered)
+ * and I_l the volume that has entered through discharge segment l, the
+ * residual
  *
- *   R = V - V_0 - sum_n S_n + sum_m Q_m
+ *   R = V - V_0 - sum_n S_n + sum_m Q_m - sum_l I_l
  *
  * is zero in exact arithmetic. Each term is counted where it happens, not
  * from V: S_n by the source itself (Source::balance_volume), Q_m from the
  * mass flux the update uses on each face of the segment. So R measures how
  * well the update, the outflow limit and the sources keep the water they
- * account for: a residual above round-off is a defect. Walls are not
+ * account for: a residual above round-off is a defect. I_l is counted from
+ * the mass flux on the faces of the segment, as Q_m. Walls are not
  * counted: the mass flux through a wall face is zero, up to the rounding of
  * one product (limit_outflow), and what it carries shows in R.
  *
  * Each line of the log holds the step, the time, V, each source's column
  * (water added, or water removed for a sink), each segment's column (water
- * out) and R, all in m3 and cumulative from the start.
+ * out, in_<name>: water in, for a discharge segment) and R, all in m3 and
+ * cumulative from the start.
  */
 class WaterBalance
 {
 public:
-    //! The outflow segments of `in` on the grid of `geom`. Opens the log on
-    //! the I/O rank when `in.log_int` is above 0.
+    //! The outflow and discharge segments of `in` on the grid of `geom`.
+    //! Opens the log on the I/O rank when `in.log_int` is above 0.
     WaterBalance (const Inputs& in, const amrex::Geometry& geom);
 
     //! Add the water that the fluxes `flux` (after limit_outflow) carry out
-    //! through each outflow segment in `dt`, s, to this rank's totals: the
-    //! mass flux on each boundary face of the segment, times the face area
-    //! and `dt`. A stage of the two-stage step passes half the step. No MPI.
+    //! through each outflow segment, or in through each discharge segment,
+    //! in `dt`, s, to this rank's totals: the mass flux on each boundary face
+    //! of the segment, times the face area and `dt`. A stage of the
+    //! two-stage step passes half the step. No MPI.
     void add_outflow (const amrex::Array<amrex::MultiFab, 2>& flux, double dt);
 
     //! The volume on the surface at the start (V_0), the header and the line
@@ -113,8 +119,9 @@ public:
     [[nodiscard]] double residual () const { return m_residual; }
 
 private:
-    //! One outflow segment: the boundary faces of cells lo to hi along the
-    //! side, on the low (high = 0) or high side across direction d.
+    //! One outflow or discharge segment: the boundary faces of cells lo to
+    //! hi along the side, on the low (high = 0) or high side across
+    //! direction d.
     struct Segment
     {
         std::string name;
@@ -122,6 +129,9 @@ private:
         int high = 0;
         int lo = 0;
         int hi = -1;
+        bool inflow = false;  //!< a discharge segment: its total counts water in
+        //! The name of its column: out_<name>, or in_<name> for inflow
+        [[nodiscard]] std::string column () const { return (inflow ? "in_" : "out_") + name; }
     };
 
     //! The totals over all ranks: V, the sources, the segments.
@@ -137,13 +147,21 @@ private:
     //! Open water_balance.txt on the I/O rank: a new file with its header,
     //! or with `resume_step` >= 0 the file cut back to that step, appended to.
     void open_file (int resume_step, bool keep_step);
+    //! Whether a discharge segment is among the segments.
+    [[nodiscard]] bool has_inflow () const
+    {
+        return std::any_of(m_segments.begin(), m_segments.end(),
+                           [] (const Segment& s) { return s.inflow; });
+    }
     //! Each segment as <name>:<side>:<first cell>:<last cell>.
     [[nodiscard]] std::vector<std::string> segment_words () const;
 
     amrex::Geometry m_geom;
     double m_cell_area = 0.0;
     std::vector<Segment> m_segments;
-    std::vector<double> m_out;  //!< volume out through each segment, this rank, m3
+    //! volume out through each outflow segment, or in through each
+    //! discharge segment, this rank, m3
+    std::vector<double> m_out;
     std::vector<double> m_out_carry;  //!< rounding carried in the sums m_out
     std::vector<std::string> m_source_names;
     std::vector<bool> m_source_removes;

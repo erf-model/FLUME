@@ -234,8 +234,9 @@ read_inputs ()
     std::string needs;
     const auto defer = [&needs] (const std::string& msg) { if (needs.empty()) { needs = msg; } };
 
-    // bc.segments and bc.<name>.side, .type, .range: segments of the sides
-    // that are not periodic, each with its own type. Checked here against
+    // bc.segments and bc.<name>.side, .type, .range (and .file and
+    // .interpolation with type = discharge): segments of the sides that are
+    // not periodic, each with its own type. Checked here against
     // the grid: on a side that is not periodic, inside it, holding at least
     // one cell centre, not overlapping another segment.
     if (pp.contains("bc.segments")) {
@@ -265,8 +266,10 @@ read_inputs ()
             const bool has_type = pp.contains(key + "type");
             if (!has_side || !has_type) {
                 defer(!has_side ? "flume." + key + "side is required: xlo, xhi, ylo or yhi"
-                                : "flume." + key + "type is required: wall or outflow");
-                static_cast<void>(pp.contains(key + "range"));
+                                : "flume." + key + "type is required: wall, outflow or discharge");
+                for (const char* k : {"range", "file", "interpolation"}) {
+                    static_cast<void>(pp.contains(key + k));
+                }
                 continue;
             }
             require_count(pp, key + "side", 1);
@@ -291,12 +294,46 @@ read_inputs ()
                 seg.type = BoundaryType::wall;
             } else if (type == "outflow") {
                 seg.type = BoundaryType::outflow;
-            } else if (type == "discharge" || type == "stage") {
-                amrex::Abort("flume." + key + "type = " + type + " is reserved for a later version"
-                             " (a prescribed " + (type == "discharge" ? "inflow discharge" : "water level")
-                             + " from a time series) and is not available yet: use wall or outflow");
+            } else if (type == "discharge") {
+                seg.type = BoundaryType::discharge;
+            } else if (type == "stage") {
+                amrex::Abort("flume." + key + "type = stage is reserved for a later version (a"
+                             " prescribed water level from a time series) and is not available"
+                             " yet: use wall, outflow or discharge");
             } else {
-                amrex::Abort("flume." + key + "type must be wall or outflow; it is " + type);
+                amrex::Abort("flume." + key + "type must be wall, outflow or discharge; it is "
+                             + type);
+            }
+
+            // file and interpolation: the hydrograph of a discharge segment.
+            const bool inflow = seg.type == BoundaryType::discharge;
+            const bool file = query_file(pp, key + "file", seg.file,
+                                         "a hydrograph file (a time in s and a discharge in m3/s"
+                                         " per line)");
+            if (inflow && !file) {
+                defer("flume." + key + "type = discharge needs flume." + key + "file: lines of a"
+                      " time in s and a discharge in m3/s");
+            }
+            if (!inflow && file) {
+                defer("flume." + key + "file is read only with flume." + key + "type = discharge");
+            }
+            // The type is checked before the value: on another type the
+            // key itself is the fault, whatever its value.
+            if (pp.contains(key + "interpolation") && !inflow) {
+                defer("flume." + key + "interpolation is read only with flume." + key
+                      + "type = discharge");
+            } else if (pp.contains(key + "interpolation")) {
+                require_count(pp, key + "interpolation", 1);
+                std::string v;
+                pp.get(key + "interpolation", v);
+                if (v == "step") {
+                    seg.interpolation = RainInterpolation::step;
+                } else if (v == "linear") {
+                    seg.interpolation = RainInterpolation::linear;
+                } else {
+                    amrex::Abort("flume." + key + "interpolation must be step or linear; it is "
+                                 + v);
+                }
             }
 
             const int d = seg.direction;

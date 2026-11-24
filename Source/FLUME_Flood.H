@@ -5,6 +5,7 @@
 #include "FLUME_FloodMaps.H"
 #include "FLUME_Forcing.H"
 #include "FLUME_Gauges.H"
+#include "FLUME_Inflow.H"
 #include "FLUME_Inputs.H"
 #include "FLUME_Source.H"
 #include "FLUME_WaterBalance.H"
@@ -69,7 +70,13 @@ public:
 
     /**
      * The next time step, s: cfl / max_wave_rate(), or with rain falling
-     * during it rain_limited_step() (FLUME_TimeStep.H). A step that reaches
+     * during it rain_limited_step() (FLUME_TimeStep.H). With discharge
+     * segments the rate is at least that of their face states
+     * (Inflow::max_rate), with the largest discharge from now to the end of
+     * the longest step allowed: the stop time, or sooner the CFL step of the
+     * cells; over a dry domain with no stop time, the rest of the hydrograph,
+     * so that a later peak sets the step from the start (safe, and smaller
+     * than needed). A domain with a discharge above 0 to come is not dry. A step that reaches
      * flume.stop_time, or falls short of it by round-off only (4 machine
      * epsilons of the stop time), is set to end on it. With no wave anywhere
      * (a dry domain) `dry` is set: the step is the rain-limited one if rain
@@ -100,10 +107,12 @@ public:
     [[nodiscard]] const WaterBalance& balance () const { return *m_balance; }
 
 private:
-    //! One forward-Euler stage of `dt` on m_state, at the order of the run.
-    //! The water balance counts the outflow of the stage over `dt_weight`, s:
-    //! the step, or half of it for each stage of the two-stage step.
-    void advance_stage (amrex::Real dt, double dt_weight);
+    //! One forward-Euler stage of `dt` on m_state, at the order of the run,
+    //! in the step that ends at `time_end`, s (the inflow hydrographs give the
+    //! mean discharge of the step). The water balance counts the outflow of
+    //! the stage over `dt_weight`, s: the step, or half of it for each stage
+    //! of the two-stage step.
+    void advance_stage (amrex::Real dt, double dt_weight, double time_end);
 
     //! The water-balance line and the gauge lines of the current step.
     void write_logs ();
@@ -113,7 +122,7 @@ private:
      * balance and maps; the logs are cut back to its step and appended to.
      * Aborts, naming flume.restart, when the checkpoint does not match the
      * inputs: another precision, grid, periodicity, bed, list of sources
-     * or of outflow segments, or no maps with flume.flood_maps = 1.
+     * or of outflow and discharge segments, or no maps with flume.flood_maps = 1.
      */
     void restart (const std::string& dir);
 
@@ -141,6 +150,8 @@ private:
     std::unique_ptr<Forcing> m_forcing;
     //! The source terms, applied in order at the end of each step
     std::vector<std::unique_ptr<Source>> m_sources;
+    //! The inflow hydrographs of the discharge segments (flume.bc.*)
+    std::unique_ptr<Inflow> m_inflow;
     //! The water-balance log (flume.log_int)
     std::unique_ptr<WaterBalance> m_balance;
     //! The flood maps (flume.flood_maps = 1), or null

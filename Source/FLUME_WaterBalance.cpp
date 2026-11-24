@@ -44,8 +44,9 @@ WaterBalance::WaterBalance (const Inputs& in, const amrex::Geometry& geom)
     : m_geom(geom), m_cell_area(cell_area(geom)), m_on(in.log_int > 0)
 {
     for (const auto& s : in.bc_segments) {
-        if (s.type != BoundaryType::outflow) { continue; }
-        m_segments.push_back(Segment{s.name, s.direction, s.high, s.cell_lo, s.cell_hi});
+        if (s.type == BoundaryType::wall) { continue; }
+        m_segments.push_back(Segment{s.name, s.direction, s.high, s.cell_lo, s.cell_hi,
+                                     s.type == BoundaryType::discharge});
     }
     m_out.assign(m_segments.size(), 0.0);
     m_out_carry.assign(m_segments.size(), 0.0);
@@ -84,8 +85,9 @@ WaterBalance::add_outflow (const amrex::Array<amrex::MultiFab, 2>& flux, double 
         }
         const double sum = amrex::get<0>(data.value(op));
         // A positive mass flux runs towards higher coordinates: out of the
-        // high side, into the low side.
-        const double sign = (s.high == 1) ? 1.0 : -1.0;
+        // high side, into the low side. A discharge segment counts water in.
+        double sign = (s.high == 1) ? 1.0 : -1.0;
+        if (s.inflow) { sign = -sign; }
         compensated_add(m_out[n], m_out_carry[n],
                         sign * sum * static_cast<double>(m_geom.CellSize(t)) * dt);
     }
@@ -135,7 +137,8 @@ WaterBalance::open_file (int resume_step, bool keep_step)
            << std::numeric_limits<amrex::Real>::epsilon() << " (machine epsilon of the"
            << (sizeof(amrex::Real) == sizeof(double) ? " double" : " single")
            << "-precision state)\n"
-           << "# residual = stored - stored at step 0 - (added) + (removed) + (out)\n"
+           << "# residual = stored - stored at step 0 - (added) + (removed) + (out)"
+           << (has_inflow() ? " - (in)\n" : "\n")
            << "# added:";
     for (std::size_t n = 0; n < m_source_names.size(); ++n) {
         if (!m_source_removes[n]) { m_file << " " << m_source_names[n]; }
@@ -145,12 +148,22 @@ WaterBalance::open_file (int resume_step, bool keep_step)
         if (m_source_removes[n]) { m_file << " " << m_source_names[n]; }
     }
     m_file << "\n# out:";
-    for (const auto& s : m_segments) { m_file << " out_" << s.name; }
+    for (const auto& s : m_segments) {
+        if (!s.inflow) { m_file << " " << s.column(); }
+    }
+    // Written only with a discharge segment, so that the header of a run
+    // without one is as before.
+    if (has_inflow()) {
+        m_file << "\n# in:";
+        for (const auto& s : m_segments) {
+            if (s.inflow) { m_file << " " << s.column(); }
+        }
+    }
     m_file << "\n# step time stored";
     for (std::size_t n = 0; n < m_source_names.size(); ++n) {
         m_file << " " << m_source_names[n];
     }
-    for (const auto& s : m_segments) { m_file << " out_" << s.name; }
+    for (const auto& s : m_segments) { m_file << " " << s.column(); }
     m_file << " residual\n";
     m_file.flush();
 }
@@ -175,7 +188,7 @@ WaterBalance::column_names (const std::vector<std::unique_ptr<Source>>& sources)
     for (const auto& s : sources) {
         if (!s->balance_name().empty()) { c.push_back(s->balance_name()); }
     }
-    for (const auto& s : m_segments) { c.push_back("out_" + s.name); }
+    for (const auto& s : m_segments) { c.push_back(s.column()); }
     return c;
 }
 
@@ -212,11 +225,11 @@ WaterBalance::resume (const CheckpointReader& chk, const amrex::MultiFab& state,
         for (const auto& w : chk.get_words("balance/columns")) { msg += " " + w; }
         msg += " ) differ from those of the inputs (";
         for (const auto& w : column_names(sources)) { msg += " " + w; }
-        chk.fail(msg + " ): the rain, infiltration and outflow segments must be those of the"
-                       " run that wrote it");
+        chk.fail(msg + " ): the rain, infiltration, outflow and discharge segments must be"
+                       " those of the run that wrote it");
     }
     if (chk.get_words("balance/segments") != segment_words()) {
-        std::string msg = "its outflow segments (";
+        std::string msg = "its outflow and discharge segments (";
         for (const auto& w : chk.get_words("balance/segments")) { msg += " " + w; }
         msg += " ) cover other faces than those of the inputs (";
         for (const auto& w : segment_words()) { msg += " " + w; }
@@ -257,7 +270,9 @@ WaterBalance::record (const std::vector<double>& t)
     if (finite) {
         r = t[0] - m_v0;
         for (std::size_t n = 0; n < ns; ++n) { r -= t[1 + n]; }
-        for (std::size_t n = 0; n < m_segments.size(); ++n) { r += t[1 + ns + n]; }
+        for (std::size_t n = 0; n < m_segments.size(); ++n) {
+            r += m_segments[n].inflow ? -t[1 + ns + n] : t[1 + ns + n];
+        }
     }
     m_residual = r;
     m_last = t;
@@ -293,7 +308,8 @@ WaterBalance::print_summary () const
           << (m_source_removes[n] ? -m_last[1 + n] : m_last[1 + n]);
     }
     for (std::size_t n = 0; n < m_segments.size(); ++n) {
-        s << ", out " << m_segments[n].name << " " << m_last[1 + ns + n];
+        s << (m_segments[n].inflow ? ", in " : ", out ") << m_segments[n].name << " "
+          << m_last[1 + ns + n];
     }
     s << std::setprecision(3) << ", residual " << m_residual << "\n";
     amrex::Print() << s.str();

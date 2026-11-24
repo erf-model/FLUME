@@ -28,7 +28,8 @@ using Pieces = amrex::Array<amrex::Array<std::vector<Boundary::Piece>, 2>, 2>;
  * Fill the ghost layers outside every side that is not periodic, piece by
  * piece. Layer m (1 is next to the side) of a wall piece takes the m-th cell
  * inside, times `sign[d][n]` for component n at a side whose normal is
- * direction d. Every layer of an outflow piece takes the boundary cell.
+ * direction d. Every layer of an outflow or a discharge piece takes the
+ * boundary cell.
  *
  * The plain copy keeps still water still to round-off, but where the bed of
  * the boundary cell is lower than that of the cell inside, still water there
@@ -137,7 +138,9 @@ continue_slope (amrex::MultiFab& bed, const amrex::Geometry& geom, int d, amrex:
 const char*
 type_name (BoundaryType t)
 {
-    return (t == BoundaryType::outflow) ? "outflow" : "wall";
+    if (t == BoundaryType::outflow) { return "outflow"; }
+    if (t == BoundaryType::discharge) { return "discharge"; }
+    return "wall";
 }
 
 } // namespace

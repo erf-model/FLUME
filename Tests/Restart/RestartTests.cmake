@@ -208,7 +208,7 @@ rs_abort(abort_restart_maps restart_first_order_reference
     EXPECT "written with flume\\.flood_maps = 0: it holds no maps to continue"
     ARGS ${rs_first} flume.restart=${rs_ref_first}/chk00300 flume.flood_maps=1)
 rs_abort(abort_restart_segments restart_reference_np1
-    EXPECT "its outflow segments [(] out:xhi:4:11 [)] cover other faces than those of the inputs [(] out:xhi:4:10 [)]"
+    EXPECT "its outflow and discharge segments [(] out:xhi:4:11 [)] cover other faces than those of the inputs [(] out:xhi:4:10 [)]"
     ARGS ${rs_main} flume.restart=${rs_ref1}/chk00400 flume.bc.out.range=8\ 22)
 rs_abort(abort_restart_gauges restart_reference_np1
     EXPECT "its gauges [(]mid:23:15 low:46:7[)] differ from those of the inputs [(]mid:24:15 low:46:7[)]"

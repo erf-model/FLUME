@@ -187,6 +187,43 @@ Boundaries
      - A centre on the first coordinate of a range is in the segment; a
        centre on the second is not.
 
+Inflow hydrographs
+------------------
+
+Decks in ``Tests/Inflow``, checked by ``check_inflow.py`` against closed
+forms and by ``check_balance.py`` against the integral of the hydrograph.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 34 66
+
+   * - Tests
+     - What is checked
+   * - ``inflow_uniform_subcritical_order1``, ``_order2``
+     - Uniform subcritical flow fed with its own discharge stays uniform for
+       3419 steps on 4 ranks (4096 eps).
+   * - ``inflow_rarefaction_{xlo,xhi,ylo,yhi}_order1``, ``_order2``
+     - The discharge drops: the depth of the plateau next to each of the
+       four sides follows from the invariant kept across the rarefaction.
+   * - ``inflow_dry_fan_order1``, ``_order2``
+     - Supercritical inflow onto a dry bed: the critical depth at the face
+       and the rarefaction to the dry front.
+   * - ``inflow_normal_depth_steep_order1``, ``_order2``
+     - Steady inflow down a steep slope with friction reaches the normal
+       depth.
+   * - ``inflow_basin_volume_np4``, ``_swapped``, ``inflow_basin_late_start``
+     - Two segments on a closed basin: each inflow column, and the stored
+       water, equal the integral of the hydrograph (``linear``, ``step``,
+       and a file that starts after 0 s) to round-off.
+   * - ``inflow_basin_lake_at_rest``
+     - Segments with no discharge keep still water still.
+   * - ``inflow_dry_no_stop_time``
+     - The hydrograph sets the step of a dry domain with no stop time.
+   * - ``inflow_restart_reference``, ``inflow_restart_np2``,
+       ``_np2_np1``
+     - A restart while hydrograph ``a`` rises gives every plotfile to the
+       last bit, and the log byte for byte on the same ranks.
+
 Rasters
 -------
 
@@ -440,8 +477,8 @@ Checkpoint and restart
    * - ``abort_restart_*``, ``abort_check_*``
      - Each check of the checkpoint keys, and a checkpoint that does not
        match the inputs: a plotfile, another grid, domain, bed, source
-       list, set of periodic sides, water-balance columns, outflow segment
-       or gauge cell, maps asked of a checkpoint without them, and a log
+       list, set of periodic sides, water-balance columns, outflow or
+       discharge segment or gauge cell, maps asked of a checkpoint without them, and a log
        asked of a checkpoint without a balance. Copies of a checkpoint
        altered by ``Tests/Restart/make_bad_checkpoints.py``: another
        version, the other precision, a key given twice, a negative step, and a NaN in the state.
@@ -478,6 +515,13 @@ Input checks
        arrival depth or one below the dry depth, keys that need another,
        gauge names (also two that differ only in case), missing and
        unlisted locations, and points outside the domain.
+   * - ``abort_inflow_*``
+     - Each key of a discharge segment (a missing or empty file, two
+       values, a file or an interpolation with a wall or outflow segment,
+       an unknown interpolation), each
+       check of the hydrograph reader on the files of ``Tests/Rain/bad``, a
+       dry domain without a stop time and with no more inflow, and a
+       restart whose segment covers other faces.
    * - ``abort_rain_gridded_*``, ``abort_rain_cell_*``
      - Each check of the index reader and the grids (files in
        ``Tests/RainField/bad``), each cell key, cell keys with another type,

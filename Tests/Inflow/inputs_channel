@@ -1,0 +1,23 @@
+# A straight channel fed by an inflow hydrograph (Tests/Inflow/README.md):
+# 200 m long and 4 m wide, 400 x 2 cells of 0.5 m in 7 boxes, periodic
+# across. The water enters through the whole of side xlo (segment "in", a
+# discharge segment; the tests name its file) and leaves through side xhi
+# (segment "out", zero gradient). Flat bed at 10 m, no friction, dry at the
+# start; the tests set the initial water, the slope and the friction.
+flume.n_cell        = 400 2
+flume.prob_hi       = 200.0 4.0
+flume.periodic      = 0 1
+flume.max_grid_size = 64
+flume.plot_file     = chan
+flume.cfl           = 0.5
+flume.order         = 2
+flume.log_int       = 100
+
+flume.bed.elevation = 10.0
+
+flume.bc.segments = in out
+flume.bc.in.side  = xlo
+flume.bc.in.type  = discharge
+flume.bc.in.file  = hydrograph_steady.txt
+flume.bc.out.side = xhi
+flume.bc.out.type = outflow

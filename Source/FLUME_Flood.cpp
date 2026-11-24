@@ -148,6 +148,7 @@ Flood::Flood (const Inputs& in) : m_in(in), m_boundary(in, make_geometry(in))
     m_forcing = make_forcing(in, m_geom, m_ba, m_dm);
     m_sources = make_sources(in, m_geom, m_ba, m_dm, m_forcing.get(),
                              m_buildings.ok() ? &m_buildings : nullptr);
+    m_inflow = std::make_unique<Inflow>(in, m_geom);
     m_balance = std::make_unique<WaterBalance>(in, m_geom);
     if (in.flood_maps == 1) { m_maps = std::make_unique<FloodMaps>(in, m_ba, m_dm); }
     m_gauges = std::make_unique<Gauges>(in, m_geom);
@@ -176,7 +177,7 @@ Flood::check_state () const
 }
 
 void
-Flood::advance_stage (amrex::Real dt, double dt_weight)
+Flood::advance_stage (amrex::Real dt, double dt_weight, double time_end)
 {
     // The update leaves the ghost cells of the state out of date.
     m_boundary.fill_state(m_state);
@@ -184,6 +185,10 @@ Flood::advance_stage (amrex::Real dt, double dt_weight)
         compute_fluxes_second_order(m_flux, m_state, m_bed, m_in.gravity, m_in.dry_depth);
     } else {
         compute_fluxes(m_flux, m_state, m_bed, m_in.gravity, m_in.dry_depth);
+    }
+    // Before the outflow limit, which leaves water that enters as it is.
+    if (!m_inflow->empty()) {
+        m_inflow->set_fluxes(m_flux, m_state, m_time, time_end, static_cast<double>(dt));
     }
     limit_outflow(m_flux, m_outflow_factor, m_state, m_geom, dt);
     m_balance->add_outflow(m_flux, dt_weight);
@@ -201,12 +206,22 @@ Flood::compute_dt (bool& lands, bool& dry) const
 {
     lands = false;
     dry = false;
-    const amrex::Real rate = check_state();
-    dry = !(rate > amrex::Real(0.0));
+    amrex::Real rate = check_state();
     // The longest the step can be without rain: to the stop time, and no
     // longer than the CFL step.
     double dt_max = std::numeric_limits<double>::infinity();
     if (m_in.stop_time.has_value()) { dt_max = *m_in.stop_time - m_time; }
+    // The face states of the discharge segments, with the largest discharge
+    // up to then, take part as cells do: a face state is deeper and faster
+    // with more discharge, so the bound holds over any shorter step. A
+    // discharge to come makes the domain wet.
+    if (!m_inflow->empty()) {
+        if (rate > amrex::Real(0.0)) {
+            dt_max = std::min(dt_max, static_cast<double>(m_in.cfl / rate));
+        }
+        rate = std::max(rate, m_inflow->max_rate(m_state, m_time, m_time + dt_max));
+    }
+    dry = !(rate > amrex::Real(0.0));
     if (!dry) { dt_max = std::min(dt_max, static_cast<double>(m_in.cfl / rate)); }
     // The largest rain rate over that span bounds the rain of the step, which
     // is no longer.
@@ -223,8 +238,8 @@ Flood::compute_dt (bool& lands, bool& dry) const
     } else if (dry) {
         if (!m_in.stop_time.has_value()) {
             amrex::Abort("No cell has a wave speed above zero (no depth is above flume.dry_depth),"
-                         " and no rain falls from this time on, so nothing sets the time step:"
-                         " set flume.stop_time");
+                         " and no rain falls and no water enters through a discharge segment"
+                         " from this time on, so nothing sets the time step: set flume.stop_time");
         }
         lands = true;
         return *m_in.stop_time - m_time;
@@ -299,14 +314,14 @@ Flood::evolve ()
                 // uses it, for the outflow of the balance.
                 const double half = 0.5 * static_cast<double>(dt_real);
                 amrex::MultiFab::Copy(m_state_old, m_state, 0, 0, State::ncomp, 0);
-                advance_stage(dt_real, half);
+                advance_stage(dt_real, half, time_end);
                 // The second stage does not start from a state that a step
                 // would stop on.
                 check_state();
-                advance_stage(dt_real, half);
+                advance_stage(dt_real, half, time_end);
                 average_with(m_state, m_state_old, m_in.dry_depth);
             } else {
-                advance_stage(dt_real, static_cast<double>(dt_real));
+                advance_stage(dt_real, static_cast<double>(dt_real), time_end);
             }
         } else {
             // Every cell is dry: zero its discharges, as a step with fluxes

@@ -96,7 +96,9 @@ limit_outflow (amrex::Array<amrex::MultiFab, 2>& flux, amrex::MultiFab& factor,
     const amrex::Real dtdy = dt / geom.CellSize(1);
     // Ghost cells outside the domain keep 1. Through an outflow piece, water
     // leaving is limited by the factor of the cell inside, and water entering
-    // takes the ghost cell's 1 (no limit). The mass flux through a wall is
+    // takes the ghost cell's 1 (no limit). The faces of a discharge segment
+    // carry only water entering (FLUME_Inflow.cpp), so they keep their flux
+    // as long as these ghost cells keep 1. The mass flux through a wall is
     // zero, or the rounding of one product where the compiler contracts the
     // flux into a fused multiply-add: mass then leaves the cell inside, and
     // the factor of the ghost cell is not the one used.

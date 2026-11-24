@@ -113,8 +113,8 @@ Output
        and of the gauge files, from 0 to 2147483647; 0 writes no log. With
        a log, the first and the last step are always written
        (:ref:`sec:WaterBalanceLog`). Each line adds a reduction over the
-       ranks; with outflow segments, every stage adds one reduction per
-       segment; ``0`` adds none.
+       ranks; with outflow or discharge segments, every stage adds one
+       reduction per segment; ``0`` adds none.
    * - ``flume.check_file``
      - string
      - ``chk``
@@ -182,8 +182,8 @@ gives it another type (:doc:`theory/Boundaries`).
    * - ``flume.bc.<name>.type``
      - string
      - required
-     - ``wall`` or ``outflow``. ``discharge`` and ``stage`` are reserved and
-       stop the run.
+     - ``wall``, ``outflow`` or ``discharge`` (an inflow hydrograph,
+       :ref:`sec:Inflow`). ``stage`` is reserved and stops the run.
    * - ``flume.bc.<name>.range``
      - 2 reals
      - whole side
@@ -191,6 +191,22 @@ gives it another type (:doc:`theory/Boundaries`).
        segment takes the boundary cells whose centre is at the first value
        or above and below the second: at least one, and no cell in two
        segments.
+   * - ``flume.bc.<name>.file``
+     - string
+     - required for ``discharge``
+     - Hydrograph of a ``discharge`` segment: lines of a time in s and a
+       discharge in m3/s (>= 0), the times strictly increasing; ``#``
+       starts a comment (:ref:`sec:HydrographFiles`). The discharge is
+       spread evenly over the width of the segment. Before the first time it is the first discharge, after
+       the last the last. Only with ``discharge``; not empty.
+   * - ``flume.bc.<name>.interpolation``
+     - string
+     - ``linear``
+     - ``linear`` interpolates the discharge in time between the entries;
+       ``step`` holds each discharge until the next time. Only with
+       ``discharge``. The default differs from that of
+       ``flume.rain.interpolation``: hydrographs are usually given as
+       points of a continuous curve.
 
 Bed and buildings
 -----------------

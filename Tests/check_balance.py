@@ -20,8 +20,9 @@ of the residual itself, which is formed from the cumulative totals in double
 precision, also in a single-precision build. A term left out of the balance fails as soon as
 it moves more than that. run_case.py calls check() after every regression run
 that leaves a log. It also recomputes the residual of every line from the
-columns, with the signs of the '# added:', '# removed:' and '# out:' header
-lines, and requires each column to be listed once.
+columns, with the signs of the '# added:', '# removed:', '# out:' and (when
+there is an inflow segment) '# in:' header lines, and requires each column to
+be listed once.
 
 --expect-columns gives the names of the columns from 'stored' to the last
 before 'residual'. --expect-final pins the last value of a column against a closed form, to the
@@ -66,8 +67,11 @@ def read_log(path):
 
 
 def read_terms(path):
-    """The columns of water added, and of water removed or out, from the header."""
+    """The columns of water added (with those of the optional '# in:' line, the
+    inflow through discharge segments), and of water removed or out, from the
+    header."""
     added = removed = out = None
+    inflow = []
     for line in Path(path).read_text().splitlines():
         if line.startswith("# added:"):
             added = line.split()[2:]
@@ -75,20 +79,22 @@ def read_terms(path):
             removed = line.split()[2:]
         elif line.startswith("# out:"):
             out = line.split()[2:]
+        elif line.startswith("# in:"):
+            inflow = line.split()[2:]
     if added is None or removed is None or out is None:
         raise ValueError(f"{path}: no '# added:', '# removed:' or '# out:' header line")
-    return added, removed + out
+    return added + inflow, removed + out
 
 
 def recompute(path, eps, names, rows, factor):
     """Check the logged residual of every line against the columns: stored -
-    stored at step 0 - added + removed + out, within factor * eps_d of the sum of
+    stored at step 0 - added + removed + out - in, within factor * eps_d of the sum of
     the magnitudes. Return an error message, or None."""
     added, removed = read_terms(path)
     listed = added + removed
     columns = names[3:-1]
     if sorted(listed) != sorted(columns):
-        return (f"the header lists {listed} as added, removed or out, but the columns are "
+        return (f"the header lists {listed} as added, removed, out or in, but the columns are "
                 f"{columns}")
     i_v = names.index("stored")
     i_r = names.index("residual")

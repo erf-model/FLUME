@@ -214,5 +214,5 @@ flume_add_abort_test(abort_rain_key_misspelled
 # A dry domain with no rain and no stop time: nothing sets the step. Rain of
 # 0 mm/h is no rain.
 flume_add_abort_test(abort_rain_zero_dry_without_stop_time
-    EXPECT "and no rain falls from this time on, so nothing sets the time step: set flume\\.stop_time"
+    EXPECT "and no rain falls and no water enters through a discharge segment from this time on, so nothing sets the time step: set flume\\.stop_time"
     ARGS ${ok} flume.rain.type=constant flume.rain.rate=0 flume.max_step=1)
