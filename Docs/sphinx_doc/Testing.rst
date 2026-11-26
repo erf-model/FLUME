@@ -29,6 +29,11 @@ registered.
    * - ``abort``
      - Runs that must stop with a non-zero exit code and a message naming
        the input.
+   * - ``erf``
+     - Runs of ``erf_exec``, registered only with ``FLUME_WITH_ERF=ON``
+       through ERF's CTest helpers (``Tests/ERFTestHelpers.cmake`` of
+       ``FLUME_ERF_DIR``). An ``erf`` test labelled ``abort`` checks the
+       message only, as ERF's helper does, not the exit code.
 
 :doc:`Verification` gives the analytical cases and their errors;
 :doc:`TestCatalog` lists every test.
@@ -69,8 +74,9 @@ Three workflows run on every pull request to ``development``.
    * - ``ci.yml``
      - GCC and Clang with MPI, and GCC Debug with AMReX's testing mode:
        build with warnings as errors, then every test. No MPI with single
-       precision: build and the 1-rank tests. CUDA, HIP and SYCL: compile
-       only.
+       precision: build and the 1-rank tests. GCC with MPI and ERF built
+       with FLUME (``FLUME_WITH_ERF=ON``): build, then every test. CUDA, HIP
+       and SYCL: compile only.
    * - ``style.yml``
      - ``codespell``, no tabs, no trailing whitespace, ``actionlint``.
    * - ``docs.yml``

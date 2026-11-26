@@ -9,8 +9,9 @@ well-balanced finite-volume scheme, wetting and drying, Manning friction and
 prescribed rain. It runs with MPI and compiles for CUDA, HIP and SYCL.
 
 FLUME runs stand-alone today and uses only AMReX, taken from the commit ERF
-pins. A build inside ERF, with rain from ERF's microphysics, is planned. The
-expansion of the name is a draft.
+pins. ERF can be built in the same CMake project (``FLUME_WITH_ERF``); a run
+inside ERF, with rain from ERF's microphysics, is planned. The expansion of
+the name is a draft.
 
 .. list-table:: Capabilities
    :header-rows: 1

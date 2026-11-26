@@ -530,3 +530,20 @@ Input checks
 Not repeated at second order: the closed forms of one first-order step, the
 lower bound of ``dam_break_dry_x_no_tolerance``, and the draining columns at
 CFL 0.8 and 1, which are above the 0.5 that ``flume.order = 2`` allows.
+
+ERF built with FLUME
+--------------------
+
+Registered only with ``FLUME_WITH_ERF=ON``, through ERF's CTest helpers.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 34 66
+
+   * - Tests
+     - What is checked
+   * - ``erf_exec_flood_without_engine``
+     - ``erf_exec`` on ERF's example flood deck stops with the message that
+       no flood engine is compiled in: ERF's flood coupling is built and
+       FLUME is not yet an engine. Not registered when
+       ``ERF_FLOOD_ENGINE_DIRS`` is set.

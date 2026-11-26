@@ -56,7 +56,7 @@ Not yet available: storm-drain inlets and the coupling to ERF.
 | `Tests`             | Test decks, the test runner and the check scripts.                |
 | `Docs/sphinx_doc`   | The documentation (Sphinx): user guide, theory, verification.     |
 | `.github/workflows` | Continuous integration: builds and tests, style, documentation.   |
-| `Submodules/ERF`    | ERF, pinned to the tagged release 26.11. AMReX comes through ERF. |
+| `Submodules/ERF`    | ERF, pinned to a commit after tag 26.11. AMReX comes through ERF. |
 
 FLUME uses ERF the way [GALE](https://github.com/erf-model/GALE) and FLARE do:
 ERF is a submodule, FLUME holds only its own files, and every change FLUME needs
@@ -78,7 +78,8 @@ cmake --build build-rel -j 8
 ctest --test-dir build-rel --output-on-failure
 ```
 
-The stand-alone build compiles no ERF code. The CMake options, the inputs, the
+The stand-alone build compiles no ERF code; `-DFLUME_WITH_ERF=ON` also builds
+ERF from the submodule, on the same AMReX. The CMake options, the inputs, the
 tests and how to move the ERF submodule are in `Docs/sphinx_doc`:
 
 ```bash
