@@ -1204,8 +1204,14 @@ flume_add_regtest(raster_streets_overtop NPROCS 1
          flume.buildings.file=${raster}/streets_mask.asc flume.buildings.height=0.3
     CHECK ${check_raster} str --bed ${raster}/streets_bed.asc
           --buildings ${raster}/streets_mask.asc --building-height 0.3 --wet-buildings --conserved)
-# A file name relative to the directory the run starts in.
-file(RELATIVE_PATH bed_relative ${FLUME_TEST_RUN_DIR}/raster_bed_relative_path ${raster}/bed_coarse.asc)
+# A file name relative to the directory the run starts in. The bed is copied
+# into the build tree next to the run folder, so the relative path stays
+# inside the build tree and holds when that tree is reached through a
+# symbolic link (/tmp on macOS is /private/tmp, and CMake's path functions
+# drop the /private, so a path computed to the source tree can be one ".."
+# short).
+configure_file(${raster}/bed_coarse.asc ${FLUME_TEST_RUN_DIR}/../raster_bed/bed_coarse.asc COPYONLY)
+set(bed_relative ../../raster_bed/bed_coarse.asc)
 flume_add_regtest(raster_bed_relative_path NPROCS 1
     INPUTS ${raster}/inputs_bed
     ARGS flume.bed.file=${bed_relative}
