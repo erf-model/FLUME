@@ -1204,8 +1204,14 @@ flume_add_regtest(raster_streets_overtop NPROCS 1
          flume.buildings.file=${raster}/streets_mask.asc flume.buildings.height=0.3
     CHECK ${check_raster} str --bed ${raster}/streets_bed.asc
           --buildings ${raster}/streets_mask.asc --building-height 0.3 --wet-buildings --conserved)
-# A file name relative to the directory the run starts in.
-file(RELATIVE_PATH bed_relative ${FLUME_TEST_RUN_DIR}/raster_bed_relative_path ${raster}/bed_coarse.asc)
+# A file name relative to the directory the run starts in. The bed is copied
+# into the build tree next to the run folder, so the relative path stays
+# inside the build tree and holds when that tree is reached through a
+# symbolic link (/tmp on macOS is /private/tmp, and CMake's path functions
+# drop the /private, so a path computed to the source tree can be one ".."
+# short).
+configure_file(${raster}/bed_coarse.asc ${FLUME_TEST_RUN_DIR}/../raster_bed/bed_coarse.asc COPYONLY)
+set(bed_relative ../../raster_bed/bed_coarse.asc)
 flume_add_regtest(raster_bed_relative_path NPROCS 1
     INPUTS ${raster}/inputs_bed
     ARGS flume.bed.file=${bed_relative}
@@ -1825,3 +1831,35 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/Restart/RestartTests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/Inflow/InflowTests.cmake)
 # After the restart tests, whose function it uses.
 include(${CMAKE_CURRENT_SOURCE_DIR}/Drains/DrainsTests.cmake)
+
+# --- ERF built with FLUME (FLUME_WITH_ERF) ------------------------------------
+# These tests register through ERF's general CTest helpers
+# (Submodules/ERF/Tests/ERFTestHelpers.cmake) and run erf_exec, the way the
+# coupled tests of later steps will. FLUME's own tests above keep FLUME's
+# helpers: their checks are closed forms and conservation ledgers read by the
+# Python scripts here, not comparisons with gold plotfiles.
+#
+# erf_exec_flood_without_engine: ERF's example flood deck, which enables the
+# flood coupling, stops with the message that no flood engine is compiled in.
+# That message shows the flood coupling is built (without it the run stops
+# with "built without the flood coupling" instead) and that FLUME is not yet
+# registered as an engine. Registering FLUME will change this test. With an
+# engine compiled in (ERF_FLOOD_ENGINE_DIRS), the message cannot appear, so
+# the test is not registered.
+if(FLUME_WITH_ERF AND NOT ERF_FLOOD_ENGINE_DIRS)
+    include(${FLUME_ERF_DIR}/Tests/ERFTestHelpers.cmake)
+    # ERF's helper passes MPIEXEC_PREFLAGS to mpiexec; FLUME's launcher flags
+    # are added for this call only.
+    block()
+        string(STRIP "${FLUME_MPIEXEC_PREFLAGS} ${MPIEXEC_PREFLAGS}" MPIEXEC_PREFLAGS)
+        add_test_abort(erf_exec_flood_without_engine
+                       ${FLUME_ERF_DIR}/Tests/FloodEngineExample inputs_flood_example
+                       "erf.flood.enable = true, but no flood engine is compiled into this executable"
+                       "")
+    endblock()
+    # ERF's helper labels it "regression"; here it is an abort test of erf_exec.
+    set_tests_properties(erf_exec_flood_without_engine PROPERTIES LABELS "erf;abort")
+elseif(FLUME_WITH_ERF)
+    message(STATUS "FLUME: ERF_FLOOD_ENGINE_DIRS is set; "
+                   "erf_exec_flood_without_engine is not registered")
+endif()

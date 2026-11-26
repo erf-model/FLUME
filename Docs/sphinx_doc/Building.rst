@@ -37,7 +37,50 @@ The executable is ``build-rel/flume``. The default build type is ``Release``.
 Build directories named ``build-<something>`` are ignored by git.
 
 The flood grid is two-dimensional. AMReX is built in three dimensions with
-boxes one cell thick, so the same code can later link with ERF.
+boxes one cell thick, so the same code links with ERF.
+
+Building ERF with FLUME
+-----------------------
+
+With ``-DFLUME_WITH_ERF=ON``, FLUME adds ERF as a CMake subproject, the way
+ERF's own ``Tests/ParentProject`` and GALE do. One configure builds ``flume``
+and ERF's ``erf_exec``, and both link one AMReX, built with ERF's AMReX
+options. ERF needs no submodule other than AMReX.
+
+.. code-block:: bash
+
+   cmake -S . -B build-erf -DCMAKE_BUILD_TYPE=Release -DFLUME_WITH_ERF=ON
+   cmake --build build-erf -j 8
+   ctest --test-dir build-erf --output-on-failure
+
+``erf_exec`` is in ``build-erf/ERF/Exec``. ERF is built with its flood
+coupling (``ERF_ENABLE_FLOOD=ON``). FLUME is not yet registered as a flood
+engine, so a deck with ``erf.flood.enable = true`` stops with a message that
+no flood engine is compiled in. The test ``erf_exec_flood_without_engine``
+checks that message. With another engine compiled in through ERF's
+``ERF_FLOOD_ENGINE_DIRS``, that test is not registered.
+
+FLUME's options set ERF's: ``FLUME_MPI`` sets ``ERF_ENABLE_MPI``,
+``FLUME_PRECISION`` sets ``ERF_PRECISION`` and ``FLUME_GPU_BACKEND`` sets
+``ERF_ENABLE_CUDA``, ``ERF_ENABLE_HIP`` or ``ERF_ENABLE_SYCL``. OpenMP stays
+off. An ERF cache entry that disagrees with both the FLUME option and the
+value FLUME wrote at the last configure, for example
+``-DERF_ENABLE_MPI=OFF`` with ``FLUME_MPI=ON`` on a first configure, stops
+the configure step and names the FLUME option to set instead. A value equal
+to the one FLUME wrote at the last configure is taken as FLUME's own and is
+replaced when the FLUME option changes. The stand-alone build
+(``FLUME_WITH_ERF=OFF``, the default) compiles no ERF code.
+
+ERF's other options keep ERF's defaults. ERF's own tests
+(``ERF_ENABLE_TESTS=ON``) also need ERF's ``googletest`` submodule, and add
+ERF's suite, with ERF's labels, to FLUME's ``ctest``.
+
+With CUDA, give ``CMAKE_CUDA_ARCHITECTURES``: FLUME enables CUDA before ERF
+is added, so ERF's detection of the architecture on Cray machines is skipped. ERF's AMReX options
+also make a device lambda that captures ``this`` a compile error.
+
+The continuous integration builds and tests this layout with gcc, MPI and
+double precision on the CPU. GPU builds with ERF are not tested there.
 
 CMake options
 -------------
@@ -74,6 +117,16 @@ CMake options
      - empty
      - Extra ``mpiexec`` flags for the tests, for example
        ``--oversubscribe``.
+   * - ``FLUME_WITH_ERF``
+     - ``OFF``
+     - Also build ERF (``erf_exec``) from ``FLUME_ERF_DIR`` as a subproject,
+       on one AMReX. See `Building ERF with FLUME`_.
+   * - ``FLUME_ERF_DIR``
+     - ``Submodules/ERF``
+     - ERF source tree. AMReX is taken from its ``Submodules/AMReX``. A
+       folder without AMReX stops the configure step. With
+       ``FLUME_WITH_ERF``, a folder that is not an ERF tree with the flood
+       coupling (erf-model/ERF#5375 or later) also stops it.
 
 A value outside the list of ``FLUME_PRECISION`` or ``FLUME_GPU_BACKEND`` stops
 the configure step. FLUME builds without OpenMP; ``FLUME_OMP=ON`` stops the

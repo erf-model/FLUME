@@ -116,6 +116,72 @@ jobs:
         run: ccache -s
 
   # ---------------------------------------------------------------------
+  # ERF built with FLUME (FLUME_WITH_ERF=ON): ERF is a subproject, and
+  # FLUME and erf_exec link one AMReX, built with ERF's options. Every
+  # FLUME test runs, plus the tests registered through ERF's helpers.
+  # ---------------------------------------------------------------------
+  with-erf:
+    name: CPU gcc Release, ERF built with FLUME
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      # ERF and AMReX with EB and the linear solvers need more than the
+      # 500M of the other jobs.
+      CCACHE_MAXSIZE: "2G"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          submodules: true
+
+      - name: AMReX from the ERF submodule
+        run: git -C Submodules/ERF submodule update --init --depth 1 Submodules/AMReX
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            build-essential cmake ninja-build ccache \
+            libopenmpi-dev openmpi-bin
+
+      - name: Set up ccache
+        uses: actions/cache@v6
+        with:
+          path: .ccache
+          key: ccache-with-erf-${{ github.sha }}
+          restore-keys: ccache-with-erf-
+
+      - name: Configure
+        run: |
+          cmake -S . -B build-ci -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DFLUME_WITH_ERF=ON \
+            -DFLUME_MPI=ON \
+            -DFLUME_WERROR=ON \
+            -DFLUME_MPIEXEC_PREFLAGS=--oversubscribe \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+
+      - name: Build
+        run: cmake --build build-ci --parallel
+
+      - name: Tests
+        run: ctest --test-dir build-ci --output-on-failure
+
+      - name: Working tree stays clean
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "The build or the tests left files behind:"
+            git status --porcelain
+            exit 1
+          fi
+
+      - name: ccache stats
+        if: always()
+        run: ccache -s
+
+  # ---------------------------------------------------------------------
   # No MPI, single precision: build, then the tests that need one rank.
   # ---------------------------------------------------------------------
   serial-single:
@@ -162,7 +228,8 @@ jobs:
   # ---------------------------------------------------------------------
   # CUDA: compile only. Hosted runners have no GPU. A device lambda that
   # captures `this` or a host container is a compile error under nvcc and
-  # invisible to a CPU build; this job catches it.
+  # invisible to a CPU build; this job catches it. A `this` capture is an
+  # error here, as it is in ERF's AMReX options (FLUME_WITH_ERF).
   # ---------------------------------------------------------------------
   cuda:
     name: CUDA (compile only)
@@ -203,7 +270,8 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release \
             -DFLUME_MPI=OFF \
             -DFLUME_GPU_BACKEND=CUDA \
-            -DCMAKE_CUDA_ARCHITECTURES=90
+            -DCMAKE_CUDA_ARCHITECTURES=90 \
+            -DAMReX_CUDA_ERROR_CAPTURE_THIS=ON
           cmake --build build-ci --parallel
 
   # ---------------------------------------------------------------------
