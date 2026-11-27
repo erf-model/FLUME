@@ -169,6 +169,17 @@ flume_add_abort_test(abort_rain_interpolation_with_constant
 flume_add_abort_test(abort_rain_file_without_type
     EXPECT "flume\\.rain\\.file is read only with flume\\.rain\\.type = hyetograph or gridded"
     ARGS ${ok} flume.rain.file=${rain_dir}/hyetograph_steps.txt)
+# flume.rain.replay_file writes the rain of ERF's microphysics; a stand-alone
+# run stops on it with any rain type (Tests/ERFReplay has the coupled runs).
+flume_add_abort_test(abort_rain_replay_file_with_constant
+    EXPECT "flume\\.rain\\.replay_file is read only with flume\\.rain\\.type = microphysics"
+    ARGS ${ok} flume.rain.type=constant flume.rain.rate=10 flume.rain.replay_file=replay.txt)
+flume_add_abort_test(abort_rain_replay_file_without_type
+    EXPECT "flume\\.rain\\.replay_file is read only with flume\\.rain\\.type = microphysics"
+    ARGS ${ok} flume.rain.replay_file=replay.txt)
+flume_add_abort_test(abort_rain_replay_file_empty_name
+    EXPECT "flume\\.rain\\.replay_file must not be empty: the name of the index file to write"
+    ARGS ${ok} "flume.rain.replay_file=\"\"")
 flume_add_abort_test(abort_rain_interpolation_without_type
     EXPECT "flume\\.rain\\.interpolation is read only with flume\\.rain\\.type = hyetograph or gridded"
     ARGS ${ok} flume.rain.interpolation=linear)

@@ -127,7 +127,8 @@ public:
         // ERF's time at the end of its step (in double, as ERF keeps it).
         const double t_end = forcing.time + static_cast<double>(forcing.dt);
         if (flume::HostRain* rain = m_flood->host_rain()) {
-            set_rain(*rain, forcing, t_end);
+            set_rain(*rain, forcing);
+            m_flood->set_host_rain_step(forcing.time, t_end, "ERF's microphysics");
         }
         while (m_flood->time() < t_end) { m_flood->step_to(t_end); }
         ++m_steps;
@@ -198,11 +199,11 @@ public:
 
 private:
     /**
-     * The rain of this ERF step on the flood grid: the precipitation of each
+     * Fill rain.depth() with the rain of this ERF step on the flood grid: the precipitation of each
      * column (kg/m2, the liquid and the frozen part) on every flood cell under
      * it, as a depth of liquid water, m (1 kg/m2 is 1 mm).
      */
-    void set_rain (flume::HostRain& rain, const FloodForcing& forcing, double t_end)
+    void set_rain (flume::HostRain& rain, const FloodForcing& forcing)
     {
         if (forcing.precip_k0 == nullptr) {
             amrex::Abort("[FLOOD] flume: flume.rain.type = microphysics, but ERF handed over no"
@@ -227,7 +228,6 @@ private:
             d[b](i, j, k) = (p[b](i, j, k, 0) + p[b](i, j, k, 1)) * kg_per_m2_to_m;
         });
         amrex::Gpu::streamSynchronize();
-        rain.set_step(forcing.time, t_end, "ERF's microphysics");
     }
 
     //! FLUME's checkpoint inside ERF's, on the flood grid's level.

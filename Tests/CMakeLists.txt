@@ -1825,6 +1825,7 @@ flume_add_abort_test(abort_raster_buildings_negative
 # In their own file, which uses the functions and ${ok} above.
 include(${CMAKE_CURRENT_SOURCE_DIR}/Rain/RainTests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/RainField/RainFieldTests.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/RainReplay/RainReplayTests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/Infiltration/InfiltrationTests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/WaterBalance/WaterBalanceTests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/Restart/RestartTests.cmake)
@@ -1864,4 +1865,5 @@ flume_add_abort_test(abort_max_dt_negative
 if(FLUME_WITH_ERF)
     include(${CMAKE_CURRENT_SOURCE_DIR}/ERF/ERFTests.cmake)
     include(${CMAKE_CURRENT_SOURCE_DIR}/ERFRain/ERFRainTests.cmake)
+    include(${CMAKE_CURRENT_SOURCE_DIR}/ERFReplay/ERFReplayTests.cmake)
 endif()

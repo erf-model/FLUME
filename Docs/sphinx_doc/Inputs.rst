@@ -338,6 +338,15 @@ Rain
      - ``step``
      - ``step`` holds each rate (or grid) until the next time; ``linear``
        interpolates in time. Only with ``hyetograph`` or ``gridded``.
+   * - ``flume.rain.replay_file``
+     - string
+     - none
+     - Inside ERF only, with ``microphysics``: the index file
+       (:ref:`sec:RainIndexFiles`) to write ERF's rain to, for a
+       stand-alone replay with ``gridded`` (:ref:`sec:RainReplay`). Not
+       empty; the path ends in a file name with no blank and no ``#``.
+       Only with ``microphysics``. Its directory is made; an existing index
+       is replaced at the start of a run.
    * - ``flume.rain.cell.peak_rate``
      - real
      - required with ``moving_cell``

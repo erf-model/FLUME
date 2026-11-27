@@ -447,3 +447,67 @@ bit: the plotfiles, the water balance and the gauge files. The test
 number that sums exactly in binary, such as 0.25 s, and the stand-alone
 ``flume.stop_time`` a whole number of steps. With a step such as 0.1 s the
 two runs differ by round-off.
+
+.. _sec:RainReplay:
+
+Replay of ERF's rain
+~~~~~~~~~~~~~~~~~~~~
+
+With ``flume.rain.replay_file = <dir>/<stem>.txt`` and
+``flume.rain.type = microphysics``, FLUME writes the rain it takes from ERF
+as gridded rain (:ref:`sec:RainIndexFiles`). A stand-alone run of the same
+flood with ``flume.rain.type = gridded`` and ``flume.rain.file`` set to that
+index reads it back without the atmosphere. It gives the coupled flood to
+round-off, and it can run on through the hours of recession after the rain
+without advancing ERF.
+
+- Each ERF step with rain from :math:`t_0` to :math:`t_1` adds the line
+  ``t0 <stem>_<n>.asc`` to the index, where ``<n>`` counts the grids from
+  ``000001``. The grid, in ``<dir>``, holds the rate of each flood cell in
+  mm/h, :math:`D / (t_1 - t_0) \times 3.6 \times 10^6` for a depth
+  :math:`D` in m, with 17 significant digits.
+- The index always ends with ``t <stem>_zero.asc``, a grid of no rain at
+  the end of the last step with rain (at the start, the start time). Read
+  with ``flume.rain.interpolation = step`` (the default), the replay gets
+  ERF's rain step by step and no rain after it. An ERF step of no rain adds
+  no line.
+- The index is written in place: a step with rain writes its line over the
+  closing line before it and a new closing line after it. A run that stops
+  between two steps leaves an index that ends with its closing line. At
+  the start of a run the directory is made and an existing index is
+  replaced (grids of an earlier, longer run stay in the directory, but the
+  index does not name them).
+- ERF's checkpoint holds the state of the index: its size, its closing line
+  and the number of grids of rain in it. A restart cuts the index back to
+  that state and goes on with the same names. The restart stops if the
+  index is missing or does not hold what the run had written when it wrote
+  the checkpoint (for example, the index of a run that went on from an older
+  checkpoint and was stopped), or if the checkpoint was written without
+  ``flume.rain.replay_file``.
+- A negative depth of a step (a correction from a finer level) is not
+  written in its step: it is taken from the rain the cell gets in the steps
+  that follow, and the part still held goes into the checkpoint. The
+  coupled run takes such a deficit from the depth at the next step with
+  rain; a rate cannot be negative, so the replay takes it from that rain
+  only. The replay is deeper by up to the deficit until the rain has made it
+  up; the totals agree.
+- The stand-alone run sets the flood grid that ERF sets in the coupled run
+  (``flume.n_cell``, ``flume.prob_lo``, ``flume.prob_hi``,
+  ``flume.periodic``; ``Tests/ERFReplay/inputs_replay`` is an example),
+  keeps ``flume.rain.interpolation = step``, and does not set
+  ``flume.rain.replay_file``. The times of the index are ERF's: a flood
+  that starts with ERF at a time :math:`T > 0` has an index that starts at
+  :math:`T`, and a replay from 0 s is dry until then. To end the replay
+  where the coupled run ended, set ``flume.stop_time`` to the time of the
+  last line of the index, written with 17 digits.
+- The replay runs on any boxes and ranks. With the same steps as the
+  coupled run (``flume.max_dt`` equal to ERF's step, as in
+  ``Tests/ERFReplay``), it gives the coupled depths to round-off: each
+  step's rain comes back within 2 units of round-off, and the flow can carry
+  that on, most in thin layers of water. With FLUME steps inside each ERF
+  step, or stand-alone steps that do not land on the times of the index, the
+  two runs agree to within the difference in their steps.
+- The grids are ESRI ASCII text: about 25 bytes per flood cell per step
+  with rain. Each step with rain gathers the whole flood grid on one rank
+  to write it, and the stand-alone run reads every grid at its start; the
+  grid numbers have six digits, so names sort in order up to 999999 grids.

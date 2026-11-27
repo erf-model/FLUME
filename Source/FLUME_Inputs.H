@@ -221,6 +221,12 @@ struct Inputs
     //! only with them)
     std::string rain_file;
 
+    //! With flume.rain.type = microphysics, the index file to write the
+    //! host's rain to, as gridded rain that a stand-alone run reads back
+    //! (FLUME_RainReplay.H); empty: none (flume.rain.replay_file; default
+    //! none; not empty; read only with flume.rain.type = microphysics)
+    std::string rain_replay_file;
+
     //! How the rate runs between the entries of the hyetograph or the index
     //! (flume.rain.interpolation; default step; step or linear; read only
     //! with flume.rain.type = hyetograph or gridded)
