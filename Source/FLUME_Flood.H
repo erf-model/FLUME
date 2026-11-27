@@ -18,6 +18,7 @@
 #include <AMReX_REAL.H>
 
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -57,9 +58,55 @@ public:
     //! that checkpoint (restart()).
     explicit Flood (const Inputs& in);
 
+    /**
+     * Build on the boxes and owners of a host model (ERF,
+     * FLUME_ERFFloodEngine.cpp) instead of chopping the domain by
+     * flume.max_grid_size. The boxes must cover the domain of `in` once, one
+     * cell thick (aborts otherwise). No restart: the host calls restart().
+     */
+    Flood (const Inputs& in, const amrex::BoxArray& ba, const amrex::DistributionMapping& dm);
+
     //! Write the initial plotfile (not on a restart), run the time loop,
     //! write the last plotfile, and the checkpoints with flume.check_int.
+    //! The stand-alone run: start_maps(), write_plotfile(), start_logs(),
+    //! step_to(flume.stop_time) until the end, then finish(true).
     void evolve ();
+
+    //! The flood maps take the initial state (with flume.flood_maps = 1).
+    void start_maps ();
+
+    //! The water balance takes the initial state, and the gauge files are
+    //! started with the line of the current step (with flume.log_int > 0).
+    void start_logs ();
+
+    /**
+     * Take one step, set by compute_dt() with `target` as the time to land
+     * on (flume.stop_time in a stand-alone run, the end of the host's step
+     * inside a host model). The maps take the new state; the logs, plotfile
+     * and checkpoint are written every flume.log_int, plot_int and check_int
+     * steps.
+     */
+    void step_to (const std::optional<double>& target);
+
+    //! The end of the run: the last plotfile (with `write_plot`), log lines
+    //! and checkpoint where the last step did not write them, and the
+    //! water-balance summary.
+    void finish (bool write_plot);
+
+    //! Set the time, s, to the host model's (finite, >= 0; aborts otherwise).
+    void set_time (double t);
+
+    //! Whether the run continues from a checkpoint (restart()).
+    [[nodiscard]] bool restarted () const { return m_restart_step >= 0; }
+
+    /**
+     * Continue from the checkpoint `dir`: the time, step, state, sources,
+     * balance and maps; the logs are cut back to its step and appended to.
+     * Aborts, naming flume.restart, when the checkpoint does not match the
+     * inputs: another precision, grid, periodicity, bed, list of sources
+     * or of outflow and discharge segments, or no maps with flume.flood_maps = 1.
+     */
+    void restart (const std::string& dir);
 
     /**
      * Write <check_file><step>: the time and step, the state, the bed, what
@@ -68,25 +115,32 @@ public:
      */
     void write_checkpoint () const;
 
+    //! write_checkpoint() into the directory `name`.
+    void write_checkpoint (const std::string& name) const;
+
     /**
      * The next time step, s: cfl / max_wave_rate(), or with rain falling
-     * during it rain_limited_step() (FLUME_TimeStep.H). With discharge
+     * during it rain_limited_step() (FLUME_TimeStep.H), and no longer than
+     * flume.max_dt. With discharge
      * segments the rate is at least that of their face states
      * (Inflow::max_rate), with the largest discharge from now to the end of
-     * the longest step allowed: the stop time, or sooner the CFL step of the
-     * cells; over a dry domain with no stop time, the rest of the hydrograph,
+     * the longest step allowed: the target time or flume.max_dt, or sooner
+     * the CFL step of the
+     * cells; over a dry domain with neither, the rest of the hydrograph,
      * so that a later peak sets the step from the start (safe, and smaller
      * than needed). A domain with a discharge above 0 to come is not dry. A step that reaches
-     * flume.stop_time, or falls short of it by round-off only (4 machine
-     * epsilons of the stop time), is set to end on it. With no wave anywhere
+     * `target` (flume.stop_time in a stand-alone run, the end of the host's
+     * step inside a host model), or falls short of it by round-off only (4
+     * machine epsilons of the target), is set to end on it. With no wave anywhere
      * (a dry domain) `dry` is set: the step is the rain-limited one if rain
-     * falls before flume.stop_time (or ever, without a stop time), and
-     * otherwise goes straight to flume.stop_time; with neither rain nor a
-     * stop time it aborts. Aborts as check_state() does, and on a step that
+     * falls before the target (or ever, without one), and
+     * otherwise goes straight to the target, or takes flume.max_dt; with
+     * neither rain, a target nor flume.max_dt it aborts. Aborts as
+     * check_state() does, and on a step that
      * is zero, not finite or too small to advance the time. `lands` is set
-     * when the step ends at flume.stop_time.
+     * when the step ends at the target.
      */
-    double compute_dt (bool& lands, bool& dry) const;
+    double compute_dt (bool& lands, bool& dry, const std::optional<double>& target) const;
 
     //! Abort if a depth is negative or not finite, or a wave speed is not
     //! finite, in any cell. Returns the largest wave rate (FLUME_TimeStep.H).
@@ -98,6 +152,9 @@ public:
     //! drained_depth with drain inlets),
     //! then the flood maps (with flume.flood_maps = 1).
     void write_plotfile () const;
+
+    //! write_plotfile() into the plotfile `name`.
+    void write_plotfile (const std::string& name) const;
 
     [[nodiscard]] double time () const { return m_time; }
     [[nodiscard]] int step () const { return m_step; }
@@ -117,14 +174,9 @@ private:
     //! The water-balance line and the gauge lines of the current step.
     void write_logs ();
 
-    /**
-     * Continue from the checkpoint `dir`: the time, step, state, sources,
-     * balance and maps; the logs are cut back to its step and appended to.
-     * Aborts, naming flume.restart, when the checkpoint does not match the
-     * inputs: another precision, grid, periodicity, bed, list of sources
-     * or of outflow and discharge segments, or no maps with flume.flood_maps = 1.
-     */
-    void restart (const std::string& dir);
+    //! Allocate the fields, fill the bed and the initial state, and set up
+    //! the forcing, sources, inflow, balance, maps and gauges on m_ba, m_dm.
+    void build ();
 
     Inputs m_in;
     amrex::Geometry m_geom;
@@ -164,6 +216,13 @@ private:
     int m_step = 0;
     //! The step of the checkpoint the run continues from, or -1
     int m_restart_step = -1;
+    //! The steps of the last plotfile, log line and checkpoint (-1: none)
+    int m_last_plot = 0;
+    int m_last_log = 0;
+    int m_last_check = -1;
+    //! Whether the last step found the domain dry (the message for a dry
+    //! domain is printed once per dry spell)
+    bool m_was_dry = false;
 };
 
 } // namespace flume

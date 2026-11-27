@@ -118,7 +118,7 @@ jobs:
   # ---------------------------------------------------------------------
   # ERF built with FLUME (FLUME_WITH_ERF=ON): ERF is a subproject, and
   # FLUME and erf_exec link one AMReX, built with ERF's options. Every
-  # FLUME test runs, plus the tests registered through ERF's helpers.
+  # FLUME test runs, plus the ERF tests of Tests/ERF/ERFTests.cmake.
   # ---------------------------------------------------------------------
   with-erf:
     name: CPU gcc Release, ERF built with FLUME

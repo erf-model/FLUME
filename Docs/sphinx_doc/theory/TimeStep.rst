@@ -12,9 +12,10 @@ taken over all boxes and all MPI ranks, and the time step is
 
 .. math::
 
-   \Delta t = \frac{C}{r} ,
+   \Delta t = \min\left(\frac{C}{r},\; \Delta t_{\max}\right) ,
 
-with the CFL number :math:`C` (``flume.cfl``). The rates of the two
+with the CFL number :math:`C` (``flume.cfl``) and the longest step
+:math:`\Delta t_{\max}` (``flume.max_dt``, no limit if not set). The rates of the two
 directions are added because the scheme is unsplit.
 
 .. list-table::
@@ -33,8 +34,11 @@ directions are added because the scheme is unsplit.
        the outflow limit, first order where it acts, becomes part of the
        scheme.
 
-The step is shortened to end on ``flume.stop_time``, and lengthened when it
-falls short of it by round-off only. The time is held in double precision in
+The step is shortened to end on ``flume.stop_time`` (inside ERF, on the end
+of each ERF step), and lengthened onto it when it falls short by round-off
+of the summed steps, or by less than 10\ :sup:`-6` of the step, as ERF ends
+its own run. A step of ``flume.max_dt`` a hair below ERF's step thus lands
+on the end of the ERF step, with no extra step of 10\ :sup:`-9` s after it. The time is held in double precision in
 every build. The run stops if the step is zero, not finite, or too small to
 change the time.
 
@@ -80,7 +84,11 @@ prints so, once for each such spell) and the sources still act.
      - Step
    * - Rain ahead
      - The rain bound sets the step.
-   * - No rain, ``flume.stop_time`` given
+   * - No rain, ``flume.max_dt`` given
+     - Steps of ``flume.max_dt``, the last one shortened onto the stop
+       time if there is one.
+   * - No rain, ``flume.stop_time`` given, no ``flume.max_dt``
      - One step to the stop time.
    * - No rain, ``flume.max_step`` alone
-     - The run stops with a message asking for ``flume.stop_time``.
+     - The run stops with a message asking for ``flume.stop_time`` or
+       ``flume.max_dt``.

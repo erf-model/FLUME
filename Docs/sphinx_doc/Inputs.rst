@@ -43,6 +43,11 @@ In each direction the corners must be at most one eighth of the largest
 floating-point number in magnitude, and the cell size must be a normal number
 of at least machine epsilon times the larger corner (:ref:`sec:Precision`).
 
+Inside ERF, ERF sets these keys and ``flume.stop_time``, ``flume.max_step``,
+``flume.plot_file``, ``flume.plot_int``, ``flume.check_file``,
+``flume.check_int`` and ``flume.restart``. Each of them stops the run if it
+is given (:ref:`sec:InsideERF`).
+
 Time loop and scheme
 --------------------
 
@@ -63,6 +68,16 @@ Time loop and scheme
      - integer
      - none
      - Largest number of steps. From 0 to 2147483647.
+   * - ``flume.max_dt``
+     - real
+     - none
+     - Longest time step, s. Finite, greater than 0. The step is the
+       shortest of this, the CFL step and the step with rain
+       (:doc:`theory/TimeStep`). A dry domain with no rain to come takes
+       steps of this length. Held in double precision in every build.
+       Inside ERF, with ERF's ``erf.fixed_dt`` equal to it, each ERF step
+       is one FLUME step while the CFL step is not shorter
+       (:ref:`sec:InsideERF`).
    * - ``flume.cfl``
      - real
      - ``0.5``

@@ -2,6 +2,7 @@
 #define FLUME_INPUTS_H_
 
 #include <AMReX_Array.H>
+#include <AMReX_Geometry.H>
 #include <AMReX_REAL.H>
 
 #include <optional>
@@ -171,6 +172,12 @@ struct Inputs
     //! Largest number of steps (flume.max_step; no default; >= 0). With neither
     //! stop_time nor max_step the run takes no step.
     std::optional<int> max_step;
+
+    //! Largest time step, s (flume.max_dt; no default: the step is set by the
+    //! CFL number and the rain alone; finite, > 0). In double precision in
+    //! every build, as the time is. A step of max_dt ends at the time plus
+    //! max_dt, as a step of a host model that uses the same fixed step does.
+    std::optional<double> max_dt;
 
     //! CFL number of the time step, with the rates of the two directions
     //! added (flume.cfl; default 0.5; > 0 and <= 1)
@@ -377,8 +384,17 @@ struct Inputs
     int init_dam_direction = 0;
 };
 
-//! Read and check the "flume" namespace. Aborts on a bad value or an unknown key.
-Inputs read_inputs ();
+/**
+ * Read and check the "flume" namespace. Aborts on a bad value or an unknown key.
+ *
+ * With `host_grid`, FLUME runs inside a host model that owns the grid, the
+ * output files and the end of the run (ERF, FLUME_ERFFloodEngine.cpp): n_cell,
+ * prob_lo, prob_hi and periodic are taken from `host_grid`, and the keys the
+ * host sets (n_cell, prob_lo, prob_hi, periodic, max_grid_size, plot_file,
+ * plot_int, check_file, check_int, restart, stop_time, max_step) abort when
+ * given.
+ */
+Inputs read_inputs (const amrex::Geometry* host_grid = nullptr);
 
 } // namespace flume
 

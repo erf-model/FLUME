@@ -1832,34 +1832,35 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/Inflow/InflowTests.cmake)
 # After the restart tests, whose function it uses.
 include(${CMAKE_CURRENT_SOURCE_DIR}/Drains/DrainsTests.cmake)
 
+# --- flume.max_dt: the longest step, s (finite, > 0) ------------------------
+# max_dt_plane: rain of 50 mm/h on a sloping plane of 64 x 8 cells of 1 m,
+# 600 steps of flume.max_dt = 0.25 s, the CFL and rain steps staying above
+# 0.99 s. The check shows that every step was 0.25 s. It is also the
+# stand-alone run the coupled ERF run (Tests/ERF, erf_flume_plane) must give
+# to the last bit, and it uses that case's decks.
+flume_add_regtest(max_dt_plane NPROCS 2
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/ERF/inputs_standalone
+    ARGS FILE=${CMAKE_CURRENT_SOURCE_DIR}/ERF/flume_plane
+    CHECK ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/ERF/check_coupled.py flood --dt 0.25)
+if(TEST max_dt_plane)
+    set_tests_properties(max_dt_plane PROPERTIES FIXTURES_SETUP max_dt_plane)
+endif()
+# A dry domain with no rain, no stop time and flume.max_dt takes steps of
+# flume.max_dt (without it the run stops: abort_rain_zero_dry_without_stop_time).
+flume_add_regtest(max_dt_dry_no_stop_time NPROCS 1
+    INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/Skeleton/inputs
+    ARGS flume.max_dt=2.5 flume.max_step=3
+    CHECK ${check_plotfile} skel --steps 0 3 --times 0 7.5 ${skel_grid} --n-files 1 --rtol 0)
+flume_add_abort_test(abort_max_dt_zero
+    EXPECT "flume\\.max_dt must be > 0; it is 0"
+    ARGS flume.n_cell=4\ 4 flume.prob_hi=4\ 4 flume.max_dt=0)
+flume_add_abort_test(abort_max_dt_negative
+    EXPECT "flume\\.max_dt must be > 0; it is -0\\.25"
+    ARGS flume.n_cell=4\ 4 flume.prob_hi=4\ 4 flume.max_dt=-0.25)
+
 # --- ERF built with FLUME (FLUME_WITH_ERF) ------------------------------------
-# These tests register through ERF's general CTest helpers
-# (Submodules/ERF/Tests/ERFTestHelpers.cmake) and run erf_exec, the way the
-# coupled tests of later steps will. FLUME's own tests above keep FLUME's
-# helpers: their checks are closed forms and conservation ledgers read by the
-# Python scripts here, not comparisons with gold plotfiles.
-#
-# erf_exec_flood_without_engine: ERF's example flood deck, which enables the
-# flood coupling, stops with the message that no flood engine is compiled in.
-# That message shows the flood coupling is built (without it the run stops
-# with "built without the flood coupling" instead) and that FLUME is not yet
-# registered as an engine. Registering FLUME will change this test. With an
-# engine compiled in (ERF_FLOOD_ENGINE_DIRS), the message cannot appear, so
-# the test is not registered.
-if(FLUME_WITH_ERF AND NOT ERF_FLOOD_ENGINE_DIRS)
-    include(${FLUME_ERF_DIR}/Tests/ERFTestHelpers.cmake)
-    # ERF's helper passes MPIEXEC_PREFLAGS to mpiexec; FLUME's launcher flags
-    # are added for this call only.
-    block()
-        string(STRIP "${FLUME_MPIEXEC_PREFLAGS} ${MPIEXEC_PREFLAGS}" MPIEXEC_PREFLAGS)
-        add_test_abort(erf_exec_flood_without_engine
-                       ${FLUME_ERF_DIR}/Tests/FloodEngineExample inputs_flood_example
-                       "erf.flood.enable = true, but no flood engine is compiled into this executable"
-                       "")
-    endblock()
-    # ERF's helper labels it "regression"; here it is an abort test of erf_exec.
-    set_tests_properties(erf_exec_flood_without_engine PROPERTIES LABELS "erf;abort")
-elseif(FLUME_WITH_ERF)
-    message(STATUS "FLUME: ERF_FLOOD_ENGINE_DIRS is set; "
-                   "erf_exec_flood_without_engine is not registered")
+# FLUME is compiled into erf_exec as a flood engine (erf.flood.engine = flume):
+# the coupled runs, against the stand-alone run, and the keys ERF sets.
+if(FLUME_WITH_ERF)
+    include(${CMAKE_CURRENT_SOURCE_DIR}/ERF/ERFTests.cmake)
 endif()

@@ -1,0 +1,12 @@
+# The stand-alone run of the coupled case, with FILE=<path>/flume_plane on
+# the command line. The keys here are those ERF sets in inputs_erf: 64 x 8
+# cells of 1 m (ERF's 32 x 4 columns refined by erf.flood.grid_ratio = 2) in
+# two boxes of 32 x 8 cells (ERF's boxes of 16 x 4 columns), periodic in y,
+# a plotfile every 200 steps (50 s) and 600 steps of 0.25 s.
+flume.n_cell        = 64 8
+flume.prob_hi       = 64.0 8.0
+flume.periodic      = 0 1
+flume.max_grid_size = 32
+flume.plot_file     = flood
+flume.plot_int      = 200
+flume.stop_time     = 150.0

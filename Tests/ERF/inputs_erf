@@ -1,0 +1,47 @@
+# The coupled run: ERF with FLUME as its flood engine, with
+# FILE=<path>/flume_plane on the command line. A still, uniform atmosphere
+# (anelastic) over 64 x 8 x 64 m in 32 x 4 x 8 cells, in boxes of 16 x 4 x 8
+# cells, periodic in y, slip walls in x and z. The flood grid covers level 0
+# refined by 2 in x and y: 64 x 8 cells of 1 m in two boxes, the grid of
+# inputs_standalone. ERF's fixed step is flume.max_dt, 0.25 s, for 600 steps;
+# a flood plotfile every 200 steps.
+max_step  = 600
+stop_time = 1.0e9
+
+erf.prob_name            = "Flood on a plane"
+erf.compressibility_type = Anelastic
+erf.init_type            = "uniform"
+
+geometry.prob_extent = 64. 8. 64.
+geometry.is_periodic = 0 1 0
+amr.n_cell           = 32 4 8
+amr.max_grid_size    = 16 4 8
+amr.max_level        = 0
+
+xlo.type = "SlipWall"
+xhi.type = "SlipWall"
+zlo.type = "SlipWall"
+zhi.type = "SlipWall"
+
+erf.fixed_dt        = 0.25
+erf.use_gravity     = true
+erf.molec_diff_type = "None"
+erf.les_type        = "None"
+erf.pbl_type        = "None"
+
+prob.rho_0 = 1.0
+prob.T_0   = 300.
+
+erf.check_file  = chk
+erf.check_int   = 300
+erf.plot_file_1 = plt
+erf.plot_int_1  = 600
+erf.plot_vars_1 = density flood_depth flood_discharge_x flood_discharge_y \
+                  flood_bed_elevation flood_surface_elevation
+erf.v = 0
+
+erf.flood.enable     = true
+erf.flood.engine     = flume
+erf.flood.grid_ratio = 2
+erf.flood.plot_file  = flood
+erf.flood.plot_int   = 200

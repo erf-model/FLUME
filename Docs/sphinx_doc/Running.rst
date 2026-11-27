@@ -321,3 +321,86 @@ they are continued from their sum over the ranks, and the log agrees with
 the run without a break to round-off (below :math:`10^{-14}` of the largest
 value of a column in the tests), not to the bit. On the same rank count and
 boxes the log is the same byte for byte.
+
+.. _sec:InsideERF:
+
+Inside ERF
+----------
+
+With ``-DFLUME_WITH_ERF=ON`` (:doc:`Building`) FLUME is compiled into
+``erf_exec`` as a flood engine. ERF runs it with
+``erf.flood.enable = true`` and ``erf.flood.engine = flume``:
+
+.. code-block:: bash
+
+   mpiexec -n 2 build-erf/ERF/Exec/erf_exec Tests/ERF/inputs_erf \
+       FILE=Tests/ERF/flume_plane
+
+ERF builds the flood grid. It covers the region of the anchor level
+(``erf.flood.anchor_level``): the whole domain on level 0, or a finer level's
+refined region, such as a catchment. That region is refined in x and y by
+``erf.flood.grid_ratio``. The flood boxes are the anchor level's boxes,
+refined, and each sits on the rank of the atmospheric columns above it.
+
+FLUME reads its own ``flume.*`` keys as in a stand-alone run, except the keys
+that ERF sets. Each of these stops the run with a message that names ERF's
+key instead:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 44 56
+
+   * - FLUME key
+     - ERF sets it with
+   * - ``flume.n_cell``, ``flume.prob_lo``, ``flume.prob_hi``,
+       ``flume.periodic``, ``flume.max_grid_size``
+     - ``geometry.prob_lo``, ``geometry.prob_hi`` (or
+       ``geometry.prob_extent``), ``geometry.is_periodic``,
+       ``amr.n_cell``, ``amr.max_grid_size``, ``erf.flood.grid_ratio``,
+       ``erf.flood.anchor_level``
+   * - ``flume.plot_file``, ``flume.plot_int``
+     - ``erf.flood.plot_file``, ``erf.flood.plot_int``,
+       ``erf.flood.plot_per``
+   * - ``flume.check_file``, ``flume.check_int``
+     - ``erf.check_file``, ``erf.check_int``, ``erf.check_per``
+   * - ``flume.restart``
+     - ``erf.restart``
+   * - ``flume.stop_time``, ``flume.max_step``
+     - ``stop_time``, ``max_step``
+
+FLUME starts at ERF's start time, and its times (rain tables, hydrographs)
+are on ERF's clock. In each ERF step of the anchor level it takes its own
+steps, each set by its CFL number, the rain and ``flume.max_dt``, and lands
+on the end of the ERF step. FLUME's own rain (``flume.rain.*``) drives it.
+ERF's precipitation is not read. The bed is FLUME's own (``flume.bed.*``),
+not ERF's terrain, so ``flood_bed_elevation`` can differ from it.
+
+ERF writes the flood plotfiles: FLUME's plotfile (:ref:`sec:Output`), named
+``<erf.flood.plot_file><ERF step>`` (``plt_flood_`` by default), with
+FLUME's time and step in the header. Without ``erf.flood.plot_int`` and
+``erf.flood.plot_per`` they follow ERF's ``erf.plot_int_1`` and
+``erf.plot_per_1``. There is one at step 0 and one at each ERF plot interval; there is
+none at the last step unless it falls on the interval. The ERF plotfile can
+also carry ``flood_depth``, ``flood_discharge_x``, ``flood_discharge_y``,
+``flood_bed_elevation`` and ``flood_surface_elevation``, averaged over each
+atmospheric column. FLUME writes ``water_balance.txt`` and the gauge files
+in the working directory, as in a stand-alone run, and the water-balance
+summary at ERF's last step: the step ``max_step`` sets, or the one that
+ends within 10\ :sup:`-6` of a step of ``stop_time``, as ERF stops.
+
+ERF's checkpoints carry FLUME's, in ``<checkpoint>/Level_<lev>/FLUME``.
+``erf.restart`` continues FLUME from there, and cuts the logs back as a
+stand-alone restart does (:ref:`sec:Restart`). A checkpoint written without
+the flood (``erf.flood.enable = false``) holds no FLUME state: FLUME then
+starts from its initial state at ERF's time, but its maps start at time 0,
+and its summary is not written when ``max_step`` ends the run.
+
+With ``erf.fixed_dt`` equal to ``flume.max_dt``, and a flood whose CFL and
+rain steps are not shorter, each ERF step is one FLUME step. The flood is
+then that of the stand-alone run with the same ``flume.max_dt``, to the last
+bit: the plotfiles, the water balance and the gauge files. The test
+``erf_flume_plane`` checks this (``Tests/ERF``). The anchor level's step
+(``erf.fixed_dt`` over the substeps of the levels down to it) should be a
+number that sums exactly in binary, such as 0.25 s, and the stand-alone
+``flume.stop_time`` a whole number of steps. With a step such as 0.1 s the
+two runs differ by round-off.

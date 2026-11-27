@@ -34,6 +34,16 @@ Grid, output and time loop
    * - ``dry_stop_time``, ``dry_stop_time_huge``
      - A dry domain takes one step to the stop time, also for 10\ :sup:`308`
        s.
+   * - ``max_dt_plane``
+     - Rain of 50 mm/h on a sloping plane, 64 x 8 cells of 1 m, 600 steps
+       of ``flume.max_dt = 0.25`` s on 2 ranks (``Tests/ERF``). Each
+       plotfile is at step N and time 0.25 N exactly, so every step was
+       ``flume.max_dt``. The stand-alone run of ``erf_flume_plane``.
+   * - ``max_dt_dry_no_stop_time``
+     - A dry domain with no rain and no stop time takes steps of
+       ``flume.max_dt``: 3 steps of 2.5 s.
+   * - ``abort_max_dt_zero``, ``abort_max_dt_negative``
+     - ``flume.max_dt`` of 0 or below stops the run.
 
 Initial state and water at rest
 -------------------------------
@@ -534,7 +544,8 @@ CFL 0.8 and 1, which are above the 0.5 that ``flume.order = 2`` allows.
 ERF built with FLUME
 --------------------
 
-Registered only with ``FLUME_WITH_ERF=ON``, through ERF's CTest helpers.
+Registered only with ``FLUME_WITH_ERF=ON`` (``Tests/ERF``). FLUME runs as
+ERF's flood engine (:ref:`sec:InsideERF`).
 
 .. list-table::
    :header-rows: 1
@@ -542,8 +553,25 @@ Registered only with ``FLUME_WITH_ERF=ON``, through ERF's CTest helpers.
 
    * - Tests
      - What is checked
-   * - ``erf_exec_flood_without_engine``
-     - ``erf_exec`` on ERF's example flood deck stops with the message that
-       no flood engine is compiled in: ERF's flood coupling is built and
-       FLUME is not yet an engine. Not registered when
-       ``ERF_FLOOD_ENGINE_DIRS`` is set.
+   * - ``erf_flume_plane``
+     - ``erf_exec`` with FLUME as its flood engine on the flood grid of
+       ``max_dt_plane``
+       (ERF's 32 x 4 columns refined by 2), ``erf.fixed_dt = 0.25``, 2 ranks.
+       Every flood plotfile (every cell, time and step), the water balance
+       and the two gauge files are those of the stand-alone run, to the last
+       bit (``max_dt_plane``). Then ``erf.restart`` from ERF's checkpoint of step 300 writes
+       the same files again, and cuts the logs back to that step. The
+       ``flood_*`` fields of ERF's plotfile are the means of FLUME's cells
+       over each column, within 4 machine epsilons.
+   * - ``erf_flume_plane_substeps``
+     - The same flood with ``erf.fixed_dt = 2`` and no cap on FLUME's step:
+       FLUME takes its CFL steps (more than one in each ERF step), lands on
+       the end of each ERF step, and the water balance closes to round-off.
+   * - ``erf_flume_plane_stop_time``
+     - ERF ends on ``stop_time = 52.2`` after 174 steps of 0.3 s, which sum
+       to 1.4 :math:`\times` 10\ :sup:`-13` s less, with ``flume.max_dt``
+       10\ :sup:`-8` s below ERF's step. FLUME takes one step in each ERF
+       step and writes its summary after the 174th.
+   * - ``abort_erf_flume_host_*``
+     - Each of the 12 keys that ERF sets (:ref:`sec:InsideERF`) stops
+       ``erf_exec`` with the message that names ERF's key.

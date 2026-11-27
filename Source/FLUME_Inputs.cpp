@@ -1,6 +1,7 @@
 #include "FLUME_Inputs.H"
 
 #include <AMReX.H>
+#include <AMReX_Geometry.H>
 #include <AMReX_ParmParse.H>
 #include <AMReX_Vector.H>
 
@@ -134,13 +135,11 @@ query_file (const amrex::ParmParse& pp, const std::string& key, std::string& val
     return true;
 }
 
-} // namespace
-
-Inputs
-read_inputs ()
+//! The grid of a stand-alone run: flume.n_cell, prob_lo, prob_hi and
+//! periodic, with their range checks.
+void
+read_grid (const amrex::ParmParse& pp, Inputs& in)
 {
-    Inputs in;
-    const amrex::ParmParse pp("flume");
     const char* const dir_name[2] = {"x", "y"};
 
     // n_cell: required, two integers, each in [1, n_cell_max]
@@ -216,8 +215,6 @@ read_inputs ()
         }
     }
 
-    const long long int_max = std::numeric_limits<int>::max();
-
     // periodic: optional, two integers, each 0 or 1
     if (pp.contains("periodic")) {
         require_count(pp, "periodic", 2);
@@ -227,6 +224,65 @@ read_inputs ()
             in.periodic[d] = checked_int(v[d], 0, 1, "periodic", " in x and y");
         }
     }
+}
+
+//! The keys that ERF sets when FLUME runs inside it (FLUME_ERFFloodEngine.cpp),
+//! each with the ERF inputs that take its place. Giving one aborts.
+void
+reject_host_keys (const amrex::ParmParse& pp)
+{
+    const char* const grid = "the flood grid is ERF's: geometry.prob_lo and geometry.prob_hi"
+                             " (or prob_extent), geometry.is_periodic, amr.n_cell,"
+                             " amr.max_grid_size, erf.flood.grid_ratio and erf.flood.anchor_level"
+                             " set it";
+    const struct { const char* key; const char* why; } keys[] = {
+        {"n_cell", grid},
+        {"prob_lo", grid},
+        {"prob_hi", grid},
+        {"periodic", grid},
+        {"max_grid_size", grid},
+        {"plot_file", "ERF writes the flood plotfiles: use erf.flood.plot_file"},
+        {"plot_int", "ERF writes the flood plotfiles: use erf.flood.plot_int or"
+                     " erf.flood.plot_per"},
+        {"check_file", "ERF writes FLUME's state into its own checkpoints: use"
+                       " erf.check_file"},
+        {"check_int", "ERF writes FLUME's state into its own checkpoints: use erf.check_int"
+                      " or erf.check_per"},
+        {"restart", "FLUME restarts with ERF: use erf.restart"},
+        {"stop_time", "ERF's stop_time ends the run"},
+        {"max_step", "ERF's max_step ends the run"},
+    };
+    for (const auto& k : keys) {
+        if (pp.contains(k.key)) {
+            amrex::Abort(std::string("flume.") + k.key + " cannot be set when FLUME runs inside"
+                         " ERF (erf.flood.engine = flume): " + k.why);
+        }
+    }
+}
+
+} // namespace
+
+Inputs
+read_inputs (const amrex::Geometry* host_grid)
+{
+    Inputs in;
+    const amrex::ParmParse pp("flume");
+    const char* const dir_name[2] = {"x", "y"};
+
+    if (host_grid == nullptr) {
+        read_grid(pp, in);
+    } else {
+        reject_host_keys(pp);
+        const amrex::Box& domain = host_grid->Domain();
+        for (int d = 0; d < 2; ++d) {
+            in.n_cell[d] = domain.length(d);
+            in.prob_lo[d] = host_grid->ProbLo(d);
+            in.prob_hi[d] = host_grid->ProbHi(d);
+            in.periodic[d] = host_grid->isPeriodic(d) ? 1 : 0;
+        }
+    }
+
+    const long long int_max = std::numeric_limits<int>::max();
 
     // A key that needs another one is reported after the check for unknown
     // keys below: the other key may be there, misspelled. `needs` holds the
@@ -483,6 +539,17 @@ read_inputs ()
     {
         int v = 0;
         if (query_int(pp, "max_step", 0, int_max, v)) { in.max_step = v; }
+    }
+
+    // max_dt: optional, one finite real > 0
+    {
+        double v = 0.0;
+        if (query_finite(pp, "max_dt", v)) {
+            if (!(v > 0.0)) {
+                amrex::Abort("flume.max_dt must be > 0; it is " + all_digits(v));
+            }
+            in.max_dt = v;
+        }
     }
 
     // cfl: optional, one real in (0, 1]
