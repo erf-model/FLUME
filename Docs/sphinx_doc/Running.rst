@@ -371,8 +371,34 @@ key instead:
 FLUME starts at ERF's start time, and its times (rain tables, hydrographs)
 are on ERF's clock. In each ERF step of the anchor level it takes its own
 steps, each set by its CFL number, the rain and ``flume.max_dt``, and lands
-on the end of the ERF step. FLUME's own rain (``flume.rain.*``) drives it.
-ERF's precipitation is not read. The bed is FLUME's own (``flume.bed.*``),
+on the end of the ERF step. The rain is FLUME's own (``flume.rain.*``), or,
+with ``flume.rain.type = microphysics``, ERF's:
+
+- In each ERF step, ERF hands over the surface precipitation of each
+  atmospheric column over the step, kg/m\ :sup:`2`: the liquid part (rain)
+  and the frozen part (snow, graupel, hail). FLUME takes both, as liquid
+  water: 1 kg/m\ :sup:`2` is a depth of 1 mm on every flood cell under the
+  column. There is no snowpack: the frozen part becomes water on the flood
+  grid at once, so the timing of snowmelt is not modelled.
+- ERF's precipitation of a step can be negative in a column (a correction
+  from a finer level, or rounding). FLUME does not lower the depth for it:
+  the amount waits in the cell's carry and is taken from the next rain. The
+  ``rain`` column of the water balance leaves it out until then.
+- FLUME holds the rate constant over the ERF step. Each of its steps inside
+  the ERF step gets the share of its length, so the steps of one ERF step
+  together get the ERF step's precipitation. The rain-limited step
+  (:ref:`sec:RainStep`) uses that rate.
+- ERF stops the run at the start if its microphysics accumulates no surface
+  precipitation (``erf.moisture_model`` such as ``Kessler``, ``SAM``,
+  ``Morrison``, ``WSM6`` or ``WDM6`` does). Every other ``flume.rain.*``
+  key (``rate``, ``file``, ``interpolation``, ``cell.*``) stops the run
+  with ``microphysics``.
+- ERF's checkpoint keeps its reference of the accumulated precipitation, so
+  a restart continues with the same rain. From a checkpoint written without
+  the flood, the reference is the accumulation ERF restores with its
+  microphysics, so the rain also continues from there.
+
+The bed is FLUME's own (``flume.bed.*``),
 not ERF's terrain, so ``flood_bed_elevation`` can differ from it.
 
 ERF writes the flood plotfiles: FLUME's plotfile (:ref:`sec:Output`), named

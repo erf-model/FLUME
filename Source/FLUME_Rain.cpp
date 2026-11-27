@@ -63,11 +63,16 @@ add_rain_depth (amrex::MultiFab& state, const amrex::MultiFab& depth, amrex::Mul
         [=] AMREX_GPU_DEVICE (int box_no, int i, int j, int k) noexcept
         {
             const amrex::Real h = s[box_no](i, j, k, State::h);
-            const amrex::Real y = d[box_no](i, j, k) + c[box_no](i, j, k);
-            // A negative carry (the rain a step rounded up) waits while the
-            // cell holds less: rain never takes water away, and a cell that
-            // another source emptied stays at 0 instead of below it.
-            if (!(h + y >= amrex::Real(0.0))) {
+            const amrex::Real dr = d[box_no](i, j, k);
+            const amrex::Real y = dr + c[box_no](i, j, k);
+            // Rain never takes water away. A negative carry (the rain a step
+            // rounded up) waits while the cell holds less, so a cell that
+            // another source emptied stays at 0 instead of below it. A
+            // negative amount of a step (ERF's precipitation corrected down,
+            // flume.rain.type = microphysics) waits whole in the carry, to be
+            // taken from the next rain: the depth is not lowered under its
+            // discharge, so the velocity cannot grow.
+            if (dr < amrex::Real(0.0) || !(h + y >= amrex::Real(0.0))) {
                 c[box_no](i, j, k) = y;
                 return;
             }

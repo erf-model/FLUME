@@ -1863,4 +1863,5 @@ flume_add_abort_test(abort_max_dt_negative
 # the coupled runs, against the stand-alone run, and the keys ERF sets.
 if(FLUME_WITH_ERF)
     include(${CMAKE_CURRENT_SOURCE_DIR}/ERF/ERFTests.cmake)
+    include(${CMAKE_CURRENT_SOURCE_DIR}/ERFRain/ERFRainTests.cmake)
 endif()

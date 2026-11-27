@@ -135,10 +135,10 @@ flume_add_regtest(rain_plane_kinematic_wave_order2 NPROCS 2
 set(rain_bad ${rain_dir}/bad)
 set(rbad "flume\\.rain\\.file \\([^)]*\\)")
 flume_add_abort_test(abort_rain_type_microphysics
-    EXPECT "flume\\.rain\\.type = microphysics is reserved for a later version and is not available yet: use none, constant, hyetograph, gridded or moving_cell"
+    EXPECT "flume\\.rain\\.type = microphysics takes the rain from ERF's microphysics and needs FLUME inside ERF \\(erf\\.flood\\.engine = flume\\); a stand-alone run takes none, constant, hyetograph, gridded or moving_cell"
     ARGS ${ok} flume.rain.type=microphysics)
 flume_add_abort_test(abort_rain_type_unknown
-    EXPECT "flume\\.rain\\.type must be none, constant, hyetograph, gridded or moving_cell; it is drizzle"
+    EXPECT "flume\\.rain\\.type must be none, constant, hyetograph, gridded, moving_cell or \\(inside ERF\\) microphysics; it is drizzle"
     ARGS ${ok} flume.rain.type=drizzle)
 flume_add_abort_test(abort_rain_rate_negative
     EXPECT "flume\\.rain\\.rate must be >= 0 \\(mm/h\\); it is -1"

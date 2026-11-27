@@ -740,7 +740,8 @@ read_inputs (const amrex::Geometry* host_grid)
               " gives the coefficient of every cell");
     }
 
-    // rain.type: none, constant, hyetograph, gridded or moving_cell;
+    // rain.type: none, constant, hyetograph, gridded or moving_cell, and
+    // microphysics inside ERF;
     // rain.rate (constant only), rain.file (hyetograph and gridded),
     // rain.interpolation (hyetograph and gridded), rain.cell.* (moving_cell
     // only)
@@ -759,12 +760,16 @@ read_inputs (const amrex::Geometry* host_grid)
         } else if (v == "moving_cell") {
             in.rain_type = RainType::moving_cell;
         } else if (v == "microphysics") {
-            amrex::Abort("flume.rain.type = microphysics is reserved for a later version and is"
-                         " not available yet: use none, constant, hyetograph, gridded or"
-                         " moving_cell");
+            if (host_grid == nullptr) {
+                amrex::Abort("flume.rain.type = microphysics takes the rain from ERF's"
+                             " microphysics and needs FLUME inside ERF (erf.flood.engine ="
+                             " flume); a stand-alone run takes none, constant, hyetograph,"
+                             " gridded or moving_cell");
+            }
+            in.rain_type = RainType::microphysics;
         } else {
-            amrex::Abort("flume.rain.type must be none, constant, hyetograph, gridded or"
-                         " moving_cell; it is " + v);
+            amrex::Abort("flume.rain.type must be none, constant, hyetograph, gridded,"
+                         " moving_cell or (inside ERF) microphysics; it is " + v);
         }
     }
     {

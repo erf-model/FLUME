@@ -319,8 +319,11 @@ Rain
      - string
      - ``none``
      - ``none``, ``constant``, ``hyetograph`` (:ref:`sec:Rain`),
-       ``gridded`` or ``moving_cell`` (:ref:`sec:RainSpace`).
-       ``microphysics`` is reserved and stops the run.
+       ``gridded`` or ``moving_cell`` (:ref:`sec:RainSpace`), or, inside
+       ERF only, ``microphysics``: the surface precipitation of ERF's
+       microphysics, liquid and frozen as liquid water
+       (:ref:`sec:InsideERF`). ``microphysics`` in a stand-alone run, and
+       any other value, stop the run.
    * - ``flume.rain.rate``
      - real
      - required with ``constant``

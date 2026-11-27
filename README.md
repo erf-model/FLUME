@@ -3,10 +3,11 @@
 FLUME is a two-dimensional shallow-water flood solver for the
 [Energy Research and Forecasting (ERF)](https://github.com/erf-model/ERF)
 atmospheric code, built on [AMReX](https://github.com/AMReX-Codes/amrex).
-It is planned as a fine 2D surface grid that shares the horizontal
-decomposition of the atmosphere and is advanced inside ERF's time loop, the way
-the fire front is in [FLARE](https://github.com/erf-model/FLARE). Rainfall-driven
-flooding comes first. River inflow and coastal surge come later.
+It runs stand-alone, or inside ERF as a fine 2D surface grid that shares the
+horizontal decomposition of the atmosphere and is advanced inside ERF's time
+loop, the way the fire front is in [FLARE](https://github.com/erf-model/FLARE),
+with rain from ERF's microphysics. Rainfall-driven flooding comes first. River
+inflow and coastal surge come later.
 
 Documentation of the FLUME theory and implementation is available
 [here](https://erf-model.github.io/FLUME/).
@@ -26,7 +27,8 @@ hydrostatic reconstruction), writing plotfiles.
 | Sides      | Walls, outflow over a whole side or over segments, periodic.      |
 | Bed        | Plane, bowl or raster; building footprints from a raster.         |
 | Friction   | Manning, one coefficient or a raster map.                         |
-| Rain       | Constant, hyetograph, gridded (ESRI ASCII series), moving cell.   |
+| Rain       | Constant, hyetograph, gridded (ESRI ASCII series), moving cell;   |
+|            | inside ERF, the surface precipitation of ERF's microphysics.      |
 | Losses     | Infiltration (Green-Ampt, curve number); storm-drain inlets.      |
 | Output     | Plotfiles, flood maps, water-balance log, gauges, checkpoints.    |
 
@@ -46,7 +48,7 @@ flow with friction and the kinematic wave of rain on a plane.
 - A water-balance log, flood outputs (maximum depth, speed, arrival time),
   checkpoint and restart.
 
-Not yet available: storm-drain inlets and the coupling to ERF.
+Not yet available: rasters other than ESRI ASCII grids.
 
 ## Layout
 

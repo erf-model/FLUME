@@ -1,0 +1,10 @@
+# FLUME's half of the cell-by-cell case: rain from ERF's microphysics on a
+# flat bed, with flume.dry_depth = 1 m so that no cell is wet enough for water
+# to move. Each flood cell then holds the rain of its own column. FLUME takes
+# steps of at most 0.2 s, so each ERF step (about 0.34 s in inputs_kessler,
+# 0.36 s in inputs_wdm6) is two FLUME steps, each with its share of the ERF
+# step's rain.
+flume.rain.type = microphysics
+flume.dry_depth = 1.0
+flume.max_dt    = 0.2
+flume.log_int   = 10

@@ -544,7 +544,7 @@ CFL 0.8 and 1, which are above the 0.5 that ``flume.order = 2`` allows.
 ERF built with FLUME
 --------------------
 
-Registered only with ``FLUME_WITH_ERF=ON`` (``Tests/ERF``). FLUME runs as
+Registered only with ``FLUME_WITH_ERF=ON`` (``Tests/ERF``, ``Tests/ERFRain``). FLUME runs as
 ERF's flood engine (:ref:`sec:InsideERF`).
 
 .. list-table::
@@ -575,3 +575,31 @@ ERF's flood engine (:ref:`sec:InsideERF`).
    * - ``abort_erf_flume_host_*``
      - Each of the 12 keys that ERF sets (:ref:`sec:InsideERF`) stops
        ``erf_exec`` with the message that names ERF's key.
+   * - ``erf_flume_rain_cells``
+     - ``flume.rain.type = microphysics`` (``Tests/ERFRain``): Kessler rain
+       from ERF on 16 x 16 columns, each over 2 x 2 flood cells, 2 ranks.
+       No water moves (``flume.dry_depth = 1``) and FLUME takes two steps
+       in each ERF step. After 60 and 120 ERF steps every flood cell holds
+       the accumulated precipitation of its column (ERF's
+       ``precip_total_accum``) divided by 1000, within
+       10\ :sup:`-12` of the largest; the precipitation varies 3.3-fold
+       over the columns.
+   * - ``erf_flume_rain_volume``
+     - The same rain on a dam break of 0.1 m over a flat periodic bed: the
+       water moves. The rain of the water balance is the precipitation
+       ERF accumulated over the grid, within the rain each cell may still
+       hold in its rounding carry (3.7 :math:`\times` 10\ :sup:`-13`
+       m\ :sup:`3` of 0.63 m\ :sup:`3`). Then ``erf.restart`` from the
+       checkpoint of step 60 writes the same flood plotfile of step 120 and
+       water balance, to the last bit.
+   * - ``erf_flume_rain_frozen``
+     - WDM6 snow and graupel from ERF over ground below freezing, 2 ranks:
+       every flood cell holds its column's precipitation, liquid and frozen,
+       divided by 1000, and the frozen part is at least a fifth of the total
+       (all of it here).
+   * - ``abort_erf_flume_rain_no_moisture``
+     - ``flume.rain.type = microphysics`` with no moisture model: ERF stops
+       at the start with its message.
+   * - ``abort_erf_flume_rain_rate``
+     - ``flume.rain.rate`` with ``microphysics`` inside ERF stops the run
+       with the message that names the key.

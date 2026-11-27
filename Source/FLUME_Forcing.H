@@ -26,10 +26,10 @@ namespace flume {
  * round-off, whatever the steps are.
  *
  * Rain the same in every cell (UniformRain), rain from a time series of
- * grids and a moving rain cell (FLUME_RainField.H) are providers today. A
- * provider for ERF's microphysics, and the wind and pressure that a storm
- * surge needs, are added behind this interface later (flume.rain.type
- * reserves the name microphysics).
+ * grids and a moving rain cell (FLUME_RainField.H) are providers, and so is
+ * the rain a host model hands over step by step (HostRain: ERF's
+ * microphysics). The wind and pressure that a storm surge needs are added
+ * behind this interface later.
  */
 class Forcing
 {
@@ -85,6 +85,50 @@ public:
 private:
     TimeTable m_table;  //!< the rate, m/s
     std::string m_label;
+};
+
+/**
+ * Rain a host model hands over one host step at a time (flume.rain.type =
+ * microphysics: the surface precipitation of ERF's microphysics, set by
+ * FLUME_ERFFloodEngine.cpp). Before FLUME takes its steps over a host step
+ * from T0 to T1, the host fills depth() with the depth of water, m, that fell
+ * on each cell over that step, and calls set_step(T0, T1). The rate is held
+ * constant over the host step: a FLUME step from t0 to t1 inside it receives
+ *
+ *     D * (f(t1) - f(t0)),   f(t) = (t - T0) / (T1 - T0), clamped to [0, 1],
+ *
+ * with f(T0) = 0 and f(T1) = 1 exactly, so a host step taken in one FLUME step
+ * receives D to the last bit, and the steps that cover a host step receive D
+ * to round-off. Outside the host step no rain falls.
+ *
+ * D can be slightly negative: ERF's step precipitation is a difference of
+ * accumulators, and a correction from a finer level can take some back. It is
+ * passed on as it is; the rain source (add_rain_depth, FLUME_Rain.H) holds a
+ * negative depth back until the cell has the water, so the depth never goes
+ * below 0 and the rain the run receives is the host's to round-off.
+ */
+class HostRain : public Forcing
+{
+public:
+    HostRain (const amrex::BoxArray& ba, const amrex::DistributionMapping& dm);
+
+    [[nodiscard]] std::string name () const override { return "rain from the host model"; }
+    void rain_depth (amrex::MultiFab& dst, double t0, double t1) const override;
+    [[nodiscard]] double max_rain_rate (double t0, double t1) const override;
+
+    //! The depth of water, m, on each cell over the next host step (one
+    //! component, no ghost cells), for the host to fill before set_step().
+    [[nodiscard]] amrex::MultiFab& depth () { return m_depth; }
+
+    //! The host step that depth() covers, from `t0` to `t1` (s, t1 > t0).
+    //! Aborts, naming `host`, when a depth is not finite. Collective.
+    void set_step (double t0, double t1, const std::string& host);
+
+private:
+    amrex::MultiFab m_depth;  //!< the host step's depth, m
+    double m_t0 = 0.0;        //!< start of the host step, s
+    double m_t1 = 0.0;        //!< end of the host step, s; m_t1 == m_t0 before set_step()
+    double m_max_rate = 0.0;  //!< the largest depth over the step's length, m/s, >= 0
 };
 
 //! Rain rates in the inputs and in a hyetograph file are in mm/h; the solver

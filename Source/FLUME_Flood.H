@@ -162,6 +162,9 @@ public:
     [[nodiscard]] const amrex::MultiFab& bed () const { return m_bed; }
     [[nodiscard]] const amrex::Geometry& geom () const { return m_geom; }
     [[nodiscard]] const WaterBalance& balance () const { return *m_balance; }
+    //! The rain a host model hands over (flume.rain.type = microphysics), or
+    //! nullptr with any other rain.
+    [[nodiscard]] HostRain* host_rain () { return dynamic_cast<HostRain*>(m_forcing.get()); }
 
 private:
     //! One forward-Euler stage of `dt` on m_state, at the order of the run,
