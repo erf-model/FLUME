@@ -567,6 +567,42 @@ ERF's flood engine (:ref:`sec:InsideERF`).
      - The same flood with ``erf.fixed_dt = 2`` and no cap on FLUME's step:
        FLUME takes its CFL steps (more than one in each ERF step), lands on
        the end of each ERF step, and the water balance closes to round-off.
+   * - ``erf_flume_plane_short_steps``
+     - No cap on FLUME's step and ``erf.fixed_dt = 0.25``, shorter than
+       FLUME's own step (about 1 s): each ERF step is one FLUME step, and the
+       plotfiles, water balance and gauges are those of ``max_dt_plane``, to
+       the last bit. 2 ranks.
+   * - ``erf_flume_plane_step_1.5``, ``_2.0``, ``_3.75``, ``_15``
+     - No cap on FLUME's step, ERF's step 1.5, 2, 3.75 and 15 s to 150 s, 4
+       ranks: each flood plotfile is at ERF's time, after more FLUME steps
+       than ERF steps, and the water balance closes to round-off.
+   * - ``flood_plane_dt_05``, ``flood_plane_dt_0125``, ``flood_plane_own_steps``
+     - The stand-alone plane with every step 0.5 s, every step 0.125 s, and
+       FLUME's own steps (99 to 150 s), 4 ranks: references of
+       ``erf_flume_plane_step_lengths``.
+   * - ``erf_flume_plane_step_lengths``
+     - At 150 s, the depth and discharge of each ``erf_flume_plane_step_*``
+       run against the time-converged flood :math:`2F_{0.125} - F_{0.25}`
+       (Richardson extrapolation of ``flood_plane_dt_0125`` and
+       ``max_dt_plane``). The time error is first order:
+       :math:`|F_{0.5} - F_{0.25}| / |F_{0.25} - F_{0.125}|` is 2
+       :math:`\pm` 0.1 (L1; measured 2.0003 for depth, 2.0088 for
+       discharge). No run inside ERF is further from the time-converged
+       flood than the run with FLUME's own steps, within 2 %, and each
+       differs from that run by at most half of its time error (L1 and
+       largest value). The 2 % margin is observed, not proven: the
+       stand-alone run with every step capped at 2 s is 1.0103 times
+       further than FLUME's own steps in the largest depth difference.
+       Measured, depth L1 relative
+       to the largest depth: own steps 7.9 :math:`\times` 10\ :sup:`-4`; ERF
+       steps of 1.5, 2, 3.75 and 15 s 6.1, 6.7, 7.2 and 7.8 :math:`\times`
+       10\ :sup:`-4`.
+   * - ``erf_flume_plane_substeps_restart``
+     - ``erf_flume_plane_step_2.0`` with a checkpoint at ERF step 37, after
+       51 FLUME steps (the step in the checkpoint, and the step FLUME reports
+       on restart): the plotfiles and logs are those of the
+       run without it, to the last bit, and so are they after ``erf.restart``
+       from ``chk00037``. 4 ranks.
    * - ``erf_flume_plane_stop_time``
      - ERF ends on ``stop_time = 52.2`` after 174 steps of 0.3 s, which sum
        to 1.4 :math:`\times` 10\ :sup:`-13` s less, with ``flume.max_dt``
