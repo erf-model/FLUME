@@ -18,6 +18,7 @@
 #include <cmath>
 #include <iomanip>
 #include <limits>
+#include <optional>
 #include <sstream>
 #include <string>
 
@@ -42,12 +43,34 @@ make_geometry (const Inputs& in)
 Flood::Flood (const Inputs& in) : m_in(in), m_boundary(in, make_geometry(in))
 {
     m_geom = make_geometry(in);
-    const amrex::Box& domain = m_geom.Domain();
-
-    m_ba.define(domain);
+    m_ba.define(m_geom.Domain());
     m_ba.maxSize(amrex::IntVect(in.max_grid_size, in.max_grid_size, 1));
     m_dm.define(m_ba);
+    build();
+    if (!in.restart.empty()) { restart(in.restart); }
+}
 
+Flood::Flood (const Inputs& in, const amrex::BoxArray& ba, const amrex::DistributionMapping& dm)
+    : m_in(in), m_boundary(in, make_geometry(in))
+{
+    m_geom = make_geometry(in);
+    const amrex::Box& domain = m_geom.Domain();
+    // The host's boxes: one cell thick, inside the domain and covering it
+    // without overlap, as the boxes of a stand-alone run do.
+    if (!ba.ixType().cellCentered() || ba.minimalBox() != domain || ba.numPts() != domain.numPts()
+        || !ba.isDisjoint() || dm.size() != static_cast<int>(ba.size())) {
+        amrex::Abort("FLUME: the boxes the host model gives do not cover the flood grid "
+                     "once, one cell thick, or do not each have an owner");
+    }
+    m_ba = ba;
+    m_dm = dm;
+    build();
+}
+
+void
+Flood::build ()
+{
+    const Inputs& in = m_in;
     // Ghost cells in x and y, none in z: a face reads the cell on each side
     // of it, and at second order also the neighbours of those two cells.
     const amrex::IntVect n_ghost(in.order, in.order, 0);
@@ -152,7 +175,6 @@ Flood::Flood (const Inputs& in) : m_in(in), m_boundary(in, make_geometry(in))
     m_balance = std::make_unique<WaterBalance>(in, m_geom);
     if (in.flood_maps == 1) { m_maps = std::make_unique<FloodMaps>(in, m_ba, m_dm); }
     m_gauges = std::make_unique<Gauges>(in, m_geom);
-    if (!in.restart.empty()) { restart(in.restart); }
 }
 
 amrex::Real
@@ -202,15 +224,16 @@ Flood::advance_stage (amrex::Real dt, double dt_weight, double time_end)
 }
 
 double
-Flood::compute_dt (bool& lands, bool& dry) const
+Flood::compute_dt (bool& lands, bool& dry, const std::optional<double>& target) const
 {
     lands = false;
     dry = false;
     amrex::Real rate = check_state();
-    // The longest the step can be without rain: to the stop time, and no
-    // longer than the CFL step.
+    // The longest the step can be without rain: to the target time, no
+    // longer than flume.max_dt, and no longer than the CFL step.
     double dt_max = std::numeric_limits<double>::infinity();
-    if (m_in.stop_time.has_value()) { dt_max = *m_in.stop_time - m_time; }
+    if (target.has_value()) { dt_max = *target - m_time; }
+    if (m_in.max_dt.has_value()) { dt_max = std::min(dt_max, *m_in.max_dt); }
     // The face states of the discharge segments, with the largest discharge
     // up to then, take part as cells do: a face state is deeper and faster
     // with more discharge, so the bound holds over any shorter step. A
@@ -236,28 +259,35 @@ Flood::compute_dt (bool& lands, bool& dry) const
                                                 static_cast<double>(m_geom.InvCellSize(1)),
                                                 static_cast<double>(m_in.cfl)));
     } else if (dry) {
-        if (!m_in.stop_time.has_value()) {
+        if (!target.has_value() && !m_in.max_dt.has_value()) {
             amrex::Abort("No cell has a wave speed above zero (no depth is above flume.dry_depth),"
                          " and no rain falls and no water enters through a discharge segment"
-                         " from this time on, so nothing sets the time step: set flume.stop_time");
+                         " from this time on, so nothing sets the time step: set flume.stop_time or"
+                         " flume.max_dt");
         }
-        lands = true;
-        return *m_in.stop_time - m_time;
+        // To the target time, or a step of flume.max_dt.
+        if (!m_in.max_dt.has_value()) {
+            lands = true;
+            return *target - m_time;
+        }
     }
     if (!(std::isfinite(dt) && m_time + dt > m_time)) {
         std::ostringstream msg;
         msg << std::setprecision(17) << "The time step, " << dt
             << " s, is zero, not finite or too small to advance the time, " << m_time
             << " s, at step " << m_step
-            << ": check flume.cfl, the cell size, flume.gravity and the initial state";
+            << ": check flume.cfl, flume.max_dt, the cell size, flume.gravity and the initial"
+               " state";
         amrex::Abort(msg.str());
     }
-    if (m_in.stop_time.has_value()) {
-        // Land on the stop time when the step reaches it, or falls short by
-        // round-off of the summed steps only: otherwise a last step of the
-        // size of that round-off would follow.
-        const double stop = *m_in.stop_time;
-        const double tol = 4.0 * std::numeric_limits<double>::epsilon() * stop;
+    if (target.has_value()) {
+        // Land on the target time when the step reaches it, or falls short
+        // by round-off of the summed steps or by under 1e-6 of the step (as
+        // ERF ends its run: a host's step rounded to float, or flume.max_dt a
+        // hair below it): otherwise a last step of that size would follow.
+        const double stop = *target;
+        const double tol = std::max(4.0 * std::numeric_limits<double>::epsilon() * stop,
+                                    1.0e-6 * dt);
         if (m_time + dt >= stop - tol) {
             dt = stop - m_time;
             lands = true;
@@ -274,110 +304,147 @@ Flood::write_logs ()
 }
 
 void
+Flood::start_maps ()
+{
+    if (m_maps) { m_maps->update(m_state, m_time); }
+}
+
+void
+Flood::start_logs ()
+{
+    m_balance->start(m_state, m_sources);
+    if (m_in.log_int > 0) {
+        m_gauges->start();
+        m_gauges->log(m_state, m_bed, m_step, m_time);
+    }
+}
+
+void
+Flood::set_time (double t)
+{
+    if (!std::isfinite(t) || t < 0.0) {
+        std::ostringstream msg;
+        msg << std::setprecision(17) << "FLUME: the host model's time, " << t
+            << " s, is not finite or below 0";
+        amrex::Abort(msg.str());
+    }
+    m_time = t;
+}
+
+void
+Flood::step_to (const std::optional<double>& target)
+{
+    bool lands = false;
+    bool dry = false;
+    const double dt = compute_dt(lands, dry, target);
+
+    // The fluxes leave a dry domain as it is: only the sources act on it.
+    // Otherwise the state advances with the step in its own precision;
+    // in single precision that differs from dt by rounding.
+    const auto dt_real = static_cast<amrex::Real>(dt);
+    const double time_end = lands ? *target : m_time + dt;
+    if (!dry) {
+        if (m_in.order == 2) {
+            // Two stages from the state, then the mean with it.
+            // The step in the precision of the state, as the update
+            // uses it, for the outflow of the balance.
+            const double half = 0.5 * static_cast<double>(dt_real);
+            amrex::MultiFab::Copy(m_state_old, m_state, 0, 0, State::ncomp, 0);
+            advance_stage(dt_real, half, time_end);
+            // The second stage does not start from a state that a step
+            // would stop on.
+            check_state();
+            advance_stage(dt_real, half, time_end);
+            average_with(m_state, m_state_old, m_in.dry_depth);
+        } else {
+            advance_stage(dt_real, static_cast<double>(dt_real), time_end);
+        }
+    } else {
+        // Every cell is dry: zero its discharges, as a step with fluxes
+        // does in dry cells, so that a cell the rain makes wet starts
+        // still (the initial state may hold a discharge in a dry cell).
+        m_state.setVal(amrex::Real(0.0), State::hu, 2, 0);
+        if (!m_was_dry) {
+            amrex::Print() << "No depth is above flume.dry_depth (" << m_in.dry_depth
+                           << " m): the fluxes are not computed until one is\n";
+        }
+    }
+    m_was_dry = dry;
+    // The sources act once, after the explicit terms of the whole step,
+    // in order, from the start to the end of the step. Friction is
+    // implicit in the discharge, with the depth at the end of the step
+    // (FLUME_Friction.H): acting on each stage instead, and then taking
+    // the mean, would remove only half of a stiff film's excess
+    // discharge per step. They act on a dry domain too: rain falls on
+    // it, and friction leaves a dry cell as it is.
+    const SourceContext ctx{m_bed, m_geom, m_time, time_end};
+    for (auto& s : m_sources) { s->apply(m_state, ctx, dt_real); }
+
+    m_time = time_end;
+    ++m_step;
+    amrex::Print() << "Step " << m_step << ": time " << m_time << " s, dt " << dt << " s\n";
+
+    // A state that the next step would stop on is not read: the maps and
+    // logs would take the square root of, or divide, an overflowed depth.
+    const bool log_now = m_in.log_int > 0 && m_step % m_in.log_int == 0;
+    const bool plot_now = m_in.plot_int > 0 && m_step % m_in.plot_int == 0;
+    const bool check_now = m_in.check_int > 0 && m_step % m_in.check_int == 0;
+    if (m_maps || log_now || plot_now || check_now) { check_state(); }
+    if (m_maps) { m_maps->update(m_state, m_time); }
+    if (log_now) {
+        write_logs();
+        m_last_log = m_step;
+    }
+
+    if (plot_now) {
+        write_plotfile();
+        m_last_plot = m_step;
+    }
+    if (check_now) {
+        write_checkpoint();
+        m_last_check = m_step;
+    }
+}
+
+void
+Flood::finish (bool write_plot)
+{
+    if (write_plot && m_last_plot != m_step) {
+        check_state();
+        write_plotfile();
+        m_last_plot = m_step;
+    }
+    if (m_in.log_int > 0 && m_last_log != m_step) {
+        write_logs();
+        m_last_log = m_step;
+    }
+    if (m_in.check_int > 0 && m_last_check != m_step) {
+        write_checkpoint();
+        m_last_check = m_step;
+    }
+    m_balance->print_summary();
+    amrex::Print() << "FLUME: " << m_step << " step(s), time " << m_time << " s\n";
+}
+
+void
 Flood::evolve ()
 {
     // A restart has written its logs, plotfile and checkpoint at this step.
-    const bool restarted = m_restart_step >= 0;
-    if (!restarted) {
-        if (m_maps) { m_maps->update(m_state, m_time); }
+    if (!restarted()) {
+        start_maps();
         write_plotfile();
-        m_balance->start(m_state, m_sources);
-        if (m_in.log_int > 0) {
-            m_gauges->start();
-            m_gauges->log(m_state, m_bed, m_step, m_time);
-        }
+        start_logs();
     }
-    int last_plot = m_step;
-    int last_log = m_step;
-    int last_check = restarted ? m_step : -1;
 
     const bool limited = m_in.max_step.has_value() || m_in.stop_time.has_value();
     if (!limited) {
         amrex::Print() << "Neither flume.stop_time nor flume.max_step is set: no step is taken\n";
     }
-    bool was_dry = false;  // the message for a dry domain is printed once per dry spell
     while (limited && (!m_in.max_step.has_value() || m_step < *m_in.max_step)
            && (!m_in.stop_time.has_value() || m_time < *m_in.stop_time)) {
-        bool lands = false;
-        bool dry = false;
-        const double dt = compute_dt(lands, dry);
-
-        // The fluxes leave a dry domain as it is: only the sources act on it.
-        // Otherwise the state advances with the step in its own precision;
-        // in single precision that differs from dt by rounding.
-        const auto dt_real = static_cast<amrex::Real>(dt);
-        const double time_end = lands ? *m_in.stop_time : m_time + dt;
-        if (!dry) {
-            if (m_in.order == 2) {
-                // Two stages from the state, then the mean with it.
-                // The step in the precision of the state, as the update
-                // uses it, for the outflow of the balance.
-                const double half = 0.5 * static_cast<double>(dt_real);
-                amrex::MultiFab::Copy(m_state_old, m_state, 0, 0, State::ncomp, 0);
-                advance_stage(dt_real, half, time_end);
-                // The second stage does not start from a state that a step
-                // would stop on.
-                check_state();
-                advance_stage(dt_real, half, time_end);
-                average_with(m_state, m_state_old, m_in.dry_depth);
-            } else {
-                advance_stage(dt_real, static_cast<double>(dt_real), time_end);
-            }
-        } else {
-            // Every cell is dry: zero its discharges, as a step with fluxes
-            // does in dry cells, so that a cell the rain makes wet starts
-            // still (the initial state may hold a discharge in a dry cell).
-            m_state.setVal(amrex::Real(0.0), State::hu, 2, 0);
-            if (!was_dry) {
-                amrex::Print() << "No depth is above flume.dry_depth (" << m_in.dry_depth
-                               << " m): the fluxes are not computed until one is\n";
-            }
-        }
-        was_dry = dry;
-        // The sources act once, after the explicit terms of the whole step,
-        // in order, from the start to the end of the step. Friction is
-        // implicit in the discharge, with the depth at the end of the step
-        // (FLUME_Friction.H): acting on each stage instead, and then taking
-        // the mean, would remove only half of a stiff film's excess
-        // discharge per step. They act on a dry domain too: rain falls on
-        // it, and friction leaves a dry cell as it is.
-        const SourceContext ctx{m_bed, m_geom, m_time, time_end};
-        for (auto& s : m_sources) { s->apply(m_state, ctx, dt_real); }
-
-        m_time = time_end;
-        ++m_step;
-        amrex::Print() << "Step " << m_step << ": time " << m_time << " s, dt " << dt << " s\n";
-
-        // A state that the next step would stop on is not read: the maps and
-        // logs would take the square root of, or divide, an overflowed depth.
-        const bool log_now = m_in.log_int > 0 && m_step % m_in.log_int == 0;
-        const bool plot_now = m_in.plot_int > 0 && m_step % m_in.plot_int == 0;
-        const bool check_now = m_in.check_int > 0 && m_step % m_in.check_int == 0;
-        if (m_maps || log_now || plot_now || check_now) { check_state(); }
-        if (m_maps) { m_maps->update(m_state, m_time); }
-        if (log_now) {
-            write_logs();
-            last_log = m_step;
-        }
-
-        if (plot_now) {
-            write_plotfile();
-            last_plot = m_step;
-        }
-        if (check_now) {
-            write_checkpoint();
-            last_check = m_step;
-        }
+        step_to(m_in.stop_time);
     }
-
-    if (last_plot != m_step) {
-        check_state();
-        write_plotfile();
-    }
-    if (m_in.log_int > 0 && last_log != m_step) { write_logs(); }
-    if (m_in.check_int > 0 && last_check != m_step) { write_checkpoint(); }
-    m_balance->print_summary();
-    amrex::Print() << "FLUME: " << m_step << " step(s), time " << m_time << " s\n";
+    finish(true);
 }
 
 } // namespace flume

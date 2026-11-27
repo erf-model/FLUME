@@ -23,6 +23,12 @@ namespace flume {
 void
 Flood::write_plotfile () const
 {
+    write_plotfile(amrex::Concatenate(m_in.plot_file, m_step, 5));
+}
+
+void
+Flood::write_plotfile (const std::string& name) const
+{
     // depth, discharge_x, discharge_y, bed_elevation, surface_elevation
     amrex::Vector<std::string> names{"depth", "discharge_x", "discharge_y", "bed_elevation",
                                    "surface_elevation"};
@@ -49,7 +55,6 @@ Flood::write_plotfile () const
         names.push_back(extra[n].first);
     }
 
-    const std::string name = amrex::Concatenate(m_in.plot_file, m_step, 5);
     amrex::WriteSingleLevelPlotfile(name, out, names, m_geom, static_cast<amrex::Real>(m_time), m_step);
     amrex::Print() << "Wrote " << name << " at time " << m_time << " s\n";
 }
@@ -75,7 +80,12 @@ std::string list (const std::vector<std::string>& v)
 void
 Flood::write_checkpoint () const
 {
-    const std::string name = amrex::Concatenate(m_in.check_file, m_step, 5);
+    write_checkpoint(amrex::Concatenate(m_in.check_file, m_step, 5));
+}
+
+void
+Flood::write_checkpoint (const std::string& name) const
+{
     CheckpointWriter chk(name);
     chk.put_ints("step", {m_step});
     chk.put("time", {m_time});
@@ -172,6 +182,10 @@ Flood::restart (const std::string& dir)
     if (m_maps) { m_maps->read_checkpoint(chk); }
     if (m_in.log_int > 0) { m_gauges->resume(m_step, keep_step); }
     m_restart_step = m_step;
+    // The logs, plotfile and checkpoint of this step were written before.
+    m_last_plot = m_step;
+    m_last_log = m_step;
+    m_last_check = m_step;
     std::ostringstream s;
     s << std::setprecision(17) << "FLUME: restarted from " << dir << " at step " << m_step
       << ", time " << m_time << " s\n";

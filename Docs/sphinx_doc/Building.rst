@@ -54,11 +54,10 @@ options. ERF needs no submodule other than AMReX.
    ctest --test-dir build-erf --output-on-failure
 
 ``erf_exec`` is in ``build-erf/ERF/Exec``. ERF is built with its flood
-coupling (``ERF_ENABLE_FLOOD=ON``). FLUME is not yet registered as a flood
-engine, so a deck with ``erf.flood.enable = true`` stops with a message that
-no flood engine is compiled in. The test ``erf_exec_flood_without_engine``
-checks that message. With another engine compiled in through ERF's
-``ERF_FLOOD_ENGINE_DIRS``, that test is not registered.
+coupling (``ERF_ENABLE_FLOOD=ON``), and FLUME is compiled into ``erf_exec`` as
+the flood engine ``flume`` (:ref:`sec:InsideERF`). FLUME adds
+``Source/ERFEngine`` to ERF's ``ERF_FLOOD_ENGINE_DIRS``; directories of other
+engines given in that cache entry are kept.
 
 FLUME's options set ERF's: ``FLUME_MPI`` sets ``ERF_ENABLE_MPI``,
 ``FLUME_PRECISION`` sets ``ERF_PRECISION`` and ``FLUME_GPU_BACKEND`` sets

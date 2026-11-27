@@ -162,6 +162,19 @@ if(FLUME_WITH_ERF)
         set(FLUME_SET_${_var} ${_val} CACHE INTERNAL "")
     endforeach()
 
+    # FLUME is compiled into erf_exec as a flood engine (erf.flood.engine =
+    # flume, Source/ERFEngine). Engine directories the user lists in the
+    # cache entry ERF_FLOOD_ENGINE_DIRS are kept and FLUME's is added to
+    # them, for ERF only: the cache entry is not changed. It is created
+    # first, so that ERF's set(... CACHE ...) leaves this list in place.
+    set(ERF_FLOOD_ENGINE_DIRS "" CACHE STRING
+        "Flood engine directories (each with ERFFloodEngine.cmake) to compile in; needs ERF_ENABLE_FLOOD")
+    set(FLUME_ERF_ENGINE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/Source/ERFEngine)
+    set(ERF_FLOOD_ENGINE_DIRS $CACHE{ERF_FLOOD_ENGINE_DIRS})
+    if(NOT FLUME_ERF_ENGINE_DIR IN_LIST ERF_FLOOD_ENGINE_DIRS)
+        list(APPEND ERF_FLOOD_ENGINE_DIRS ${FLUME_ERF_ENGINE_DIR})
+    endif()
+
     # SYSTEM, as for AMReX below: ERF's and AMReX's headers are not held to
     # FLUME's warning flags.
     add_subdirectory(${FLUME_ERF_DIR} ${CMAKE_BINARY_DIR}/ERF SYSTEM)
