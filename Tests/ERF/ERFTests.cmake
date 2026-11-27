@@ -101,6 +101,110 @@ erf_flume_add_regtest(erf_flume_plane_stop_time NPROCS 2
     EXPECT_OUTPUT "FLUME: 174 step\\(s\\), time 52\\.2 s"
     CHECK ${CMAKE_COMMAND} -E true)
 
+# --- ERF's step and FLUME's substeps ------------------------------------------
+# Mostly on 4 ranks: ERF's 32 x 4 columns in boxes of 8 x 4 (flood boxes of
+# 16 x 8), the new stand-alone runs in boxes of 16. max_dt_plane and the runs
+# above use 2 ranks and boxes of 32. The plotfiles of runs on these different
+# boxes are compared cell by cell to the last bit here, so FLUME's cells did
+# not depend on the boxes in these runs. The sums in water_balance.txt do
+# depend on them, in the last digits, so logs are compared only between runs
+# on the same boxes.
+flume_launcher(launcher_np4 4)
+set(erf_np4 "amr.max_grid_size=8 4 8")
+set(erf_uncapped ${erf_flume_plane} flume.max_dt=1000 erf.check_int=-1)
+
+# The stand-alone runs of check_step_lengths.py: every step 0.5 s and 0.125 s
+# (with max_dt_plane, 0.25 s) for the time-converged flood and the order of
+# the time error, and FLUME's own steps.
+flume_add_regtest(flood_plane_dt_05 NPROCS 4
+    INPUTS ${erf_case_dir}/inputs_standalone
+    ARGS ${erf_flume_plane} flume.max_dt=0.5 flume.max_grid_size=16 flume.plot_int=100
+    CHECK ${check_coupled} flood --dt 0.5)
+flume_add_regtest(flood_plane_dt_0125 NPROCS 4
+    INPUTS ${erf_case_dir}/inputs_standalone
+    ARGS ${erf_flume_plane} flume.max_dt=0.125 flume.max_grid_size=16 flume.plot_int=400
+    CHECK ${check_coupled} flood --dt 0.125)
+flume_add_regtest(flood_plane_own_steps NPROCS 4
+    INPUTS ${erf_case_dir}/inputs_standalone
+    ARGS ${erf_flume_plane} flume.max_dt=1000 flume.max_grid_size=16
+    OUTPUT "FLUME: 99 step\\(s\\), time 150 s"
+    CHECK ${CMAKE_COMMAND} -E true)
+
+# erf_flume_plane_short_steps: no cap on FLUME's step, ERF's step 0.25 s, four
+# times shorter than FLUME's own (about 1 s): each ERF step is one FLUME step
+# that ends on it, and the flood is that of max_dt_plane (every step capped at
+# 0.25 s) to the last bit: plotfiles, water balance and gauges. On the boxes
+# and ranks of max_dt_plane (2), so that the logs can be compared byte for byte.
+erf_flume_add_regtest(erf_flume_plane_short_steps NPROCS 2
+    INPUTS ${erf_case_dir}/inputs_erf
+    ARGS ${erf_uncapped} erf.fixed_dt=0.25
+    CHECK ${check_coupled} flood --dt 0.25
+          --reference ${FLUME_TEST_RUN_DIR}/max_dt_plane --log ${erf_logs})
+if(TEST erf_flume_plane_short_steps)
+    set_tests_properties(erf_flume_plane_short_steps PROPERTIES FIXTURES_REQUIRED max_dt_plane)
+endif()
+
+# erf_flume_plane_step_<dt>: ERF's steps of 1.5 s (about 1.5 FLUME steps),
+# 2 s (erf_flume_plane_substeps on 4 ranks), 3.75 s (not a multiple of
+# FLUME's) and 15 s (about 10 FLUME steps) to 150 s, FLUME landing on the end
+# of each: the runs of erf_flume_plane_step_lengths.
+set(step_length_runs)
+set(step_length_fixtures max_dt_plane flood_plane_dt_05 flood_plane_dt_0125 flood_plane_own_steps)
+foreach(case "1.5|100|50" "2.0|75|25" "3.75|40|20" "15|10|5")
+    string(REPLACE "|" ";" case "${case}")
+    list(GET case 0 dt)
+    list(GET case 1 nsteps)
+    list(GET case 2 plot)
+    erf_flume_add_regtest(erf_flume_plane_step_${dt} NPROCS 4
+        INPUTS ${erf_case_dir}/inputs_erf
+        ARGS ${erf_uncapped} ${erf_np4} erf.fixed_dt=${dt} max_step=${nsteps}
+             erf.plot_int_1=${nsteps} erf.flood.plot_int=${plot}
+        CHECK ${check_coupled} flood --dt ${dt} --substeps)
+    list(APPEND step_length_runs ${FLUME_TEST_RUN_DIR}/erf_flume_plane_step_${dt})
+    list(APPEND step_length_fixtures erf_flume_plane_step_${dt})
+endforeach()
+
+foreach(t IN LISTS step_length_fixtures)
+    if(TEST ${t})
+        set_tests_properties(${t} PROPERTIES FIXTURES_SETUP ${t})
+    endif()
+endforeach()
+
+# erf_flume_plane_step_lengths: at 150 s, no run inside ERF is further from the
+# time-converged flood than the stand-alone run with FLUME's own steps, and
+# each is within half of that run's time error of it (check_step_lengths.py;
+# the first-order time error is checked first, from three stand-alone runs).
+if(FLUME_MPI)
+    add_test(NAME erf_flume_plane_step_lengths
+        COMMAND ${Python3_EXECUTABLE} ${erf_case_dir}/check_step_lengths.py flood
+                --coarse ${FLUME_TEST_RUN_DIR}/flood_plane_dt_05
+                --fine ${FLUME_TEST_RUN_DIR}/max_dt_plane
+                --finer ${FLUME_TEST_RUN_DIR}/flood_plane_dt_0125
+                --own ${FLUME_TEST_RUN_DIR}/flood_plane_own_steps
+                --runs ${step_length_runs})
+    set_tests_properties(erf_flume_plane_step_lengths PROPERTIES LABELS "erf;regression"
+                         FIXTURES_REQUIRED "${step_length_fixtures}" TIMEOUT 120)
+endif()
+
+# erf_flume_plane_substeps_restart: erf_flume_plane_step_2.0 (no checkpoint)
+# with a checkpoint at ERF step 37, after 51 FLUME substeps. The flood
+# plotfiles and logs are those of the run without a checkpoint, to the
+# last bit; then ERF continues from chk00037 and gives them again.
+set(substeps_args flume.max_dt=1000 erf.fixed_dt=2.0 max_step=75
+                  erf.plot_int_1=75 erf.flood.plot_int=25 ${erf_np4})
+erf_flume_add_regtest(erf_flume_plane_substeps_restart NPROCS 4
+    INPUTS ${erf_case_dir}/inputs_erf
+    ARGS ${erf_flume_plane} ${substeps_args} erf.check_int=37
+    CHECK ${check_coupled} flood --dt 2.0 --substeps
+          --reference ${FLUME_TEST_RUN_DIR}/erf_flume_plane_step_2.0 --log ${erf_logs}
+          --restart chk00037 ${launcher_np4} $<TARGET_FILE:erf_exec> ${erf_case_dir}/inputs_erf
+                    ${erf_flume_plane} ${substeps_args} erf.check_int=-1 erf.restart=chk00037
+                    ${FLUME_TEST_ARGS})
+if(TEST erf_flume_plane_substeps_restart)
+    set_tests_properties(erf_flume_plane_substeps_restart PROPERTIES
+                         FIXTURES_REQUIRED erf_flume_plane_step_2.0)
+endif()
+
 # --- What FLUME does not take inside ERF ---------------------------------------
 # Each key ERF sets stops the run, with a message naming ERF's key.
 foreach(case "n_cell=64 8|amr\\.n_cell" "prob_lo=0 0|geometry\\.prob_lo"

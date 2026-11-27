@@ -4,7 +4,7 @@
 Usage (in the directory of the run, as the check of Tests/run_case.py):
 
     check_coupled.py <prefix> --dt <s> [--substeps]
-    check_coupled.py <prefix> --dt <s> --reference <dir> --log <file>...
+    check_coupled.py <prefix> --dt <s> [--substeps] --reference <dir> --log <file>...
                      [--column-mean <ERF plotfile> <flood plotfile> <ratio>]
                      [--restart <checkpoint> <command...>]
 
@@ -19,7 +19,9 @@ that each ERF step was one FLUME step. This is all that is checked without
 
 With --substeps, dt is ERF's step and FLUME takes its own, shorter steps
 inside it: each plotfile must carry time N * dt exactly (FLUME landed on the
-end of every ERF step) and a FLUME step above N (after step 0).
+end of every ERF step) and a FLUME step above N (after step 0). It goes with
+--reference and --restart too, for a run with substeps checked against
+another such run.
 
 With --reference, every plotfile here must also be in <dir>, and the other
 way round, with the same value in every cell, the same time and the same step
@@ -38,7 +40,9 @@ With --restart, the run here has written the ERF checkpoint <checkpoint>
 logs are kept (they run past step n: the restart must cut them back), and
 the command, which continues from that checkpoint, is run here. It must exit
 with 0 and print FLUME's "restarted from <checkpoint>/Level_0/FLUME at step
-n"; then the plotfiles and logs are checked against <dir> again.
+k", where k is the step in <checkpoint>/Level_0/FLUME/Header: n, or with
+--substeps the number of FLUME's steps so far, more than n. Then the
+plotfiles and logs are checked against <dir> again.
 """
 import filecmp
 import struct
@@ -177,10 +181,9 @@ def main():
             fail("--reference takes a directory")
         ref = Path(args[i + 1])
         del args[i:i + 2]
-    if len(args) != 3 or args[1] != "--dt" or bool(ref) != bool(logs) or (restart and not ref) \
-            or (substeps and ref):
-        fail("usage: check_coupled.py <prefix> --dt <s> [--reference <dir> --log <file>... "
-             "[--restart <checkpoint> <command...>]] | <prefix> --dt <s> --substeps")
+    if len(args) != 3 or args[1] != "--dt" or bool(ref) != bool(logs) or (restart and not ref):
+        fail("usage: check_coupled.py <prefix> --dt <s> [--substeps] [--reference <dir> --log <file>... "
+             "[--restart <checkpoint> <command...>]]")
     prefix, dt = args[0], float(args[2])
 
     check_steps(prefix, dt, substeps)
@@ -210,9 +213,20 @@ def main():
     print(run.stdout, flush=True)
     if run.returncode != 0:
         fail(f"the restart exited with {run.returncode}")
-    if not re.search(rf"restarted from {re.escape(chk)}/Level_0/FLUME at step {n}\b", run.stdout):
-        fail(f"FLUME did not report continuing from {chk}/Level_0/FLUME at step {n}")
-    check_steps(prefix, dt)
+    # FLUME's step in its checkpoint: n, or with substeps the number of
+    # FLUME's steps in ERF's first n, which is more than n.
+    header = Path(chk) / "Level_0" / "FLUME" / "Header"
+    words = dict(line.split(None, 1) for line in header.read_text().splitlines() if " " in line) \
+        if header.is_file() else {}
+    if "step" not in words:
+        fail(f"no 'step' line in {header}")
+    k = int(words["step"])
+    if (k <= n) if substeps else (k != n):
+        fail(f"{header}: FLUME's step {k}, {'more than ' if substeps else ''}{n} expected")
+    m = re.search(rf"restarted from {re.escape(chk)}/Level_0/FLUME at step (\d+)\b", run.stdout)
+    if not m or int(m.group(1)) != k:
+        fail(f"FLUME did not report continuing from {chk}/Level_0/FLUME at step {k}")
+    check_steps(prefix, dt, substeps)
     check_reference(prefix, ref, logs)
 
 

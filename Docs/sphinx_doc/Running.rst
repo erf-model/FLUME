@@ -421,6 +421,23 @@ the flood (``erf.flood.enable = false``) holds no FLUME state: FLUME then
 starts from its initial state at ERF's time, but its maps start at time 0,
 and its summary is not written when ``max_step`` ends the run.
 
+FLUME's steps inside an ERF step are its own: each is the CFL, rain and
+``flume.max_dt`` step, except the one that would pass the end of the ERF
+step, which is shortened to end on it. An ERF step shorter than FLUME's own
+step is one FLUME step. So no FLUME step is longer than those limits allow
+(the step that lands can pass them by under 10\ :sup:`-6` of itself, as in a
+stand-alone run on ``flume.stop_time``). In ``erf_flume_plane_step_lengths``
+(ERF steps from 1.5 to 15 s) no run inside ERF is further from the
+time-converged flood than the stand-alone run with FLUME's own steps, within
+2 %, and each differs from that run by at most half of its time error. ERF
+does not shorten its step for its plotfiles or checkpoints, so the flood
+does not depend on where they fall: a run with a checkpoint at an ERF step
+after several FLUME substeps, and the run continued from it, give the flood
+of the run without one, to the last bit
+(``erf_flume_plane_substeps_restart``). With a variable ERF step
+(``erf.cfl``) the flood follows ERF's steps and is not the same to the last
+bit as with another sequence of steps.
+
 With ``erf.fixed_dt`` equal to ``flume.max_dt``, and a flood whose CFL and
 rain steps are not shorter, each ERF step is one FLUME step. The flood is
 then that of the stand-alone run with the same ``flume.max_dt``, to the last
