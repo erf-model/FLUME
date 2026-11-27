@@ -8,10 +8,10 @@ It solves the full shallow-water equations over a fixed bed with a
 well-balanced finite-volume scheme, wetting and drying, Manning friction and
 prescribed rain. It runs with MPI and compiles for CUDA, HIP and SYCL.
 
-FLUME runs stand-alone today and uses only AMReX, taken from the commit ERF
-pins. ERF can be built in the same CMake project (``FLUME_WITH_ERF``); a run
-inside ERF, with rain from ERF's microphysics, is planned. The expansion of
-the name is a draft.
+FLUME runs stand-alone, using only AMReX, taken from the commit ERF pins, or
+inside ERF as its flood engine (``FLUME_WITH_ERF``, :ref:`sec:InsideERF`),
+where its rain can be the surface precipitation of ERF's microphysics
+(``flume.rain.type = microphysics``). The expansion of the name is a draft.
 
 .. list-table:: Capabilities
    :header-rows: 1
@@ -33,8 +33,9 @@ the name is a draft.
      - Manning, one coefficient or a map
      -
    * - Rain
-     - Constant rate, hyetograph, gridded rain, moving storm cell
-     - ERF microphysics
+     - Constant rate, hyetograph, gridded rain, moving storm cell; inside
+       ERF, the surface precipitation of ERF's microphysics
+     -
    * - Terrain
      - Bed, buildings and Manning map from ESRI ASCII grids
      - Other raster formats through GDAL

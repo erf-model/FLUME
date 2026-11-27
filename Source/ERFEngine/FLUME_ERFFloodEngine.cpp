@@ -12,11 +12,14 @@
  *
  * Each ERF step of the anchor level, advance() takes FLUME steps, each set by
  * FLUME's CFL number, rain and flume.max_dt, until FLUME lands on the end of
- * the ERF step. The rain is FLUME's own (flume.rain.*); ERF's precipitation is
- * not read (wants_surface_precip). With ERF's fixed step equal to
+ * the ERF step. The rain is FLUME's own (flume.rain.*), or, with
+ * flume.rain.type = microphysics, the surface precipitation of ERF's
+ * microphysics over the ERF step: liquid and frozen (snow, graupel, hail) as
+ * liquid water, each column's on the flood cells under it, at a rate held
+ * constant over the ERF step (HostRain, FLUME_Forcing.H). With ERF's fixed step equal to
  * flume.max_dt, and FLUME's own step not shorter, every ERF step is one
- * FLUME step, and the run is that of the stand-alone run with the same
- * flume.max_dt, to the last bit.
+ * FLUME step, and with prescribed rain the run is that of the stand-alone run
+ * with the same flume.max_dt, to the last bit.
  *
  * ERF writes the flood plotfiles (erf.flood.plot_file, plot_int, plot_per):
  * FLUME's plotfile, named with ERF's step. ERF's checkpoints carry FLUME's
@@ -34,6 +37,8 @@
 #include "FLUME_State.H"
 
 #include <AMReX.H>
+#include <AMReX_GpuDevice.H>
+#include <AMReX_MFParallelFor.H>
 #include <AMReX_MultiFab.H>
 #include <AMReX_Print.H>
 #include <AMReX_Utility.H>
@@ -79,6 +84,7 @@ public:
                      const amrex::MultiFab* /*z_phys_nd_atm*/) override
     {
         m_lev = lev;
+        m_grid = fg;
         m_in = flume::read_inputs(&fg.geom);
         m_flood = std::make_unique<flume::Flood>(m_in, fg.ba, fg.dm);
         // Before the plotfile ERF writes at step 0, as a stand-alone run
@@ -97,8 +103,13 @@ public:
         m_steps_per_coarse_step = steps_per_coarse_step;
     }
 
-    // FLUME's own rain (flume.rain.*) drives it.
-    bool wants_surface_precip () const override { return false; }
+    // ERF's precipitation with flume.rain.type = microphysics (ERF then stops
+    // at start-up unless its microphysics accumulates surface precipitation);
+    // otherwise FLUME's own rain (flume.rain.*) drives it.
+    bool wants_surface_precip () const override
+    {
+        return m_in.rain_type == flume::RainType::microphysics;
+    }
 
     void advance (const FloodForcing& forcing) override
     {
@@ -115,6 +126,9 @@ public:
 
         // ERF's time at the end of its step (in double, as ERF keeps it).
         const double t_end = forcing.time + static_cast<double>(forcing.dt);
+        if (flume::HostRain* rain = m_flood->host_rain()) {
+            set_rain(*rain, forcing, t_end);
+        }
         while (m_flood->time() < t_end) { m_flood->step_to(t_end); }
         ++m_steps;
 
@@ -183,6 +197,39 @@ public:
     }
 
 private:
+    /**
+     * The rain of this ERF step on the flood grid: the precipitation of each
+     * column (kg/m2, the liquid and the frozen part) on every flood cell under
+     * it, as a depth of liquid water, m (1 kg/m2 is 1 mm).
+     */
+    void set_rain (flume::HostRain& rain, const FloodForcing& forcing, double t_end)
+    {
+        if (forcing.precip_k0 == nullptr) {
+            amrex::Abort("[FLOOD] flume: flume.rain.type = microphysics, but ERF handed over no"
+                         " surface precipitation");
+        }
+        if (forcing.precip_k0->nComp() != 2) {
+            amrex::Abort("[FLOOD] flume: ERF's surface precipitation has "
+                         + std::to_string(forcing.precip_k0->nComp())
+                         + " component(s); 2 (liquid, frozen) expected");
+        }
+        amrex::MultiFab& depth = rain.depth();
+        if (!m_precip) {
+            m_precip = std::make_unique<amrex::MultiFab>(depth.boxArray(), depth.DistributionMap(), 2, 0);
+        }
+        fill_flood_from_atm_k0(*m_precip, *forcing.precip_k0, m_grid, 0, 0);
+        fill_flood_from_atm_k0(*m_precip, *forcing.precip_k0, m_grid, 1, 1);
+        const amrex::Real kg_per_m2_to_m = amrex::Real(1.0e-3);
+        const auto& p = m_precip->const_arrays();
+        const auto& d = depth.arrays();
+        amrex::ParallelFor(depth, [=] AMREX_GPU_DEVICE (int b, int i, int j, int k) noexcept
+        {
+            d[b](i, j, k) = (p[b](i, j, k, 0) + p[b](i, j, k, 1)) * kg_per_m2_to_m;
+        });
+        amrex::Gpu::streamSynchronize();
+        rain.set_step(forcing.time, t_end, "ERF's microphysics");
+    }
+
     //! FLUME's checkpoint inside ERF's, on the flood grid's level.
     std::string checkpoint_dir (const std::string& checkpointname) const
     {
@@ -241,6 +288,10 @@ private:
     double m_stop_time = -1.0;   //!< ERF's stop time, elapsed, s, or -1
     int m_steps_per_coarse_step = 1;  //!< steps of the flood grid's level in one of level 0
     double m_last_dt = 0.0;      //!< ERF's step before this one, s
+    //! The flood grid ERF built (flume.rain.type = microphysics reads through it)
+    FloodGrid m_grid;
+    //! This ERF step's precipitation on the flood grid, kg/m2: liquid, frozen
+    std::unique_ptr<amrex::MultiFab> m_precip;
     //! The fields plot_var hands out, one per name, valid until the next advance
     mutable std::map<std::string, std::unique_ptr<amrex::MultiFab>> m_plot;
 };

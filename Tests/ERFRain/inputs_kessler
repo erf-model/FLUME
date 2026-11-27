@@ -1,0 +1,59 @@
+# ERF with FLUME as its flood engine, the rain from ERF's Kessler microphysics
+# (flume.rain.type = microphysics in the FLUME deck, FILE=<path>/flume_*).
+# Warm rain from a supersaturated layer below 150 m (sounding_moist) in a
+# laterally periodic box, 1600 x 1600 x 1024 m in 16 x 16 x 32 cells, boxes
+# of 8 x 16 x 32. A cool bubble off the centre (1 K, wider in x than in y)
+# makes the rain vary about threefold over the columns. The flood grid
+# refines level 0 by 2 in x and y: 32 x 32 cells of 50 m. ERF's step is
+# erf.fixed_dt = 0.5 s cut by ERF's CFL limit (erf.fixed_dt_cfl_limit), about
+# 0.34 s and not the same each step: 120 steps reach 40.5 s. A checkpoint at
+# step 60; the 2D plotfiles carry the accumulated surface precipitation the
+# check compares with the flood.
+# The atmosphere is that of ERF's Tests/FloodEngineExample. ERF reads the
+# bubble (prob.bubble_*) only with the problem name of its atmospheric
+# boundary layer case, which erf.prob_name below gives.
+max_step  = 120
+stop_time = 1.0e9
+erf.prob_name = "ABL"  # codespell:ignore
+erf.init_type           = "input_sounding"
+erf.sounding_type       = Ideal
+
+geometry.prob_extent = 1600. 1600. 1024.
+geometry.is_periodic = 1 1 0
+amr.n_cell           = 16 16 32
+amr.max_grid_size    = 8 16 32
+amr.max_level        = 0
+zlo.type = "SlipWall"
+zhi.type = "SlipWall"
+
+erf.use_gravity     = true
+erf.moisture_model  = "Kessler"
+erf.molec_diff_type = "None"
+erf.les_type        = "None"
+erf.pbl_type        = "None"
+erf.fixed_dt           = 0.5
+erf.fixed_mri_dt_ratio = 6
+
+erf.check_file    = chk
+erf.check_int     = 60
+erf.plot_file_1   = plt
+erf.plot_int_1    = 120
+erf.plot_vars_1   = density theta qv qc qp flood_depth
+erf.plot2d_file_1 = plt2d
+erf.plot2d_int_1  = 60
+erf.plot2d_vars_1 = precip_total_accum precip_frozen_accum
+erf.v = 0
+
+prob.bubble_dT  = -1.0
+prob.bubble_x_c = 500.
+prob.bubble_y_c = 1000.
+prob.bubble_z_c = 75.
+prob.bubble_x_r = 300.
+prob.bubble_y_r = 200.
+prob.bubble_z_r = 150.
+
+erf.flood.enable     = true
+erf.flood.engine     = flume
+erf.flood.grid_ratio = 2
+erf.flood.plot_file  = flood
+erf.flood.plot_int   = 60

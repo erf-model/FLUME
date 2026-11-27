@@ -63,6 +63,21 @@ The bound follows from :math:`\sqrt{g\,(h + \hat r \Delta t)} \le
 \sqrt{g h} + \sqrt{g\, \hat r\, \Delta t}`. It is solved for
 :math:`\sqrt{\Delta t}` by Newton's method.
 
+With rain from ERF's microphysics (``flume.rain.type = microphysics``,
+:ref:`sec:InsideERF`), the precipitation :math:`D` of an ERF step from
+:math:`T_0` to :math:`T_1` is a depth on each cell, held at the constant
+rate :math:`D / (T_1 - T_0)`. A FLUME step from :math:`t_0` to :math:`t_1`
+inside it adds
+
+.. math::
+
+   D \, \bigl(f(t_1) - f(t_0)\bigr) ,
+   \qquad
+   f(t) = \min\Bigl(1,\; \max\Bigl(0,\; \frac{t - T_0}{T_1 - T_0}\Bigr)\Bigr) ,
+
+so that the steps of the ERF step add :math:`D` together, and :math:`\hat r`
+is the largest :math:`\max(D, 0) / (T_1 - T_0)` over the cells.
+
 The rain bound gives a dry domain under rain a finite step. On water of
 0.1 m and more it costs under 2 % of the CFL step. On a domain that is all
 thin film it shortens the step to about half (0.6 at 50 mm/h and 0.45 at

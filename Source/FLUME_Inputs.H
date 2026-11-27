@@ -19,7 +19,7 @@ inline constexpr int n_cell_max = 1073741824;
 enum class BoundaryType : int { wall, outflow, discharge };
 
 //! Where the rain comes from (flume.rain.type).
-enum class RainType : int { none, constant, hyetograph, gridded, moving_cell };
+enum class RainType : int { none, constant, hyetograph, gridded, moving_cell, microphysics };
 
 //! How a hyetograph's rate, or a gridded rain field, runs between its entries
 //! (flume.rain.interpolation); also the discharge of an inflow hydrograph
@@ -206,8 +206,8 @@ struct Inputs
     std::string friction_manning_file;
 
     //! Where the rain comes from (flume.rain.type; default none; none,
-    //! constant, hyetograph, gridded or moving_cell; microphysics is reserved
-    //! and aborts)
+    //! constant, hyetograph, gridded or moving_cell; microphysics, the surface
+    //! precipitation of ERF's microphysics, only inside ERF)
     RainType rain_type = RainType::none;
 
     //! Rain rate, mm/h (flume.rain.rate; finite, >= 0; required with

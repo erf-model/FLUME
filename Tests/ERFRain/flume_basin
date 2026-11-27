@@ -1,0 +1,11 @@
+# FLUME's half of the volume case: rain from ERF's microphysics on a flat,
+# periodic bed, with Manning friction, on water that moves: at the start the
+# surface is 0.1 m for x < 800 m and the bed is dry beyond (a dam break in
+# x). The rain FLUME receives over the run must be the precipitation ERF
+# accumulated at the surface over the flood grid.
+flume.rain.type                  = microphysics
+flume.init.surface_elevation     = 0.1
+flume.init.dam_position          = 800.0
+flume.init.dam_surface_elevation = 0.0
+flume.friction.manning           = 0.03
+flume.log_int                    = 10
