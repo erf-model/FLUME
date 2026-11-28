@@ -802,6 +802,14 @@ read_inputs (const amrex::Geometry* host_grid)
         if (!has_file && file) {
             defer("flume.rain.file is read only with flume.rain.type = hyetograph or gridded");
         }
+        const bool replay = query_file(pp, "rain.replay_file", in.rain_replay_file,
+                                       "the index file to write the rain of ERF's"
+                                       " microphysics to, for a replay with"
+                                       " flume.rain.type = gridded");
+        if (replay && type != RainType::microphysics) {
+            defer("flume.rain.replay_file is read only with flume.rain.type = microphysics: it"
+                  " writes the rain of ERF's microphysics for a stand-alone replay");
+        }
         if (pp.contains("rain.interpolation")) {
             require_count(pp, "rain.interpolation", 1);
             std::string v;

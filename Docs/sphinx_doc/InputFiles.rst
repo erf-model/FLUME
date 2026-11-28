@@ -110,7 +110,9 @@ Gridded rain index files
 ------------------------
 
 With ``flume.rain.type = gridded``, ``flume.rain.file`` holds lines of a
-time in s and the path of an ESRI ASCII grid of the rain rate in mm/h:
+time in s and the path of an ESRI ASCII grid of the rain rate in mm/h (a
+run inside ERF writes one with ``flume.rain.replay_file``,
+:ref:`sec:RainReplay`):
 
 .. code-block:: text
 

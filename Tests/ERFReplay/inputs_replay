@@ -1,0 +1,18 @@
+# The stand-alone replay of the coupled run of Tests/ERFReplay, with
+# FILE=<path>/ERFRain/flume_basin and then flume.rain.type = gridded and
+# flume.rain.file = <the index> on the command line (the last value of a key
+# is the one read). The grid is the one ERF sets in Tests/ERFRain/
+# inputs_kessler: 32 x 32 cells of 50 m (ERF's 16 x 16 columns refined by
+# erf.flood.grid_ratio = 2), periodic in x and y. The boxes are not ERF's:
+# 16 boxes of 8 x 8 cells, 4 per rank on 4 ranks (the coupled run has 4).
+# A plotfile every 60 steps; flume.max_dt = 0.25 s is ERF's step, so each run
+# takes one FLUME step per ERF step. The index is read step by step
+# (flume.rain.interpolation = step, the default).
+flume.n_cell        = 32 32
+flume.prob_hi       = 1600.0 1600.0
+flume.periodic      = 1 1
+flume.max_grid_size = 8
+flume.plot_file     = flood
+flume.plot_int      = 60
+flume.max_dt        = 0.25
+flume.stop_time     = 30.0

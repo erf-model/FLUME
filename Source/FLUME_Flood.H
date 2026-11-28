@@ -7,6 +7,7 @@
 #include "FLUME_Gauges.H"
 #include "FLUME_Inflow.H"
 #include "FLUME_Inputs.H"
+#include "FLUME_RainReplay.H"
 #include "FLUME_Source.H"
 #include "FLUME_WaterBalance.H"
 
@@ -166,6 +167,11 @@ public:
     //! nullptr with any other rain.
     [[nodiscard]] HostRain* host_rain () { return dynamic_cast<HostRain*>(m_forcing.get()); }
 
+    //! The host step from `t0` to `t1` (s) that host_rain()->depth() holds:
+    //! HostRain::set_step(), then, with flume.rain.replay_file, the rain is
+    //! written for a replay (RainReplay::record). Collective.
+    void set_host_rain_step (double t0, double t1, const std::string& host);
+
 private:
     //! One forward-Euler stage of `dt` on m_state, at the order of the run,
     //! in the step that ends at `time_end`, s (the inflow hydrographs give the
@@ -213,6 +219,9 @@ private:
     std::unique_ptr<FloodMaps> m_maps;
     //! The gauge points (flume.gauges.*)
     std::unique_ptr<Gauges> m_gauges;
+    //! The writer of the host's rain for a replay (flume.rain.replay_file),
+    //! or null
+    std::unique_ptr<RainReplay> m_replay;
     //! Time, s. In double precision in every build: a single-precision sum of
     //! steps stops growing after about 2^24 steps.
     double m_time = 0.0;

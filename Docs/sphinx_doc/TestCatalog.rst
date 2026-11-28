@@ -317,6 +317,15 @@ the solver.
        one step (1e-11), leaving the domain over 1200 s (volume).
    * - ``rain_cell_zero_peak_long_step``
      - A cell of peak 0 takes one step of 1e7 s and adds no water.
+   * - ``rain_replay_unit``
+     - The writer of ``flume.rain.replay_file`` on its own
+       (``Tests/RainReplay``, a driver linked to the FLUME library, 2
+       ranks): four host steps with negative depths, a step of no rain and a
+       step that starts 1e-8 s before the end of the last. The index to the
+       byte and the grids to the bit against the rates computed by the
+       check; restarts from the checkpoints after steps 2 and 3 write them
+       again to the byte; a restart with an index that is not the run's, and
+       a step that starts before the end of the last, stop.
 
 Infiltration
 ------------
@@ -544,7 +553,8 @@ CFL 0.8 and 1, which are above the 0.5 that ``flume.order = 2`` allows.
 ERF built with FLUME
 --------------------
 
-Registered only with ``FLUME_WITH_ERF=ON`` (``Tests/ERF``, ``Tests/ERFRain``). FLUME runs as
+Registered only with ``FLUME_WITH_ERF=ON`` (``Tests/ERF``, ``Tests/ERFRain``,
+``Tests/ERFReplay``). FLUME runs as
 ERF's flood engine (:ref:`sec:InsideERF`).
 
 .. list-table::
@@ -639,3 +649,21 @@ ERF's flood engine (:ref:`sec:InsideERF`).
    * - ``abort_erf_flume_rain_rate``
      - ``flume.rain.rate`` with ``microphysics`` inside ERF stops the run
        with the message that names the key.
+   * - ``erf_flume_rain_replay``
+     - ``flume.rain.replay_file`` (``Tests/ERFReplay``): the dam break of
+       ``erf_flume_rain_volume`` on 4 ranks, ``erf.fixed_dt = 0.25``, one
+       FLUME step per ERF step, 120 steps. The index holds 119 grids of
+       rain, closes at 30 s, and its grids hold the rain of the water
+       balance. The stand-alone run that reads it back (16 boxes on 4
+       ranks) gives every depth of the coupled flood at 15 s and 30 s to
+       64 eps (h + R), with R the largest rain of a cell (largest
+       difference 0.008 of the bound), and the same rain to
+       1.6 :math:`\times` 10\ :sup:`-16` of it. Run on to 60 s, it adds no
+       rain after 30 s while the water moves. ``erf.restart`` from step 60
+       writes the same index and grids, to the byte; the restart without
+       the index, with the index cut back to 7.5 s, or from a checkpoint
+       without what the writer holds back, stops.
+   * - ``abort_erf_flume_rain_replay_directory``,
+       ``abort_erf_flume_rain_replay_hash``
+     - ``flume.rain.replay_file`` that does not end in a file name, or
+       whose name holds a ``#``, stops the run.

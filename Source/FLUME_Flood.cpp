@@ -175,6 +175,9 @@ Flood::build ()
     m_balance = std::make_unique<WaterBalance>(in, m_geom);
     if (in.flood_maps == 1) { m_maps = std::make_unique<FloodMaps>(in, m_ba, m_dm); }
     m_gauges = std::make_unique<Gauges>(in, m_geom);
+    if (!in.rain_replay_file.empty()) {
+        m_replay = std::make_unique<RainReplay>(in.rain_replay_file, m_geom, m_ba, m_dm);
+    }
 }
 
 amrex::Real
@@ -313,10 +316,22 @@ void
 Flood::start_logs ()
 {
     m_balance->start(m_state, m_sources);
+    if (m_replay) { m_replay->start(m_time); }
     if (m_in.log_int > 0) {
         m_gauges->start();
         m_gauges->log(m_state, m_bed, m_step, m_time);
     }
+}
+
+void
+Flood::set_host_rain_step (double t0, double t1, const std::string& host)
+{
+    HostRain* rain = host_rain();
+    if (rain == nullptr) {
+        amrex::Abort("flume.rain.type: the host handed over rain, but the type is not microphysics");
+    }
+    rain->set_step(t0, t1, host);
+    if (m_replay) { m_replay->record(rain->depth(), t0, t1); }
 }
 
 void

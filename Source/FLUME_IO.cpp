@@ -103,6 +103,7 @@ Flood::write_checkpoint (const std::string& name) const
     m_balance->write_checkpoint(chk, m_sources);
     chk.put_words("gauges", m_gauges->words());
     if (m_maps) { m_maps->write_checkpoint(chk); }
+    if (m_replay) { m_replay->write_checkpoint(chk); }
     chk.finish();
     amrex::Print() << "Wrote " << name << " at time " << m_time << " s\n";
 }
@@ -181,6 +182,7 @@ Flood::restart (const std::string& dir)
     m_balance->resume(chk, m_state, m_sources, m_step, keep_step);
     if (m_maps) { m_maps->read_checkpoint(chk); }
     if (m_in.log_int > 0) { m_gauges->resume(m_step, keep_step); }
+    if (m_replay) { m_replay->resume(chk); }
     m_restart_step = m_step;
     // The logs, plotfile and checkpoint of this step were written before.
     m_last_plot = m_step;
