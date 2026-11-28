@@ -1,0 +1,16 @@
+# A dry, flat, closed domain of 16 x 10 m in 8 x 10 cells of 2 x 1 m, in
+# boxes of 4 cells (Tests/InflowSource/README.md). The tests add one
+# inflow, a point or a line, of 0.5 m3/s (hydrograph_half.txt). One step:
+# the depth of each cell is then its part of the inflow times the volume of
+# the step, over the cell area, and the step is the root of the
+# rain-limited cubic.
+flume.n_cell        = 8 10
+flume.prob_hi       = 16.0 10.0
+flume.max_grid_size = 4
+flume.plot_file     = dry
+flume.plot_int      = 1
+flume.max_step      = 1
+flume.cfl           = 0.5
+flume.order         = 2
+
+flume.bed.elevation = 0.0

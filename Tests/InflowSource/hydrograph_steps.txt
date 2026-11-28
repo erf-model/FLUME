@@ -1,0 +1,5 @@
+# 1 m3/s for 50 s, 3 m3/s for 70 s, then none.
+# Step in time: 260 m3. Linear in time: 205 m3.
+0   1
+50  3
+120 0

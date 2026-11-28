@@ -250,9 +250,11 @@ Flood::compute_dt (bool& lands, bool& dry, const std::optional<double>& target) 
     dry = !(rate > amrex::Real(0.0));
     if (!dry) { dt_max = std::min(dt_max, static_cast<double>(m_in.cfl / rate)); }
     // The largest rain rate over that span bounds the rain of the step, which
-    // is no longer.
-    const double r_max = (m_forcing != nullptr)
+    // is no longer; the inflows inside the domain add their fastest rise of
+    // a depth (0 for the other sources, so a run without them is unchanged).
+    double r_max = (m_forcing != nullptr)
         ? m_forcing->max_rain_rate(m_time, m_time + dt_max) : 0.0;
+    for (const auto& s : m_sources) { r_max += s->max_depth_rate(m_time, m_time + dt_max); }
     double dt = dt_max;
     if (r_max > 0.0) {
         dt = std::min(dt_max, rain_limited_step(static_cast<double>(rate), r_max,
@@ -265,8 +267,8 @@ Flood::compute_dt (bool& lands, bool& dry, const std::optional<double>& target) 
         if (!target.has_value() && !m_in.max_dt.has_value()) {
             amrex::Abort("No cell has a wave speed above zero (no depth is above flume.dry_depth),"
                          " and no rain falls and no water enters through a discharge segment"
-                         " from this time on, so nothing sets the time step: set flume.stop_time or"
-                         " flume.max_dt");
+                         " or an inflow (flume.inflows.names) from this time on, so nothing"
+                         " sets the time step: set flume.stop_time or flume.max_dt");
         }
         // To the target time, or a step of flume.max_dt.
         if (!m_in.max_dt.has_value()) {

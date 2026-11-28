@@ -5,7 +5,8 @@ A source term changes the state in a cell without a flux between cells. Each
 source is a class with a name and one step of :math:`\Delta t`
 (``Source/FLUME_Source.H``). The active sources are printed at start-up and
 act once per step, after all the explicit stages, in this order: rain,
-infiltration, storm-drain inlets, then Manning friction. They act on a dry domain too.
+inflows inside the domain, infiltration, storm-drain inlets, then Manning
+friction. They act on a dry domain too.
 
 The bed-slope term is not one of these sources: it is part of each explicit
 stage (:ref:`sec:HydrostaticReconstruction`).
@@ -128,6 +129,73 @@ exact:
   more than :math:`10^4` sub-intervals stops the run.
 * Centre positions are formed in double precision relative to
   ``flume.prob_lo``. The step bound is :math:`P`.
+
+.. _sec:InflowSource:
+
+Inflows inside the domain
+-------------------------
+
+An inflow (``flume.inflows.*``) adds the discharge :math:`Q(t)`,
+m\ :sup:`3`/s, of a hydrograph file to the cell that holds a point, or to
+the cells a line crosses: a river that enters away from the domain's sides,
+a culvert outlet, a pumped discharge or a manhole that overflows. The file
+and its interpolation are those of a discharge segment
+(:ref:`sec:Inflow`).
+
+**Cells of a line.** The line from :math:`(x_0, y_0)` to :math:`(x_1, y_1)`
+is cut where it crosses the lines of the grid; each piece goes to the cell
+that holds its middle. Cell :math:`c` takes the part
+
+.. math::
+
+   f_c = \frac{L_c}{L} , \qquad \sum_c f_c = 1 ,
+
+with :math:`L_c` the length of the line inside it and :math:`L` the whole
+length. A piece along a cell face, to rounding, goes to the cell above it
+or to its right (as a point on a face does), and one on the upper edge of
+the domain to the last cell. A piece shorter than :math:`10^{-12} L`, the
+rounding where the line passes through a corner of the grid, is dropped,
+so a cell the line only touches at a corner is not one of its cells. A point is one cell with :math:`f_c = 1`, the cell of a gauge
+at that location (:ref:`sec:Gauges`).
+
+**Step.** The step from :math:`t^n` to :math:`t^{n+1}` adds to the depth
+of cell :math:`c`
+
+.. math::
+
+   \Delta h_c = \frac{f_c \left(I(t^{n+1}) - I(t^n)\right)}{\Delta x\, \Delta y} ,
+   \qquad I(t) = \int_{t_0}^{t} Q(\tau)\, d\tau ,
+
+with :math:`I` in closed form from the table, as for the rain. The
+discharges are not changed: the water enters with no horizontal momentum,
+and the bed and the pressure of the water around it set it moving.
+
+**Properties.**
+
+* The volume added over a run is :math:`I(T) - I(0)` to round-off, whatever
+  the steps; the balance column ``inflow_<name>`` holds it
+  (:doc:`WaterBalance`).
+* Each cell keeps the part of the depth that the addition rounded away, as
+  for the rain (a compensated sum), so a small discharge into deep water is
+  not lost.
+* The step bound of the rain covers the inflows (:ref:`sec:RainStep`).
+* Inflows act after the rain and before the infiltration, so the soil and
+  the drains see their water in the same step.
+
+**Limitations.**
+
+* No momentum: a jet that enters fast (a pipe outlet into a pool) has its
+  speed set by the flow around it, not by the pipe. A river that enters
+  through a side with its own momentum is a discharge segment
+  (:ref:`sec:Inflow`). For the same reason a line across a stream that
+  flows slows it there: the new water takes a share of the stream's
+  momentum, as a drag of :math:`Q u / A` per unit area.
+* The discharge is spread over the cells by length only, not by depth or
+  conveyance.
+* A cell of an inflow cannot be a building cell (``flume.buildings.file``);
+  the run stops.
+* The source is first order in time at both orders of the scheme, like the
+  other sources.
 
 .. _sec:Infiltration:
 

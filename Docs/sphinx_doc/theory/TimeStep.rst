@@ -63,6 +63,16 @@ The bound follows from :math:`\sqrt{g\,(h + \hat r \Delta t)} \le
 \sqrt{g h} + \sqrt{g\, \hat r\, \Delta t}`. It is solved for
 :math:`\sqrt{\Delta t}` by Newton's method.
 
+An inflow inside the domain (:ref:`sec:InflowSource`) raises the depth of
+its cells by at most :math:`f_{\max} \hat Q / (\Delta x\, \Delta y)` per
+second, with :math:`\hat Q` its largest discharge over the step and
+:math:`f_{\max}` the largest part of it that one cell takes. These rates
+are added to :math:`\hat r`, so the bound holds where rain and inflows meet
+in one cell, and a dry domain fed only by an inflow gets a finite step.
+The rates are added even for inflows in cells apart, so the step is smaller
+than it needs to be there: with :math:`N` equal inflows on a dry domain,
+by about :math:`N^{1/3}`.
+
 With rain from ERF's microphysics (``flume.rain.type = microphysics``,
 :ref:`sec:InsideERF`), the precipitation :math:`D` of an ERF step from
 :math:`T_0` to :math:`T_1` is a depth on each cell, held at the constant

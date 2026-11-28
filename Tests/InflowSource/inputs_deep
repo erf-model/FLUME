@@ -1,0 +1,20 @@
+# One closed cell of 1 x 1 m, flat bed, still water 1 m deep
+# (Tests/InflowSource/README.md), fed by a point inflow of 1e-15 m3/s
+# (hydrograph_tiny.txt) for 20000 steps of about 0.08 s. Each step adds
+# about 8e-17 m, below half the rounding of the 1 m depth (1.1e-16 m in
+# double precision), so the depth grows only through the compensated sum.
+# Nothing flows: the cell holds 1 m plus the inflow's volume.
+flume.n_cell        = 1 1
+flume.prob_hi       = 1.0 1.0
+flume.plot_file     = deep
+flume.plot_int      = 20000
+flume.max_step      = 20000
+flume.cfl           = 0.5
+flume.order         = 2
+
+flume.bed.elevation          = 0.0
+flume.init.surface_elevation = 1.0
+
+flume.inflows.names      = p
+flume.inflows.p.location = 0.5 0.5
+flume.inflows.p.file     = hydrograph_tiny.txt
