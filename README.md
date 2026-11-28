@@ -32,6 +32,10 @@ hydrostatic reconstruction), writing plotfiles.
 | Losses     | Infiltration (Green-Ampt, curve number); storm-drain inlets.      |
 | Output     | Plotfiles, flood maps, water-balance log, gauges, checkpoints.    |
 
+`Tests/ERFStorm` is a coupled example: a convective cell from ERF's
+microphysics over an urban catchment, with the replay of its rain and the
+same storm as a hyetograph (see the docs, Coupled example).
+
 It is verified against a lake at rest, the wet and dry dam-break solutions,
 Thacker's solutions in a bowl, a smooth wave (rate of convergence), uniform
 flow with friction and the kinematic wave of rain on a plane.

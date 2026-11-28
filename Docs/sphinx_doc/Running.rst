@@ -511,7 +511,36 @@ without advancing ERF.
   that on, most in thin layers of water. With FLUME steps inside each ERF
   step, or stand-alone steps that do not land on the times of the index, the
   two runs agree to within the difference in their steps.
-- The grids are ESRI ASCII text: about 25 bytes per flood cell per step
-  with rain. Each step with rain gathers the whole flood grid on one rank
+- The grids are ESRI ASCII text: about 20 bytes per flood cell with rain
+  and 2 bytes per dry cell, per step with rain. Each step with rain gathers the whole flood grid on one rank
   to write it, and the stand-alone run reads every grid at its start; the
   grid numbers have six digits, so names sort in order up to 999999 grids.
+
+.. _sec:CouplingLimits:
+
+Limits of the coupling
+~~~~~~~~~~~~~~~~~~~~~~
+
+The coupling as it stands, with the example of
+:ref:`sec:CoupledExample`:
+
+- **One rectangle.** The flood grid covers the anchor level's region, which
+  must be one rectangle: the whole domain on level 0, or one refined region
+  without holes. Each of the level's boxes must span the full height (no
+  decomposition in z). ERF stops at the start otherwise. A catchment of another shape is set by its bed, its
+  outflow segments and its rasters inside that rectangle.
+- **One level.** FLUME has no refinement of its own: one grid, ERF's columns
+  refined by ``erf.flood.grid_ratio``. ERF builds it once, at the start. An
+  anchor level above 0 must keep its boxes (static refinement,
+  ``erf.regrid_int`` not above 0); ERF stops at the start otherwise.
+- **One way.** ERF gives FLUME its precipitation. The flood does not change
+  ERF's surface (moisture, roughness, fluxes); ERF's plotfile carries the
+  flood fields, averaged over each column, for output only.
+- **No snowpack.** Frozen precipitation becomes water on the flood grid in
+  the step it falls.
+- **FLUME's bed.** The bed is FLUME's own (``flume.bed.*``), not ERF's
+  terrain.
+- **Replay size.** ``flume.rain.replay_file`` writes ESRI ASCII text, about
+  20 bytes per flood cell with rain and 2 bytes per dry cell, per ERF step
+  with rain: 190 MB for the 854 steps with rain of the example on 256 x 128
+  cells.

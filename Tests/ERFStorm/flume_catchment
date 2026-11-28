@@ -1,0 +1,32 @@
+# FLUME's half of the storm case, read by the coupled run (inputs_storm) and
+# the two stand-alone runs (inputs_standalone): the catchment of
+# prepare_catchment.py, which writes the rasters into catchment/. The ground
+# starts dry. Each ERF step (5 s) is one FLUME step, as in the stand-alone
+# runs, so the replay gives the coupled flood to round-off.
+flume.max_dt   = 5.0
+flume.log_int  = 1
+flume.flood_maps = 1
+
+flume.bed.file              = catchment/bed.asc
+flume.friction.manning_file = catchment/manning.asc
+flume.infiltration.type          = curve_number
+flume.infiltration.cn.number_file = catchment/cn.asc
+
+# The catchment leaves through `outlet`; the valleys either side through
+# `west` and `east`; the ground north of the divide (y = 4 km) through `north`.
+flume.bc.segments    = outlet west east north
+flume.bc.outlet.side = ylo
+flume.bc.outlet.type = outflow
+flume.bc.outlet.range = -14000 2000
+flume.bc.west.side   = ylo
+flume.bc.west.type   = outflow
+flume.bc.west.range  = -32000 -14000
+flume.bc.east.side   = ylo
+flume.bc.east.type   = outflow
+flume.bc.east.range  = 2000 32000
+flume.bc.north.side  = yhi
+flume.bc.north.type  = outflow
+
+flume.gauges.names = outlet town
+flume.gauges.outlet.location = -6125 -15875
+flume.gauges.town.location   = -6125 -8125

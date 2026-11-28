@@ -558,7 +558,7 @@ ERF built with FLUME
 --------------------
 
 Registered only with ``FLUME_WITH_ERF=ON`` (``Tests/ERF``, ``Tests/ERFRain``,
-``Tests/ERFReplay``). FLUME runs as
+``Tests/ERFReplay``, ``Tests/ERFStorm``). FLUME runs as
 ERF's flood engine (:ref:`sec:InsideERF`).
 
 .. list-table::
@@ -695,3 +695,17 @@ ERF's flood engine (:ref:`sec:InsideERF`).
        ``abort_erf_flume_rain_replay_hash``
      - ``flume.rain.replay_file`` that does not end in a file name, or
        whose name holds a ``#``, stops the run.
+   * - ``erf_flume_storm_catchment``, ``erf_flume_storm``
+     - The coupled example (``Tests/ERFStorm``, :ref:`sec:CoupledExample`):
+       a convective cell from ERF's Kessler microphysics over a catchment
+       of 320 km\ :sup:`2`, 960 ERF steps of 5 s on 4 ranks, one FLUME step
+       each. ERF's rain on the catchment, at each of the 17 plt2d
+       plotfiles, is that of the hyetograph made from the rain FLUME wrote,
+       to 10\ :sup:`-12` of the total. The stand-alone replay (8 h) gives
+       the coupled flood at 40 and 80 min to 64 eps (h + R). The hyetograph
+       run (8 h) closes its water balance (factor 256: every cell wet at
+       once, all rain infiltrated from about 18 to 36 min) and rains the
+       hyetograph's depth at every step. The replay's outlet peak is at
+       least 3 times the hyetograph run's and at least 1 h earlier (86.0
+       against 16.4 m\ :sup:`3`/s, 2.9 h, in one run). The fixture writes
+       the rasters.

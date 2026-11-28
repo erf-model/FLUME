@@ -1,0 +1,71 @@
+# A convective cell over a catchment: ERF with FLUME as its flood engine, the
+# rain from ERF's Kessler microphysics (see README.md).
+# Atmosphere: 64 x 32 x 16 km in 32 x 16 x 32 cells (2 km by 500 m), periodic
+# in x, open in y, in four boxes of 16 x 8 x 32 for four ranks. The sounding
+# (sounding_storm, make_sounding.py) is the analytic thermodynamic profile of
+# Weisman and Klemp (1982) with a westerly wind of 6 to 14 m/s. A warm bubble
+# of 3 K at x = -30 km, y = -8 km starts a cell that rains from about 1200 s
+# and moves east at about 9 m/s along y = -6 to -9 km; it rains on the
+# catchment from about 20 min to the end of the run.
+# ERF's step is fixed at 5 s: 960 steps, 4800 s. At the start this is below
+# ERF's CFL limit (about 6.7 s at erf.cfl = 0.8). In the cell's updraft it
+# is not: ERF warns once, at step 173, of a Courant number of 0.88, and the
+# winds of plt00960 put it near 0.95. RK3 stays stable there. The flood grid refines the atmosphere's columns by 8: 256 x 128
+# cells of 250 m. FLUME writes the rain it gets from ERF for the stand-alone
+# replay (rain/storm.txt).
+max_step  = 960
+stop_time = 1.0e9
+erf.prob_name = "ABL"  # codespell:ignore
+erf.init_type           = "input_sounding"
+erf.sounding_type       = Ideal
+erf.input_sounding_file = sounding_storm
+
+geometry.prob_lo     = -32000. -16000.     0.
+geometry.prob_hi     =  32000.  16000. 16000.
+geometry.is_periodic = 1 0 0
+amr.n_cell           = 32 16 32
+amr.max_grid_size    = 16 8 32
+amr.max_level        = 0
+ylo.type = "Open"
+yhi.type = "Open"
+zlo.type = "SlipWall"
+zhi.type = "HO_Outflow"
+
+erf.use_gravity       = true
+erf.buoyancy_type     = 1
+erf.moisture_model    = "Kessler"
+erf.les_type          = "None"
+erf.pbl_type          = "None"
+erf.molec_diff_type   = "ConstantAlpha"
+erf.dynamic_viscosity = 33.33
+erf.alpha_T           = 33.33
+erf.alpha_C           = 33.33
+erf.fixed_dt          = 5.0
+erf.fixed_fast_dt     = 1.25
+
+erf.check_file    = chk
+erf.check_int     = -1
+erf.plot_file_1   = plt
+erf.plot_int_1    = 480
+erf.plot_vars_1   = density theta qv qc qrain x_velocity z_velocity flood_depth
+erf.plot2d_file_1 = plt2d
+erf.plot2d_int_1  = 60
+erf.plot2d_vars_1 = precip_total_accum
+erf.v = 0
+
+prob.bubble_dT  = 3.0
+prob.bubble_x_c = -30000.
+prob.bubble_y_c = -8000.
+prob.bubble_z_c = 1500.
+prob.bubble_x_r = 8000.
+prob.bubble_y_r = 8000.
+prob.bubble_z_r = 1500.
+
+erf.flood.enable     = true
+erf.flood.engine     = flume
+erf.flood.grid_ratio = 8
+erf.flood.plot_file  = flood
+erf.flood.plot_int   = 480
+
+flume.rain.type        = microphysics
+flume.rain.replay_file = rain/storm.txt
