@@ -41,7 +41,8 @@ where its rain can be the surface precipitation of ERF's microphysics
      - Other raster formats through GDAL
    * - Losses
      - Infiltration: Green-Ampt and the runoff curve number; storm-drain
-       inlets (weir and orifice capacity)
+       inlets (weir and orifice capacity, or capacity from the approach
+       flow), one by one or from a list file
      -
    * - Output
      - AMReX plotfiles, flood maps, water-balance log, gauge time series,

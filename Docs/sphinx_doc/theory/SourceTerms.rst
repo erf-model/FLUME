@@ -321,7 +321,12 @@ Storm-drain inlets
 
 An inlet (``flume.drains.*``) takes water from the surface of the cell that
 holds it. The water leaves the model: there is no pipe network and no
-surcharge back to the surface. Each inlet is a grate in a sag (Brown et al.,
+surcharge back to the surface. Two capacity laws are available, chosen for
+each name with ``flume.drains.<name>.type``: ``weir_orifice`` (the default),
+from the depth alone, and ``approach_flow``, from the speed of the water
+over the inlet.
+
+**Weir and orifice.** The inlet is a grate in a sag (Brown et al.,
 2009, HEC-22, inlets in sag locations). At the depth :math:`d` of its cell it takes the
 smaller of the weir and the orifice capacity,
 
@@ -380,12 +385,92 @@ solution never falls below 0 (the weir branch never empties a cell), so the
 loss is at most the water of the cell without a cap, and it does not depend
 on the step.
 
+**Approach flow.** With ``type = approach_flow`` the inlet takes
+
+.. math::
+
+   Q = k \, u \, A \, \mathrm{Fr}^{\alpha}, \qquad
+   \mathrm{Fr} = \frac{u}{\sqrt{g h}} ,
+
+with :math:`u = \sqrt{(hu)^2 + (hv)^2} / h` the speed of the water of the
+cell (m/s), :math:`h` its depth (m), :math:`A` the area of the inlet
+(m\ :sup:`2`), :math:`k` a coefficient and :math:`\alpha` the exponent of
+the Froude number. It is the law of Xia et al. (2022) in the form Annis et
+al. (2026, equation 3) give it; the defaults :math:`k = 0.302` and
+:math:`\alpha = -0.816` are the values they report from Xia et al. Annis et
+al. calibrated :math:`k = 0.226` for inlets of 0.4 m\ :sup:`2` in Brooklyn.
+:math:`\alpha` is between -1 and 0, so the capacity does not decrease with
+the speed (it goes as :math:`u^{1+\alpha}`) or with the depth (as
+:math:`h^{-\alpha/2}`): at :math:`\alpha = -1` it does not depend on the
+speed, and at :math:`\alpha = 0` not on the depth. :math:`k` and
+:math:`\alpha` have no unit.
+
+**Step of the approach-flow law.** The water an inlet takes leaves with its
+share of the discharge, so the speed of the cell does not change while it
+drains. With :math:`u` fixed over the step,
+
+.. math::
+
+   \frac{dh}{dt} = -c \, h^{p}, \qquad
+   c = \frac{k A g^{p} u^{1+\alpha}}{|\Omega|}, \qquad
+   p = -\frac{\alpha}{2} ,
+
+and, with :math:`q = 1 - p` (between 1/2 and 1),
+
+.. math::
+
+   h(t)^{q} = h_0^{q} - q \, c \, t ,
+
+which reaches 0 at :math:`t_e = h_0^{q} / (q c)`: unlike the weir, this law
+empties a cell in a finite time. With :math:`z = q c \tau / h_0^{q}` the
+step takes :math:`h(\tau) = h_0 (1 - z)^{1/q}`, computed as
+:math:`h_0 \exp(\ln(1 - z) / q)` with ``log1p``, so a small loss is not
+the difference of two close powers. It takes 0 when :math:`z \ge 1`, so the
+loss is at most the water of the cell, without a cap. A cell at or below
+``flume.dry_depth`` is left as it is. The speed is that of the cell after
+the rain, the inflows and the infiltration of the step, and before the
+friction.
+
+*The last film.* When :math:`h(\tau)` is above 0 but at or below
+``flume.dry_depth``, the step takes all the water of the cell. A film at
+that depth has no discharge, so the law could not take it later, and
+whether it stayed would depend on where the steps land. The water taken
+this way is at most the dry depth per cell, once per emptying, and it is
+counted in the drained depth and the balance.
+
+*What it means in still water.* With :math:`\alpha > -1` the capacity is 0
+at :math:`u = 0`: an inlet under ponded, still water takes nothing. Only
+:math:`u = 0` gives 0: a pond that moves a little, also at round-off
+speeds, drains a little, as :math:`u^{1+\alpha}`. A pond that starts at
+rest on a level surface stays at rest and keeps its water. At
+:math:`\alpha = -1` the speed drops out, :math:`Q = k A \sqrt{g h}`, an
+orifice law with :math:`C_o = k / \sqrt{2}`. :math:`k` has no upper limit,
+so at :math:`\alpha = -1` a :math:`k` above :math:`\sqrt{2}` is an orifice
+coefficient above 1.
+
+**Inlets from a file.** With ``flume.drains.<name>.file`` a name stands for
+all the inlets of a list, with one type and one set of parameters. A cell
+that holds :math:`n` of them drains at :math:`n` times the rate of one (the
+coefficients :math:`a`, :math:`b` and :math:`c` are multiplied by
+:math:`n`).
+
 **Limitations.**
 
-* :math:`d` is the depth of the cell, not the depth over the grate: an
-  inlet smaller than the cell sees the mean depth of the cell.
-* One inlet per cell; the capacity is that of a grate in a sag (no
-  approach flow, no clogging factor, no curb opening).
+* :math:`d` and :math:`u` are the depth and the speed of the cell, not
+  those over the grate: an inlet smaller than the cell sees the means of
+  the cell.
+* A cell holds the inlets of one name. The ``weir_orifice`` capacity is
+  that of a grate in a sag (no approach flow, no clogging factor, no curb
+  opening); the ``approach_flow`` capacity is 0 in still water unless
+  :math:`\alpha = -1`. The two are not combined in one cell.
+* The ``approach_flow`` law is empirical; its coefficient is site-specific
+  and is meant to be calibrated (Annis et al., 2026).
+* The ``approach_flow`` capacity does not depend on the width of the cell.
+  On cells not much wider than the inlet it can be more than the discharge
+  that crosses the cell; the cell then empties and the inlet takes what
+  arrives.
+* The sewer has no limit: there is no pipe network, so an inlet takes its
+  capacity whatever the state of the sewer below it.
 * HEC-22 does not give the capacity between the depths where the weir and
   the orifice formulas hold; the smaller of the two is taken there.
 * The water does not come back: an inlet always drains while its cell is

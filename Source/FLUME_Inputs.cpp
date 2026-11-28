@@ -678,11 +678,37 @@ read_inputs (const amrex::Geometry* host_grid)
             d.name = name;
             const std::string key = "drains." + name + ".";
             bool complete = true;
-            if (!query_finite_pair(pp, key + "location", d.location)) {
-                defer("flume.drains.names lists " + name + ", which needs flume." + key
-                      + "location: the x and y of the inlet, m");
+            // type: weir_orifice (default) or approach_flow
+            if (pp.contains(key + "type")) {
+                require_count(pp, key + "type", 1);
+                std::string v;
+                pp.get(key + "type", v);
+                if (v == "weir_orifice") {
+                    d.type = DrainType::weir_orifice;
+                } else if (v == "approach_flow") {
+                    d.type = DrainType::approach_flow;
+                } else {
+                    amrex::Abort("flume." + key + "type must be weir_orifice or approach_flow;"
+                                 " it is " + v);
+                }
+            }
+            const bool approach = (d.type == DrainType::approach_flow);
+            const std::string type_name = approach ? "approach_flow" : "weir_orifice";
+            // location or file: exactly one
+            const bool has_location = query_finite_pair(pp, key + "location", d.location);
+            const bool has_file = query_file(pp, key + "file", d.file,
+                                             "a file of inlet locations (an x and a y in m per"
+                                             " line)");
+            if (has_location && has_file) {
+                defer("flume." + key + "location and flume." + key + "file are both given: an"
+                      " inlet takes one of the two");
                 complete = false;
-            } else {
+            } else if (!has_location && !has_file) {
+                defer("flume.drains.names lists " + name + ", which needs flume." + key
+                      + "location: the x and y of the inlet, m (or flume." + key
+                      + "file: lines of an x and a y in m, one inlet each)");
+                complete = false;
+            } else if (has_location) {
                 for (int dd = 0; dd < 2; ++dd) {
                     if (!(d.location[dd] >= in.prob_lo[dd] && d.location[dd] <= in.prob_hi[dd])) {
                         std::string msg = "flume." + key + "location must be inside the domain: from ";
@@ -697,14 +723,6 @@ read_inputs (const amrex::Geometry* host_grid)
                     }
                 }
             }
-            if (!query_finite(pp, key + "perimeter", d.perimeter)) {
-                defer("flume.drains.names lists " + name + ", which needs flume." + key
-                      + "perimeter: the weir length of the inlet, m");
-                complete = false;
-            } else if (!(d.perimeter > amrex::Real(0.0))) {
-                amrex::Abort("flume." + key + "perimeter must be > 0; it is "
-                             + all_digits(d.perimeter));
-            }
             if (!query_finite(pp, key + "area", d.area)) {
                 defer("flume.drains.names lists " + name + ", which needs flume." + key
                       + "area: the open area of the inlet, m2");
@@ -714,16 +732,53 @@ read_inputs (const amrex::Geometry* host_grid)
                 amrex::Abort("flume." + key + "area must be > 0 and <= the area of a cell ("
                              + all_digits(area_cell) + " m2); it is " + all_digits(d.area));
             }
-            if (query_finite(pp, key + "weir_coefficient", d.weir_coefficient)
-                && !(d.weir_coefficient > amrex::Real(0.0))) {
-                amrex::Abort("flume." + key + "weir_coefficient must be > 0; it is "
-                             + all_digits(d.weir_coefficient));
-            }
-            if (query_finite(pp, key + "orifice_coefficient", d.orifice_coefficient)
-                && !(d.orifice_coefficient > amrex::Real(0.0)
-                     && d.orifice_coefficient <= amrex::Real(1.0))) {
-                amrex::Abort("flume." + key + "orifice_coefficient must be > 0 and <= 1; it is "
-                             + all_digits(d.orifice_coefficient));
+            // The keys of the other law are faults, whatever their values.
+            const auto other_law = [&] (const char* k, const char* law) {
+                if (pp.contains(key + k)) {
+                    defer("flume." + key + k + " is read only with flume." + key + "type = "
+                          + law + "; the type is " + type_name);
+                    return true;
+                }
+                return false;
+            };
+            if (approach) {
+                for (const char* k : {"perimeter", "weir_coefficient", "orifice_coefficient"}) {
+                    if (other_law(k, "weir_orifice")) { complete = false; }
+                }
+                if (query_finite(pp, key + "coefficient", d.coefficient)
+                    && !(d.coefficient > amrex::Real(0.0))) {
+                    amrex::Abort("flume." + key + "coefficient must be > 0; it is "
+                                 + all_digits(d.coefficient));
+                }
+                if (query_finite(pp, key + "froude_exponent", d.froude_exponent)
+                    && !(d.froude_exponent >= amrex::Real(-1.0)
+                         && d.froude_exponent <= amrex::Real(0.0))) {
+                    amrex::Abort("flume." + key + "froude_exponent must be >= -1 and <= 0; it is "
+                                 + all_digits(d.froude_exponent));
+                }
+            } else {
+                for (const char* k : {"coefficient", "froude_exponent"}) {
+                    if (other_law(k, "approach_flow")) { complete = false; }
+                }
+                if (!query_finite(pp, key + "perimeter", d.perimeter)) {
+                    defer("flume.drains.names lists " + name + ", which needs flume." + key
+                          + "perimeter: the weir length of the inlet, m");
+                    complete = false;
+                } else if (!(d.perimeter > amrex::Real(0.0))) {
+                    amrex::Abort("flume." + key + "perimeter must be > 0; it is "
+                                 + all_digits(d.perimeter));
+                }
+                if (query_finite(pp, key + "weir_coefficient", d.weir_coefficient)
+                    && !(d.weir_coefficient > amrex::Real(0.0))) {
+                    amrex::Abort("flume." + key + "weir_coefficient must be > 0; it is "
+                                 + all_digits(d.weir_coefficient));
+                }
+                if (query_finite(pp, key + "orifice_coefficient", d.orifice_coefficient)
+                    && !(d.orifice_coefficient > amrex::Real(0.0)
+                         && d.orifice_coefficient <= amrex::Real(1.0))) {
+                    amrex::Abort("flume." + key + "orifice_coefficient must be > 0 and <= 1; it is "
+                                 + all_digits(d.orifice_coefficient));
+                }
             }
             if (complete) { in.drains.push_back(d); }
         }

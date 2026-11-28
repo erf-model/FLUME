@@ -124,7 +124,9 @@ extent carries no meaning. ParaView, VisIt and yt read the format.
 
 The log reports, at start-up, the boundary cells of each segment, the active
 source terms, the rain, the infiltration parameters, each drain inlet with its cell and
-the depth above which it flows as an orifice, the range of the Manning map and the
+the depth above which it flows as an orifice (or its area, coefficient and
+Froude exponent; for a list file, the number of inlets, of cells and of
+cells with more than one inlet), the range of the Manning map and the
 number of building cells.
 
 .. _sec:FloodMaps:
@@ -308,7 +310,10 @@ another list of sources, a bed that differs in any cell, other water-balance
 columns (rain, inflows, infiltration, drain inlets, outflow, zero-gradient
 and discharge segments),
 outflow, zero-gradient or discharge segments on other faces, gauges in other cells, drain inlets with another
-name, cell, perimeter, area or coefficient, inflows inside the domain
+name, cell, type, perimeter, area, coefficient or exponent (for a list
+file: another number of inlets or of cells, or other cells or numbers of
+inlets in them; the name of the file may change, but a ``location`` in
+place of a ``file``, or the reverse, stops the restart), inflows inside the domain
 (``flume.inflows.*``) with a point in another cell or a line with other
 ends, a build of the other precision, a checkpoint
 written with ``flume.log_int = 0`` when the restart keeps a log, or one

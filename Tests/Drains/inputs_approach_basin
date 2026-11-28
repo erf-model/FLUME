@@ -1,0 +1,22 @@
+# One approach-flow inlet in moving water: 16 x 16 cells of 1 m in boxes of
+# 8 (4 boxes), walls on all four sides, flat bed at 0, no rain. The water
+# starts 0.3 m deep at (0.5, 0.2) m/s and sloshes between the walls. The
+# inlet has an area of 0.2 m2 and the default coefficient and Froude
+# exponent. The tests place it at (8.5, 8.5) m, in cell (8, 8), with
+# flume.drains.grate.location or with flume.drains.grate.file
+# (Tests/Drains/inlets_basin.txt). There is no closed form: the
+# tests check that only the inlet cell drains, that the water is kept to
+# round-off, and that the result does not depend on the boxes or the ranks.
+flume.n_cell        = 16 16
+flume.prob_hi       = 16.0 16.0
+flume.max_grid_size = 8
+flume.plot_file     = plt
+flume.plot_int      = 100
+flume.stop_time     = 60.0
+
+flume.init.surface_elevation = 0.3
+flume.init.velocity          = 0.5 0.2
+
+flume.drains.names           = grate
+flume.drains.grate.type      = approach_flow
+flume.drains.grate.area      = 0.2

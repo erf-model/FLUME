@@ -1,0 +1,36 @@
+# Inlet locations for Tests/Drains/inputs_approach: an x and a y in m per line.
+# Two inlets in each of the 4 x 4 cells of 5 m: one at the centre, and one
+# 1 m from it, listed after all the centres.
+2.5 2.5
+7.5 2.5
+12.5 2.5
+17.5 2.5
+2.5 7.5
+7.5 7.5
+12.5 7.5
+17.5 7.5
+2.5 12.5
+7.5 12.5
+12.5 12.5
+17.5 12.5
+2.5 17.5
+7.5 17.5
+12.5 17.5
+17.5 17.5
+
+3.5 1.5   # with the inlet of line 4
+8.5 1.5   # with the inlet of line 5
+13.5 1.5   # with the inlet of line 6
+18.5 1.5   # with the inlet of line 7
+3.5 6.5   # with the inlet of line 8
+8.5 6.5   # with the inlet of line 9
+13.5 6.5   # with the inlet of line 10
+18.5 6.5   # with the inlet of line 11
+3.5 11.5   # with the inlet of line 12
+8.5 11.5   # with the inlet of line 13
+13.5 11.5   # with the inlet of line 14
+18.5 11.5   # with the inlet of line 15
+3.5 16.5   # with the inlet of line 16
+8.5 16.5   # with the inlet of line 17
+13.5 16.5   # with the inlet of line 18
+18.5 16.5   # with the inlet of line 19

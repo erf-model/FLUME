@@ -1,0 +1,17 @@
+# The basin of Tests/Drains/inputs_basin with its inlet from a list file:
+# the tests give flume.drains.grate.file (Tests/Drains/inlets_basin.txt, one
+# inlet at (8.5, 8.5) m; Tests/Drains/inlets_basin_halves.txt, two inlets
+# there, with half the perimeter and half the area each). Every value of
+# every plotfile must be that of inputs_basin.
+flume.n_cell        = 16 16
+flume.prob_hi       = 16.0 16.0
+flume.max_grid_size = 8
+flume.plot_file     = plt
+flume.plot_int      = 500
+flume.stop_time     = 1200.0
+
+flume.init.surface_elevation = 0.3
+
+flume.drains.names            = grate
+flume.drains.grate.perimeter  = 0.5
+flume.drains.grate.area       = 0.05

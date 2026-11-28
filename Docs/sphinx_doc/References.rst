@@ -25,6 +25,10 @@ References
   J. C. Warner (2009). *Urban Drainage Design Manual*. Hydraulic Engineering
   Circular No. 22 (HEC-22), third edition, FHWA-NHI-10-009. United States
   Department of Transportation, Federal Highway Administration.
+* J. Xia, B. Dong, M. Zhou, R. Ahmadian, R. A. Falconer, Q. Li and X. Zhang
+  (2022). A unified formula for discharge capacity of street inlets for
+  urban flood management. *Journal of Hydrology* 609, 127667.
+  https://doi.org/10.1016/j.jhydrol.2022.127667
 * NRCS (2004). *National Engineering Handbook, Part 630 Hydrology*, chapter
   10: Estimation of direct runoff from storm rainfall. United States
   Department of Agriculture, Natural Resources Conservation Service.

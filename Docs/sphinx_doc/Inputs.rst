@@ -430,10 +430,16 @@ only with it. Building cells (``flume.buildings.file``) infiltrate nothing.
 Storm-drain inlets
 ------------------
 
-The inlet model is in :ref:`sec:Drains`. Each inlet sits in the cell that
-holds its location, chosen as for a gauge (:ref:`sec:Gauges`). A cell holds
-at most one inlet (merge two into one with the sum of their perimeters and
-areas), and a building cell (``flume.buildings.file``) none: either aborts.
+The inlet model is in :ref:`sec:Drains`. A name stands for one inlet at a
+``location``, or for all the inlets of a list ``file``, which share the
+type and the parameters of the name. Each inlet sits in the cell that holds
+its location, chosen as for a gauge (:ref:`sec:Gauges`). The inlets of one
+file that fall in the same cell are added: the cell drains at the rate of
+one inlet times their number, and their areas together must be at most the
+area of a cell. A cell does not hold inlets of two names (merge two
+``location`` inlets of the weir and orifice law into one with the sum of
+their perimeters and areas, or list the inlets in one file), and a building
+cell (``flume.buildings.file``) holds none: each aborts.
 
 .. list-table::
    :header-rows: 1
@@ -447,33 +453,74 @@ areas), and a building cell (``flume.buildings.file``) none: either aborts.
      - strings
      - none
      - Names of the inlets, each of letters, digits and ``_``, none twice.
+   * - ``flume.drains.<name>.type``
+     - string
+     - ``weir_orifice``
+     - ``weir_orifice``: a grate in a sag, the smaller of the weir and the
+       orifice capacity at the depth of the cell. ``approach_flow``: the
+       capacity from the speed and the Froude number of the water over the
+       inlet. Any other value aborts.
    * - ``flume.drains.<name>.location``
      - 2 reals
-     - required
+     - one of ``location`` and ``file``
      - x and y of the inlet, m, inside the domain or on its edge. A point
        on a face is in the cell above it, and one on the upper edge in the
        last cell, also on a periodic side (as for the gauges).
-   * - ``flume.drains.<name>.perimeter``
-     - real
-     - required
-     - Perimeter :math:`P` of the grate that water spills over as a weir,
-       m. Finite, above 0.
+   * - ``flume.drains.<name>.file``
+     - string
+     - one of ``location`` and ``file``
+     - A text file with one inlet per line: its x and its y in m, two
+       decimal numbers separated by blanks or tabs, finite and inside the
+       domain or on its edge. ``#`` starts a comment; empty lines are
+       skipped. A byte-order mark and line ends of CR and LF are accepted.
+       At least one inlet. A path that is not absolute starts at the
+       directory of the run. Giving both ``location`` and ``file``, or
+       neither, aborts.
    * - ``flume.drains.<name>.area``
      - real
      - required
-     - Open area :math:`A` of the grate, m\ :sup:`2`. Finite, above 0 and at
-       most the area of a cell.
+     - Open area :math:`A` of one inlet, m\ :sup:`2`. Finite, above 0 and at
+       most the area of a cell; so is the sum of the areas of the inlets of
+       a list in one cell.
+   * - ``flume.drains.<name>.perimeter``
+     - real
+     - required with ``weir_orifice``
+     - Perimeter :math:`P` of the grate that water spills over as a weir,
+       m. Finite, above 0. Only with ``weir_orifice``.
    * - ``flume.drains.<name>.weir_coefficient``
      - real
      - ``1.66``
      - Weir coefficient :math:`C_w`, m\ :sup:`1/2`/s (SI). Finite, above 0.
+       Only with ``weir_orifice``.
    * - ``flume.drains.<name>.orifice_coefficient``
      - real
      - ``0.67``
-     - Orifice coefficient :math:`C_o`. Finite, above 0 and at most 1.
+     - Orifice coefficient :math:`C_o`. Finite, above 0 and at most 1. Only
+       with ``weir_orifice``.
+   * - ``flume.drains.<name>.coefficient``
+     - real
+     - ``0.302``
+     - Coefficient :math:`k` of the approach-flow law, no unit. Finite,
+       above 0. Only with ``approach_flow``. A value so small that the rate
+       of a cell rounds to 0 aborts.
+   * - ``flume.drains.<name>.froude_exponent``
+     - real
+     - ``-0.816``
+     - Exponent :math:`\alpha` of the Froude number in the approach-flow
+       law, no unit. Finite, at least -1 and at most 0. Only with ``approach_flow``.
 
 The keys of an inlet are required, or allowed, for each name in
-``flume.drains.names``; a key for a name not listed is unknown.
+``flume.drains.names``; a key for a name not listed is unknown. A key of
+the other type (``perimeter`` with ``approach_flow``, ``coefficient``
+without it) aborts. An example of a list of street inlets:
+
+.. code-block:: none
+
+   flume.drains.names                  = street
+   flume.drains.street.type            = approach_flow
+   flume.drains.street.file            = inlets.txt
+   flume.drains.street.area            = 0.4
+   flume.drains.street.coefficient     = 0.226
 
 Inflows inside the domain
 -------------------------

@@ -449,6 +449,53 @@ independently of the solver.
    * - ``abort_restart_drains_moved``, ``_coefficient``
      - A restart with the inlet in another cell, or with another weir
        coefficient, stops with a message naming the inlets.
+   * - ``drains_approach_uniform``, ``_coefficients``
+     - Approach-flow inlets from a list file in each of 16 periodic cells of
+       moving water: every cell against the exact solution, and its
+       discharge its depth times the velocity (64 eps of the starting
+       depth), with the default and with another coefficient and exponent.
+   * - ``drains_approach_merge``
+     - Two inlets of half the area in every cell: the plotfiles of
+       ``drains_approach_uniform`` to the last bit.
+   * - ``drains_approach_empty``, ``_empty_small_steps``
+     - To 120 s: no cell empty before the closed form reaches the dry
+       depth, every cell empty after the closed-form time, no depth below
+       0; in 145 steps and in 6492 steps.
+   * - ``drains_approach_exponent_0``
+     - An exponent of 0, the upper end of its range, against the exact
+       solution.
+   * - ``drains_approach_two_names``
+     - Two lists with other coefficients and exponents in one run: after
+       the first step each cell holds the closed-form depth of its own
+       inlet.
+   * - ``drains_approach_still``, ``_exponent_minus_1``
+     - Still water: nothing drains with the default exponent; with an
+       exponent of -1 the cells follow :math:`Q = k A \sqrt{g h}`.
+   * - ``balance_drains_approach``
+     - The ``drained`` and ``stored`` columns against the closed form.
+   * - ``drains_basin_type``, ``_file``, ``_file_halves``
+     - The weir and orifice law as it was: ``drains_basin`` with the type
+       given by name, with the inlet from a list file, and with the inlet
+       as two halves in one cell: the plotfiles to the last bit.
+   * - ``drains_approach_basin``, ``_order2``, ``_file``
+     - One approach-flow inlet in sloshing water in a closed basin: only
+       its cell drains, it drains more than 0, and the water is kept to
+       round-off, at both orders.
+   * - ``balance_drains_approach_basin``
+     - The drained volume of that run, kept as a regression value (1e-6).
+   * - ``drains_approach_basin_file_np3``
+     - The same on 3 ranks in 16 boxes with the inlet from a list file: the
+       plotfiles to the last bit.
+   * - ``drains_approach_restart_np4_np2``
+     - Continued from a checkpoint on 2 ranks, the inlet from a list file
+       (in the restart a file of another name, with a byte-order mark and
+       line ends of CR and LF): the plotfiles to the last bit.
+   * - ``abort_restart_drains_file_*``, ``_approach_coefficient``,
+       ``_approach_exponent``, ``_law``
+     - A restart with another list (more inlets, one inlet in another
+       cell, or the same cells with other numbers of inlets), a location in
+       place of the list, another coefficient or exponent, or the other law
+       stops with a message naming the inlets.
 
 Inflows inside the domain
 -------------------------
@@ -624,7 +671,13 @@ Input checks
    * - ``abort_drains_*``
      - Each drain key: names, missing keys, ranges, a location outside the
        domain, an unknown key, a key of a name not listed, two inlets in one
-       cell and an inlet in a building cell.
+       cell and an inlet in a building cell; an unknown type, a key of the
+       other type, a location with a file or neither; a list file that is
+       missing, a directory, empty, or holds a line with another number of
+       items, a word, a hexadecimal or an infinite number, or a point
+       outside the domain; inlets of a list whose areas exceed their cell,
+       in the cell of another name, or in a building cell; a coefficient
+       so small that the rate of the cell is 0 (double precision).
    * - ``abort_inflow_source_*``
      - Each inflow key: names (also two that differ only in case), missing
        keys, the count of values, a point and a line together,

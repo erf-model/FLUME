@@ -1,0 +1,9 @@
+# The 8 cells of the western half of Tests/Drains/inputs_approach_two.
+2.5 2.5
+7.5 2.5
+2.5 7.5
+7.5 7.5
+2.5 12.5
+7.5 12.5
+2.5 17.5
+7.5 17.5

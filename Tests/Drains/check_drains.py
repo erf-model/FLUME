@@ -31,6 +31,21 @@ form, independently of the solver's forward form: above d* = b / a,
 t = 2 (sqrt(h0) - sqrt(h)) / b; below it, t = t(d*) + 2 (1 / sqrt(h) -
 1 / sqrt(h_s)) / a from the depth h_s the weir part starts at (h0 or d*).
 
+An inlet of the approach-flow law of area A, coefficient k and Froude
+exponent alpha (--approach A [k alpha]) in water of speed u (--velocity UX UY)
+drains its cell at
+
+    dh/dt = -c h^p,  c = k A g^p u^(1 + alpha) / S,  p = -alpha / 2,
+
+(Xia et al. 2022 as given by Annis, Badas and Mascaro 2026, equation 3:
+Q = k u A Fr^alpha, Fr = u / sqrt(g h)). From the depth h0 the time to reach
+the depth h is, with q = 1 - p, t = (h0^q - h^q) / (q c): the cell is empty
+after h0^q / (q c). With --approach, --uniform also checks that the discharge
+of every cell is its depth times the velocity, that no cell is empty before
+the closed form reaches the dry depth (--dry-depth, 1e-6 m by default: the
+step takes a film at or below it), and that every cell is empty after the
+emptying time.
+
 Modes:
 
 --uniform H0
@@ -59,6 +74,22 @@ Modes:
     checked through the inverse of the closed form, as in --uniform, but
     within --tol-eps epsilons of H0, since H0 minus drained_depth cancels. An
     explicit step, capped at the water of the cell, takes it all.
+
+--group A K ALPHA ILO IHI  (with --approach-first-step H0; one per group)
+    The cells of columns ILO to IHI hold an approach-flow inlet of area A,
+    coefficient K and Froude exponent ALPHA; the water starts level at H0
+    and moves at --velocity, so no cell gains or loses water to another in
+    the first step. In the plotfile of step 1, each cell of a group must
+    hold the depth of the closed form of its own inlet, through the
+    inverse, within --tol-eps epsilons of H0. Every cell must be in one
+    group.
+
+--still
+    No inlet takes water: drained_depth is 0 in every cell of every
+    plotfile, and every depth and discharge is that of the first plotfile.
+
+--drained-positive
+    Each inlet cell (--inlet) has drained more than 0 by the last plotfile.
 """
 import argparse
 import math
@@ -105,6 +136,16 @@ def rate(h, a, b):
     return min(a * h ** 1.5, b * math.sqrt(h))
 
 
+def approach_c(area, k, alpha, speed, gravity, s_cell):
+    return k * area * gravity ** (-0.5 * alpha) * speed ** (1.0 + alpha) / s_cell
+
+
+def approach_time_to(h, h0, c, alpha):
+    """Time for the depth to fall from h0 to h (0 <= h <= h0)."""
+    q = 1.0 + 0.5 * alpha
+    return (h0 ** q - h ** q) / (q * c)
+
+
 def lumped_depth(t, h0, a, b):
     """Depth at time t from h0, by bisection on time_to (no forward form)."""
     lo, hi = 0.0, h0
@@ -124,8 +165,15 @@ def main():
     p.add_argument("prefix")
     p.add_argument("--uniform", type=float, metavar="H0")
     p.add_argument("--basin", type=float, nargs=3, metavar=("H0", "LO", "HI"))
-    p.add_argument("--grate", type=float, nargs="+", required=True,
-                   help="P A [C_w C_o]")
+    p.add_argument("--grate", type=float, nargs="+", help="P A [C_w C_o]")
+    p.add_argument("--approach", type=float, nargs="+", help="A [k alpha]")
+    p.add_argument("--velocity", type=float, nargs=2, default=[0.0, 0.0], metavar=("UX", "UY"))
+    p.add_argument("--still", action="store_true")
+    p.add_argument("--dry-depth", type=float, default=1.0e-6)
+    p.add_argument("--approach-first-step", type=float, metavar="H0")
+    p.add_argument("--group", type=float, nargs=5, action="append", default=[],
+                   metavar=("A", "K", "ALPHA", "ILO", "IHI"))
+    p.add_argument("--drained-positive", action="store_true")
     p.add_argument("--gravity", type=float, default=9.81)
     p.add_argument("--first-step", type=float, metavar="H0")
     p.add_argument("--inlet", type=int, nargs=2, action="append", default=[], metavar=("I", "J"))
@@ -134,10 +182,26 @@ def main():
     p.add_argument("--tol-eps", type=float, default=16.0)
     p.add_argument("--n-plotfiles", type=int, default=2)
     a = p.parse_args()
-    if len(a.grate) not in (2, 4):
-        sys.exit("FAIL: --grate takes P A or P A C_w C_o")
-    perim, area = a.grate[0], a.grate[1]
-    cw, co = (a.grate[2], a.grate[3]) if len(a.grate) == 4 else (1.66, 0.67)
+    if a.approach_first_step is not None:
+        if a.grate is not None or a.approach is not None or not a.group:
+            sys.exit("FAIL: --approach-first-step takes --group, not --grate or --approach")
+        a.approach = [0.0]
+    elif (a.grate is None) == (a.approach is None):
+        sys.exit("FAIL: give one of --grate and --approach")
+    if a.approach is not None:
+        if len(a.approach) not in (1, 3):
+            sys.exit("FAIL: --approach takes A or A k alpha")
+        if a.basin is not None or a.first_step is not None:
+            sys.exit("FAIL: --basin and --first-step are for --grate")
+        ap_area = a.approach[0]
+        ap_k, ap_alpha = (a.approach[1], a.approach[2]) if len(a.approach) == 3 else (0.302, -0.816)
+        speed = math.hypot(a.velocity[0], a.velocity[1])
+        perim = area = cw = co = None
+    else:
+        if len(a.grate) not in (2, 4):
+            sys.exit("FAIL: --grate takes P A or P A C_w C_o")
+        perim, area = a.grate[0], a.grate[1]
+        cw, co = (a.grate[2], a.grate[3]) if len(a.grate) == 4 else (1.66, 0.67)
 
     plotfiles = sorted((d for d in Path(".").iterdir()
                         if d.is_dir() and d.name.startswith(a.prefix)
@@ -152,6 +216,8 @@ def main():
     worst_ratio = [math.inf, -math.inf]
     inlets = {tuple(c) for c in a.inlet}
     first_step_done = False
+    first_cells = None
+    last_cells = None
     for pf in plotfiles:
         head, cells, real_size = read(pf)
         eps = 2.0 ** -52 if real_size == 8 else 2.0 ** -23
@@ -178,7 +244,48 @@ def main():
                 errors.append(f"{pf.name}: depth + drained_depth sums to {total!r}, "
                               f"at the start {first_total!r}")
 
-        if a.uniform is not None:
+        last_cells = cells
+        if first_cells is None:
+            first_cells = cells
+        if a.still:
+            for (i, j), v in cells.items():
+                if v[I_D] != 0.0:
+                    errors.append(f"{pf.name} cell ({i}, {j}): drained_depth {v[I_D]!r}, expected 0")
+                w = first_cells[(i, j)]
+                if (v[I_H], v[I_QX], v[I_QY]) != (w[I_H], w[I_QX], w[I_QY]):
+                    errors.append(f"{pf.name} cell ({i}, {j}): depth and discharge "
+                                  f"{v[I_H]!r} {v[I_QX]!r} {v[I_QY]!r} are not those of the "
+                                  f"first plotfile")
+        if a.uniform is not None and a.approach is not None:
+            h0 = a.uniform
+            c = approach_c(ap_area, ap_k, ap_alpha, speed, a.gravity, s_cell)
+            p_exp = -0.5 * ap_alpha
+            t_empty = approach_time_to(0.0, h0, c, ap_alpha)
+            t_film = approach_time_to(min(a.dry_depth, h0), h0, c, ap_alpha)
+            for (i, j), v in cells.items():
+                h = v[I_H]
+                # The discharge is the depth times the velocity: each step
+                # scales it with the depth, rounding by about an epsilon.
+                for q, u in ((v[I_QX], a.velocity[0]), (v[I_QY], a.velocity[1])):
+                    if abs(q - h * u) > a.tol_eps * eps * h0 * max(speed, 1.0):
+                        errors.append(f"{pf.name} cell ({i}, {j}): discharge {q!r}, expected "
+                                      f"{h * u!r}")
+                if not h > 0.0:
+                    if t < t_film * (1.0 - 1e-9):
+                        errors.append(f"{pf.name} cell ({i}, {j}) at t = {t}: empty before "
+                                      f"{t_film!r} s")
+                    continue
+                if t > t_empty * (1.0 + 1e-9):
+                    errors.append(f"{pf.name} cell ({i}, {j}) at t = {t}: depth {h!r} after "
+                                  f"{t_empty!r} s, when the cell is empty")
+                    continue
+                dt_err = abs(approach_time_to(h, h0, c, ap_alpha) - t) if h < h0 else t
+                err = dt_err * c * h ** p_exp / h0
+                worst = max(worst, err / eps)
+                if err > a.tol_eps * eps:
+                    errors.append(f"{pf.name} cell ({i}, {j}) at t = {t}: depth {h!r} is "
+                                  f"{err / eps:.1f} eps of H0 from the closed form")
+        elif a.uniform is not None:
             h0 = a.uniform
             ca = cw * perim / s_cell
             cb = co * area * math.sqrt(2.0 * a.gravity) / s_cell
@@ -194,6 +301,29 @@ def main():
                 if err > a.tol_eps * eps:
                     errors.append(f"{pf.name} cell ({i}, {j}) at t = {t}: depth {h!r} is "
                                   f"{err / eps:.1f} eps of H0 from the closed form")
+        if a.approach_first_step is not None and t > 0.0 and not first_step_done:
+            first_step_done = True
+            h0 = a.approach_first_step
+            speed = math.hypot(a.velocity[0], a.velocity[1])
+            if head["step"] != 1:
+                errors.append(f"{pf.name}: step {head['step']}, expected the plotfile of step 1")
+            for (i, j), v in cells.items():
+                mine = [g for g in a.group if g[3] <= i <= g[4]]
+                if len(mine) != 1:
+                    errors.append(f"{pf.name} cell ({i}, {j}): in {len(mine)} groups")
+                    continue
+                g_area, g_k, g_alpha = mine[0][:3]
+                c = approach_c(g_area, g_k, g_alpha, speed, a.gravity, s_cell)
+                h = v[I_H]
+                if not 0.0 < h < h0:
+                    errors.append(f"{pf.name} cell ({i}, {j}): depth {h!r} after the first step "
+                                  f"from {h0}")
+                    continue
+                err = abs(approach_time_to(h, h0, c, g_alpha) - t) * c * h ** (-0.5 * g_alpha) / h0
+                worst = max(worst, err / eps)
+                if err > a.tol_eps * eps:
+                    errors.append(f"{pf.name} cell ({i}, {j}): depth {h!r} after the first step, "
+                                  f"{err / eps:.1f} eps of H0 from the closed form of its inlet")
         if a.first_step is not None and t > 0.0 and not first_step_done:
             first_step_done = True
             h0 = a.first_step
@@ -225,14 +355,21 @@ def main():
                 errors.append(f"{pf.name} at t = {t}: drained volume {ratio:.6f} of the lumped "
                               f"closed form, expected {lo} to {hi}")
 
+    if a.drained_positive:
+        if not inlets:
+            sys.exit("FAIL: --drained-positive needs --inlet")
+        for (i, j) in inlets:
+            if not last_cells[(i, j)][I_D] > 0.0:
+                errors.append(f"{plotfiles[-1].name} cell ({i}, {j}): drained_depth "
+                              f"{last_cells[(i, j)][I_D]!r}, expected above 0")
     if errors:
         for e in errors[:20]:
             print("FAIL:", e)
         sys.exit(1)
     msg = f"PASS: {len(plotfiles)} plotfiles"
-    if a.first_step is not None and not first_step_done:
+    if (a.first_step is not None or a.approach_first_step is not None) and not first_step_done:
         sys.exit("FAIL: no plotfile after the start for --first-step")
-    if a.uniform is not None or a.first_step is not None:
+    if a.uniform is not None or a.first_step is not None or a.approach_first_step is not None:
         msg += f"; largest depth error {worst:.2f} eps of H0"
     if a.basin is not None:
         msg += f"; drained {worst_ratio[0]:.6f} to {worst_ratio[1]:.6f} of the lumped closed form"

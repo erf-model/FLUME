@@ -442,6 +442,64 @@ wet depth, to :math:`8 + \sqrt{n}` epsilons after :math:`n` steps (the
 runs drift by 1 epsilon in double precision and 17 in single precision
 over 6095 steps).
 
+The approach-flow law is checked against the exact solution of
+:math:`dh/dt = -c h^{p}`, through its inverse
+:math:`t = (h_0^{q} - h^{q}) / (q c)`. Sixteen periodic cells of 25
+m\ :sup:`2`, each with an inlet of 0.4 m\ :sup:`2` from a list file, hold
+water 0.5 m deep that moves at (1.2, 0.5) m/s. The water stays level and
+keeps its velocity, so every cell holds that solution at the time of each
+plotfile, and its discharge is its depth times the velocity:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 64 36
+
+   * - Case
+     - Largest difference
+   * - :math:`k = 0.302`, :math:`\alpha = -0.816`: to 69.43 mm at 60 s
+     - 1.3 epsilons of 0.5 m
+   * - :math:`k = 0.226`, :math:`\alpha = -0.5`: to 171.3 mm at 60 s
+     - 2.9 epsilons of 0.5 m
+   * - :math:`\alpha = 0`: to 419.5 mm at 60 s
+     - 0.6 epsilons of 0.5 m
+   * - To 120 s in 145 steps: every cell empty after :math:`t_e = 87.05` s,
+       none before the closed form reaches the dry depth, no depth below 0
+     - 1.6 epsilons of 0.5 m
+   * - The same in 6492 steps (a CFL number of 0.011)
+     - 11.6 epsilons of 0.5 m
+   * - Still water, :math:`\alpha = -1`: to 64.05 mm at 60 s
+     - 0.7 epsilons of 0.5 m
+   * - Two lists with other :math:`k` and :math:`\alpha` in one run, first
+       step: each cell the depth of its own inlet
+     - 0.2 epsilons of 0.5 m
+   * - Drained volume of the first case, 172.2272660 m\ :sup:`3`
+     - 1e-12 relative (the bound of the check)
+
+The checks take 64 epsilons: the powers of this closed form round more than
+the square roots of the weir law, and the error grows with the number of
+steps. In the run of 6492 steps a step lands in the last 0.04 s before
+:math:`t_e`, where the closed form is at or below the dry depth; the step
+takes that film and the cells end empty. With still water and the default exponent
+no inlet takes water, and every depth stays that of the start to the last
+bit. Two inlets of 0.2 m\ :sup:`2` in every cell give the plotfiles of the
+first case to the last bit. One inlet of 0.2 m\ :sup:`2` in a closed basin
+of 256 m\ :sup:`2`, in water 0.3 m deep that starts at (0.5, 0.2) m/s and
+sloshes between the walls, drains 3.950 m\ :sup:`3` of 76.8 in 60 s (4.310
+at second order), only from its cell; the run is the same to the last bit
+on 3 ranks in 16 boxes with the inlet from a list file, and after a restart
+on 2 ranks (the restart reads the list from a file with a byte-order mark
+and line ends of CR and LF). This case has no closed form: 3.950 and 4.310
+are the values of this grid at a CFL number of 0.5, and the first is kept
+as a regression value. The weir and orifice law is as it
+was: the basin above with ``type = weir_orifice`` given, with its inlet
+from a list file, and with the inlet as two halves in one cell of a list
+file, gives the same plotfiles to the last bit.
+
+The approach-flow tests check the step against its own differential
+equation. They do not compare the law with measurements: Annis et al.
+(2026) calibrated it against street sensors, and Xia et al. (2022) against
+laboratory runs.
+
 Water balance and flood maps
 ----------------------------
 
