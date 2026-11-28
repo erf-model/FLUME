@@ -53,6 +53,10 @@ the numbers of one run are in ``Tests/Gowanus`` (``README.md``). The terrain
 and the footprints are downloaded by ``prepare_gowanus.py --download``;
 neither is in the repository, so the case has no CTest.
 
+The choice of the place follows Annis, Badas and Mascaro (2026), who model
+two Brooklyn basins against FloodNet sensors and measured storms, with and
+without the effect of the sewer (:doc:`References`).
+
 Thanks to the U.S. Geological Survey for the 3DEP elevation, to the City of
 New York for the open building footprints, and to the FloodNet team and the
 New York City Department of Environmental Protection for their open

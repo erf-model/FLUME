@@ -98,11 +98,16 @@ New York for the open building footprints, and to the FloodNet team and the
 Department of Environmental Protection for their open street-flood
 measurements.
 
-The choice of this place follows S. Annis, M. G. Badas and G. Mascaro,
-*Increasing the fidelity of hyperlocal simulations of urban pluvial flooding
-through street flooding observations* (University of Cagliari repository,
-<https://iris.unica.it/handle/11584/471945>), who model two New York basins
-against FloodNet sensors with LISFLOOD-FP. None of their files is used here.
+The choice of this place follows S. Annis, M. G. Badas and G. Mascaro
+(2026), Increasing the fidelity of hyperlocal simulations of urban pluvial
+flooding through street flooding observations, *Advances in Water Resources*
+209, 105223, <https://doi.org/10.1016/j.advwatres.2026.105223>. They model
+two Brooklyn basins of 10.9 and 0.8 km2 on cells of 1 m with LISFLOOD-FP,
+against eight FloodNet sensors and measured storms. They report that runs
+without the sewer severely overestimate the measured depths, and that
+removing runoff at the stormwater inlets reproduces them after calibration.
+This case has no sewer, so the same is expected of it. None of their files
+or figures is used here.
 
 ## How to run
 

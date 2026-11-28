@@ -1,6 +1,10 @@
 References
 ==========
 
+* S. Annis, M. G. Badas and G. Mascaro (2026). Increasing the fidelity of
+  hyperlocal simulations of urban pluvial flooding through street flooding
+  observations. *Advances in Water Resources* 209, 105223.
+  https://doi.org/10.1016/j.advwatres.2026.105223
 * E. Audusse, F. Bouchut, M.-O. Bristeau, R. Klein and B. Perthame (2004). A
   fast and stable well-balanced scheme with hydrostatic reconstruction for
   shallow water flows. *SIAM Journal on Scientific Computing* 25(6),
