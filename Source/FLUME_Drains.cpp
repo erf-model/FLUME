@@ -162,6 +162,29 @@ struct InletRate
     amrex::Real exponent;
 };
 
+//! Write the rates of the inlets of one box into its cells. A free function:
+//! nvcc does not accept a device lambda in a constructor.
+void
+set_inlet_rates (const std::vector<InletRate>& host, const amrex::Array4<amrex::Real>& wa,
+                 const amrex::Array4<amrex::Real>& oa, const amrex::Array4<amrex::Real>& ra,
+                 const amrex::Array4<amrex::Real>& ea)
+{
+    amrex::Gpu::DeviceVector<InletRate> device(host.size());
+    amrex::Gpu::copy(amrex::Gpu::hostToDevice, host.begin(), host.end(), device.begin());
+    const InletRate* const p = device.data();
+    amrex::ParallelFor(static_cast<long>(host.size()),
+        [=] AMREX_GPU_DEVICE (long m) noexcept
+        {
+            const InletRate& v = p[m];
+            wa(v.i, v.j, 0) = v.weir;
+            oa(v.i, v.j, 0) = v.orifice;
+            ra(v.i, v.j, 0) = v.rate;
+            ea(v.i, v.j, 0) = v.exponent;
+        });
+    // Before `device` goes out of scope.
+    amrex::Gpu::streamSynchronize();
+}
+
 } // namespace
 
 void
@@ -355,25 +378,8 @@ Drains::Drains (const Inputs& in, const amrex::Geometry& geom, const amrex::BoxA
     for (amrex::MFIter mfi(m_rate); mfi.isValid(); ++mfi) {
         const auto bin = bins.find(mfi.index());
         if (bin == bins.end()) { continue; }
-        const std::vector<InletRate>& host = bin->second;
-        amrex::Gpu::DeviceVector<InletRate> device(host.size());
-        amrex::Gpu::copy(amrex::Gpu::hostToDevice, host.begin(), host.end(), device.begin());
-        const InletRate* const p = device.data();
-        const auto& wa = m_weir.array(mfi);
-        const auto& oa = m_orifice.array(mfi);
-        const auto& ra = m_rate.array(mfi);
-        const auto& ea = m_exponent.array(mfi);
-        amrex::ParallelFor(static_cast<long>(host.size()),
-            [=] AMREX_GPU_DEVICE (long m) noexcept
-            {
-                const InletRate& v = p[m];
-                wa(v.i, v.j, 0) = v.weir;
-                oa(v.i, v.j, 0) = v.orifice;
-                ra(v.i, v.j, 0) = v.rate;
-                ea(v.i, v.j, 0) = v.exponent;
-            });
-        // Before `device` goes out of scope.
-        amrex::Gpu::streamSynchronize();
+        set_inlet_rates(bin->second, m_weir.array(mfi), m_orifice.array(mfi),
+                        m_rate.array(mfi), m_exponent.array(mfi));
     }
     // No inlet in a building cell. One pass over the grid for all the
     // inlets (the weir rate or the approach rate is > 0 in the inlet cells
