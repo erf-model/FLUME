@@ -160,9 +160,10 @@ the run has reached up to that plotfile:
 A cell is dry when its depth is at or below ``flume.dry_depth``. The maps
 follow the state at the start and at the end of every step, not the stages
 inside a step, so an arrival time is the end of a step, up to one step late.
-A cell wet at the start has arrival time 0 when its depth is above the
-arrival depth, which is at least ``flume.dry_depth``. The maximum of depth
-times speed is taken by itself: it need not come at the time of the largest
+A cell wet at the start has the start time as its arrival time (0, or
+ERF's time when FLUME starts inside ERF from a checkpoint without flood
+state) when its depth is above the arrival depth, which is at least
+``flume.dry_depth``. The maximum of depth times speed is taken by itself: it need not come at the time of the largest
 depth or speed. The maps are held in the precision of the state: in a
 single-precision build an arrival time near :math:`10^6` s is rounded to
 about 0.06 s.
@@ -416,10 +417,13 @@ ends within 10\ :sup:`-6` of a step of ``stop_time``, as ERF stops.
 
 ERF's checkpoints carry FLUME's, in ``<checkpoint>/Level_<lev>/FLUME``.
 ``erf.restart`` continues FLUME from there, and cuts the logs back as a
-stand-alone restart does (:ref:`sec:Restart`). A checkpoint written without
-the flood (``erf.flood.enable = false``) holds no FLUME state: FLUME then
-starts from its initial state at ERF's time, but its maps start at time 0,
-and its summary is not written when ``max_step`` ends the run.
+stand-alone restart does (:ref:`sec:Restart`), on the same or another
+number of ranks. A checkpoint written without the flood
+(``erf.flood.enable = false``) holds no FLUME state: FLUME then starts from
+its initial state at ERF's time. Its logs and maps start at that time (the
+arrival time of a cell wet at the start is ERF's time), and it counts its
+steps on from ERF's, which it reads from the checkpoint's ``Header``, so
+its summary is written at ``max_step`` as in a run from step 0.
 
 FLUME's steps inside an ERF step are its own: each is the CFL, rain and
 ``flume.max_dt`` step, except the one that would pass the end of the ERF

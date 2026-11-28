@@ -85,9 +85,10 @@ public:
     void add_outflow (const amrex::Array<amrex::MultiFab, 2>& flux, double dt);
 
     //! The volume on the surface at the start (V_0), the header and the line
-    //! of step 0.
+    //! of step 0, at time t0, s (0, or the host model's time when FLUME starts
+    //! inside it later).
     void start (const amrex::MultiFab& state,
-                const std::vector<std::unique_ptr<Source>>& sources);
+                const std::vector<std::unique_ptr<Source>>& sources, double t0);
 
     //! One line of the log at the end of step `step`, time `time`, s. Sums
     //! over the ranks (one reduction).

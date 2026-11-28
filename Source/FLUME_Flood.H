@@ -73,7 +73,8 @@ public:
     //! step_to(flume.stop_time) until the end, then finish(true).
     void evolve ();
 
-    //! The flood maps take the initial state (with flume.flood_maps = 1).
+    //! The flood maps start from the state at the current time (with
+    //! flume.flood_maps = 1); called again, they start over.
     void start_maps ();
 
     //! The water balance takes the initial state, and the gauge files are

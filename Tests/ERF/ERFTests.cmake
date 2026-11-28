@@ -205,6 +205,74 @@ if(TEST erf_flume_plane_substeps_restart)
                          FIXTURES_REQUIRED erf_flume_plane_step_2.0)
 endif()
 
+# erf_flume_plane_ranks_restart: erf_flume_plane_substeps_restart, but ERF
+# continues from chk00037 on 3 ranks instead of 4: the same 4 boxes, one rank
+# with two of them. The flood plotfiles and gauge files are those of
+# erf_flume_plane_step_2.0 to the last bit. The sums of water_balance.txt are
+# taken over the ranks in another order after the restart, so they agree to
+# 1e-14 of each column's largest value, the residual to 1e-14 of the largest
+# volume (2.3e-16 in this run), not byte for byte. The restart's output must
+# report 3 MPI processes.
+flume_launcher(launcher_np3 3)
+erf_flume_add_regtest(erf_flume_plane_ranks_restart NPROCS 4
+    INPUTS ${erf_case_dir}/inputs_erf
+    ARGS ${erf_flume_plane} ${substeps_args} erf.check_int=37
+    CHECK ${check_coupled} flood --dt 2.0 --substeps
+          --reference ${FLUME_TEST_RUN_DIR}/erf_flume_plane_step_2.0
+          --restart-balance-rtol 1e-14 --restart-ranks 3 --log ${erf_logs}
+          --restart chk00037 ${launcher_np3} $<TARGET_FILE:erf_exec> ${erf_case_dir}/inputs_erf
+                    ${erf_flume_plane} ${substeps_args} erf.check_int=-1 erf.restart=chk00037
+                    ${FLUME_TEST_ARGS})
+if(TEST erf_flume_plane_ranks_restart)
+    set_tests_properties(erf_flume_plane_ranks_restart PROPERTIES
+                         FIXTURES_REQUIRED erf_flume_plane_step_2.0)
+endif()
+
+# erf_flume_start_without_flood: ERF runs 37 steps of 2 s without the flood
+# (erf.flood.enable = false) and writes chk00037 at 74 s, with no FLUME state
+# in it. It then continues from chk00037 with the flood on, to max_step = 75
+# (150 s), FLUME starting from a flat water surface at 0.5 m. The bed falls
+# from 1 m by 1 cm per metre, so the cells with centres beyond x = 50 m, 14
+# columns of 8, are wet at the start: 112 cells, 0.005 to 0.135 m deep.
+# FLUME's summary must be written at ERF's step 75; its logs and gauges
+# start at 74 s; the arrival time of those 112 cells is 74 s and that of no
+# other cell is earlier (check_start_without_flood.py).
+set(start_args ${erf_flume_plane} ${substeps_args} erf.check_int=37)
+erf_flume_add_regtest(erf_flume_start_without_flood NPROCS 4
+    INPUTS ${erf_case_dir}/inputs_erf
+    ARGS ${start_args} erf.flood.enable=false max_step=37
+    CHECK ${Python3_EXECUTABLE} ${erf_case_dir}/check_start_without_flood.py flood
+          --start-time 74 --end-time 150 --surface 0.5 --wet 112
+          --restart chk00037 ${launcher_np4} $<TARGET_FILE:erf_exec> ${erf_case_dir}/inputs_erf
+                    ${start_args} erf.check_int=-1 erf.restart=chk00037
+                    flume.flood_maps=1 flume.init.surface_elevation=0.5 ${FLUME_TEST_ARGS})
+if(TEST erf_flume_start_without_flood)
+    set_tests_properties(erf_flume_start_without_flood PROPERTIES
+                         FIXTURES_SETUP erf_flume_start_without_flood)
+endif()
+
+# abort_erf_flume_checkpoint_title: FLUME reads the step of a restart from
+# the Header of ERF's checkpoint, which ERF writes as "Checkpoint file for
+# ERF", the finest level, four lines of component counts and the step of
+# each level. ERF itself skips the title line, so a copy of chk00037 of
+# erf_flume_start_without_flood with another title restarts in ERF, and
+# FLUME must stop on it rather than read the lines that follow.
+if(FLUME_MPI)
+    set(retitled_chk ${FLUME_TEST_RUN_DIR}/erf_flume_retitled_chk00037)
+    add_test(NAME erf_flume_retitle_checkpoint
+        COMMAND ${Python3_EXECUTABLE} ${erf_case_dir}/retitle_checkpoint.py
+                ${FLUME_TEST_RUN_DIR}/erf_flume_start_without_flood/chk00037 ${retitled_chk}
+                "Checkpoint file for something else")
+    set_tests_properties(erf_flume_retitle_checkpoint PROPERTIES LABELS "erf;abort" TIMEOUT 60
+                         FIXTURES_REQUIRED erf_flume_start_without_flood
+                         FIXTURES_SETUP erf_flume_retitled_chk)
+    erf_flume_add_abort_test(abort_erf_flume_checkpoint_title
+        EXPECT "flume: ERF's checkpoint header .*erf_flume_retitled_chk00037/Header does not start with the line \"Checkpoint file for ERF\": FLUME reads the step of the restart from it"
+        ARGS erf.restart=${retitled_chk})
+    set_tests_properties(abort_erf_flume_checkpoint_title PROPERTIES
+                         FIXTURES_REQUIRED erf_flume_retitled_chk)
+endif()
+
 # --- What FLUME does not take inside ERF ---------------------------------------
 # Each key ERF sets stops the run, with a message naming ERF's key.
 foreach(case "n_cell=64 8|amr\\.n_cell" "prob_lo=0 0|geometry\\.prob_lo"

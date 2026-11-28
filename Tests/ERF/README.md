@@ -20,7 +20,9 @@ run with a message naming ERF's key. The coupling is described in
 | `inputs_standalone` | The keys of the stand-alone run (`max_dt_plane`, registered in `Tests/CMakeLists.txt` in every build) that ERF sets in the coupled run: 64 x 8 cells of 1 m in two boxes of 32 x 8, periodic in y, a plotfile every 200 steps, 150 s. |
 | `inputs_erf` | ERF with FLUME: a still, uniform anelastic atmosphere over 64 x 8 x 64 m in 32 x 4 x 8 cells (boxes of 16 x 4 x 8), periodic in y, slip walls in x and z, `erf.fixed_dt = 0.25`, 600 steps, a checkpoint every 300 steps, `erf.flood.grid_ratio = 2`, a flood plotfile every 200 steps. |
 | `check_step_lengths.py` | Checks that, at 150 s, no run inside ERF with another ERF step is further from the time-converged flood than the stand-alone run with FLUME's own steps (2 % margin, L1 and largest value, depth and discharge in x), and that each differs from that run by at most half of its time error. The time-converged flood is 2 F(0.125 s) - F(0.25 s). First, three stand-alone runs with steps of 0.5, 0.25 and 0.125 s must show a first-order time error: \|F(0.5) - F(0.25)\| / \|F(0.25) - F(0.125)\| within 2 +- 0.1. The 2 % margin is observed, not proven (the stand-alone run capped at 2 s is 1.0103 times further than FLUME's own steps in the largest depth difference). |
-| `check_coupled.py` | Checks that each flood plotfile `floodNNNNN` holds FLUME step N at time 0.25 N exactly; with `--reference`, that the plotfiles and logs are those of the other run; with `--column-mean`, that the flood fields of ERF's plotfile are the means of FLUME's cells over each column; with `--restart`, that ERF continued from its checkpoint gives them again; with `--substeps`, that FLUME landed on the end of every ERF step after more FLUME steps than ERF steps (also with `--reference` and `--restart`). |
+| `check_coupled.py` | Checks that each flood plotfile `floodNNNNN` holds FLUME step N at time 0.25 N exactly; with `--reference`, that the plotfiles and logs are those of the other run; with `--column-mean`, that the flood fields of ERF's plotfile are the means of FLUME's cells over each column; with `--restart`, that ERF continued from its checkpoint gives them again; with `--substeps`, that FLUME landed on the end of every ERF step after more FLUME steps than ERF steps (also with `--reference` and `--restart`); with `--restart-balance-rtol r`, for a restart on another number of ranks, that `water_balance.txt` after the restart has the same steps and times as the other run's and each value within r of its column's largest magnitude, the residual within r of the largest volume (the plotfiles and gauge files still byte for byte); with `--restart-ranks n`, that the restart's output reports n MPI processes. |
+| `check_start_without_flood.py` | For ERF's restart, with the flood on, from a checkpoint written with `erf.flood.enable = false`: runs the restart and checks that ERF reports a checkpoint without flood state, that FLUME writes its summary at ERF's last step, that the water balance and gauge files start at ERF's time of the checkpoint (step 0) and the balance closes, and that in each flood plotfile the cells wet at the start (a flat surface above the bed) arrived at that time exactly, and no other cell earlier. |
+| `retitle_checkpoint.py` | Copies an ERF checkpoint with another title line in its `Header`, for `abort_erf_flume_checkpoint_title`. |
 | `ERFTests.cmake` | The CTest definitions, included from `Tests/CMakeLists.txt` with `FLUME_WITH_ERF=ON`. |
 
 ## Why the two runs agree to the last bit
@@ -72,6 +74,9 @@ python3 <repo>/Tests/ERF/check_coupled.py flood --dt 0.25 --reference <stand-alo
 | `flood_plane_dt_05`, `flood_plane_dt_0125`, `flood_plane_own_steps` | 300 steps of 0.5 s; 1200 steps of 0.125 s; 99 steps of FLUME's own |
 | `erf_flume_plane_step_lengths` | first-order ratio 2.0003 (depth), 2.0088 (discharge); depth L1 error relative to the largest depth 6.1, 6.7, 7.2, 7.8 x 1e-4 for ERF steps of 1.5, 2, 3.75, 15 s, against 7.9 x 1e-4 with FLUME's own steps |
 | `erf_flume_plane_substeps_restart` | with a checkpoint at ERF step 37 (FLUME step 51, read from the checkpoint), the plotfiles and logs of `erf_flume_plane_step_2.0`, byte for byte; again after the restart from `chk00037` |
+| `erf_flume_plane_ranks_restart` | as `erf_flume_plane_substeps_restart`, but the restart from `chk00037` runs on 3 ranks (4 boxes): plotfiles and gauge files byte for byte; `water_balance.txt` within 2.3e-16 of each column's largest value, the residual of the largest volume (allowed 1e-14); the restart reports 3 MPI processes |
+| `erf_flume_start_without_flood` | ERF writes `chk00037` at 74 s without the flood, then continues with it: `FLUME: 380 step(s), time 150 s` at ERF's step 75; logs and gauges from step 0 at 74 s; the 112 cells wet at the start arrived at 74 s; water balance residual -2.6e-15 m3 |
+| `abort_erf_flume_checkpoint_title` | a copy of that `chk00037` with another title line stops the run: FLUME reads the restart's step from ERF's `Header` |
 | `erf_flume_plane_stop_time` | `FLUME: 174 step(s), time 52.2 s`: 174 ERF steps of 0.3 s, 1.4e-13 s short of `stop_time = 52.2`, end the run; one FLUME step each with `flume.max_dt = 0.29999999` |
 | `abort_erf_flume_host_*` | each of the 12 keys stops the run, with ERF's key in the message |
 
@@ -79,10 +84,13 @@ python3 <repo>/Tests/ERF/check_coupled.py flood --dt 0.25 --reference <stand-alo
 
 `max_dt_plane` (every build), `erf_flume_plane`, `erf_flume_plane_substeps`,
 `erf_flume_plane_stop_time`, `erf_flume_plane_short_steps` (2 ranks each);
-`flood_plane_dt_05`, `flood_plane_dt_0125`, `flood_plane_own_steps`, `erf_flume_plane_step_*`
-and `erf_flume_plane_substeps_restart` (4 ranks each);
+`flood_plane_dt_05`, `flood_plane_dt_0125`, `flood_plane_own_steps`, `erf_flume_plane_step_*`,
+`erf_flume_plane_substeps_restart`, `erf_flume_plane_ranks_restart` (restart on 3)
+and `erf_flume_start_without_flood` (4 ranks each);
 `erf_flume_plane_step_lengths` (a check of the runs of others, no run of its
-own); and the `abort_erf_flume_host_*` tests (1 rank). Logs
+own); `erf_flume_retitle_checkpoint` (no run, the copy of the checkpoint); and
+the `abort_erf_flume_host_*` and `abort_erf_flume_checkpoint_title` tests (1 rank). Logs
 (`water_balance.txt`) are compared byte for byte only between runs on the
-same boxes: their sums differ in the last digits with the boxes. See
+same boxes and ranks: their sums differ in the last digits with the boxes,
+and with the ranks (`erf_flume_plane_ranks_restart`). See
 `Docs/sphinx_doc/TestCatalog.rst`.

@@ -170,7 +170,7 @@ WaterBalance::open_file (int resume_step, bool keep_step)
 
 void
 WaterBalance::start (const amrex::MultiFab& state,
-                     const std::vector<std::unique_ptr<Source>>& sources)
+                     const std::vector<std::unique_ptr<Source>>& sources, double t0)
 {
     if (!m_on) { return; }
     static_assert(State::h == 0, "local_sum reads component 0 of the state");
@@ -178,7 +178,7 @@ WaterBalance::start (const amrex::MultiFab& state,
     const std::vector<double> t = totals(state, sources);
     m_v0 = t[0];
     open_file(-1, false);
-    write_line(0, 0.0, t);
+    write_line(0, t0, t);
 }
 
 std::vector<std::string>

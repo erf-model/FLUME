@@ -309,13 +309,13 @@ Flood::write_logs ()
 void
 Flood::start_maps ()
 {
-    if (m_maps) { m_maps->update(m_state, m_time); }
+    if (m_maps) { m_maps->start(m_state, m_time); }
 }
 
 void
 Flood::start_logs ()
 {
-    m_balance->start(m_state, m_sources);
+    m_balance->start(m_state, m_sources, m_time);
     if (m_replay) { m_replay->start(m_time); }
     if (m_in.log_int > 0) {
         m_gauges->start();

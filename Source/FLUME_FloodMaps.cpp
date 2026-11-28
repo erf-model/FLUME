@@ -27,6 +27,14 @@ FloodMaps::FloodMaps (const Inputs& in, const amrex::BoxArray& ba,
 }
 
 void
+FloodMaps::start (const amrex::MultiFab& state, double time)
+{
+    m_maps.setVal(amrex::Real(0.0), 0, arrival_time);
+    m_maps.setVal(amrex::Real(-1.0), arrival_time, 1);
+    update(state, time);
+}
+
+void
 FloodMaps::write_checkpoint (CheckpointWriter& chk) const
 {
     chk.put_multifab("flood_maps", m_maps);
