@@ -545,8 +545,12 @@ Checks
   parser; its message may not name the key. The parser accepts expressions:
   ``1e3`` is a valid integer.
 * A key in another namespace that nothing reads stops the run when it ends,
-  after the output is written (``amrex.abort_on_unused_inputs``, which FLUME
-  turns on; ``= 0`` turns it off).
+  after the output is written. The message lists each such key with its
+  value, also with ``amrex.verbose = 0``. The ``flume`` executable turns this
+  check on (``amrex.abort_on_unused_inputs``); ``= 0`` turns it off. A run
+  coupled to ERF starts from ERF's executable, which leaves the check off.
+  AMReX's own ``amrex.parmparse.verbose`` (or ``amrex.parmparse.v``) is read
+  and is not such a key; give one of the two spellings, not both.
 * The bed and the initial state must be finite in every cell.
 * Before every step and every plotfile the depth must be finite and not
   negative.
