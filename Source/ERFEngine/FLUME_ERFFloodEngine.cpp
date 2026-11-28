@@ -40,11 +40,15 @@
 #include <AMReX_GpuDevice.H>
 #include <AMReX_MFParallelFor.H>
 #include <AMReX_MultiFab.H>
+#include <AMReX_ParallelDescriptor.H>
+#include <AMReX_ParmParse.H>
 #include <AMReX_Print.H>
 #include <AMReX_Utility.H>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
+#include <fstream>
 #include <iomanip>
 #include <limits>
 #include <map>
@@ -101,6 +105,17 @@ public:
             m_max_steps = static_cast<long long>(max_step) * steps_per_coarse_step;
         }
         m_steps_per_coarse_step = steps_per_coarse_step;
+        // On a restart ERF counts its steps on from the checkpoint's, and
+        // max_step counts them from the start of the first run. A checkpoint
+        // with flood state hands the step over (read_checkpoint); one without
+        // does not, so it is read here from ERF's checkpoint header.
+        std::string chk;
+        amrex::ParmParse("erf").query("restart", chk);
+        amrex::ParmParse("amr").query("restart", chk);
+        if (!chk.empty()) {
+            m_restart_step = erf_checkpoint_step(chk);
+            m_steps = m_restart_step;
+        }
     }
 
     // ERF's precipitation with flume.rain.type = microphysics (ERF then stops
@@ -116,8 +131,11 @@ public:
         if (!m_started) {
             // A clean start, or a restart from a checkpoint without flood
             // state: FLUME starts from its initial state at ERF's time.
+            // Its maps start again at that time: the arrival time of a cell
+            // wet at the start is ERF's time, not 0.
             if (!m_flood->restarted()) {
                 m_flood->set_time(forcing.time);
+                m_flood->start_maps();
                 m_flood->start_logs();
             }
             m_started = true;
@@ -148,6 +166,16 @@ public:
 
     void read_checkpoint (const std::string& restart_chkfile, int step) override
     {
+        // The step read from ERF's header (start_run) must be the one ERF
+        // hands over: otherwise the header is not laid out as
+        // erf_checkpoint_step reads it, and a restart from a checkpoint
+        // without flood state would count its steps wrong.
+        if (m_restart_step != step) {
+            amrex::Abort("[FLOOD] flume: ERF's checkpoint " + restart_chkfile + "/Header gives step "
+                         + std::to_string(m_restart_step) + " on level " + std::to_string(m_lev)
+                         + ", but ERF restarts at step " + std::to_string(step)
+                         + ": the header is not laid out as FLUME reads it");
+        }
         m_flood->restart(checkpoint_dir(restart_chkfile));
         m_started = true;
         m_steps = step;
@@ -230,6 +258,58 @@ private:
         amrex::Gpu::streamSynchronize();
     }
 
+    /**
+     * The step of the flood grid's level in ERF's checkpoint chk, from its
+     * Header (ERF::WriteCheckpointFile): a title line "Checkpoint file for
+     * ERF", the finest level, four lines of component counts, then the step
+     * of each level. Read on the I/O rank; a header laid out otherwise
+     * stops the run.
+     */
+    int erf_checkpoint_step (const std::string& chk) const
+    {
+        const std::string file = chk + "/Header";
+        // {the step, or -1; what is wrong: 0 nothing, 1 not opened, 2 title,
+        //  3 finest level, 4 steps; the finest level}
+        std::array<int, 3> got{-1, 0, -1};
+        if (amrex::ParallelDescriptor::IOProcessor()) {
+            std::ifstream is(file);
+            std::string line;
+            int& finest = got[2];
+            if (!is) {
+                got[1] = 1;
+            } else if (!std::getline(is, line) || line != "Checkpoint file for ERF") {
+                got[1] = 2;
+            } else if (!(std::getline(is, line) && (std::istringstream(line) >> finest)
+                         && finest >= m_lev)) {
+                got[1] = 3;
+            } else {
+                for (int n = 0; n < 4 && std::getline(is, line); ++n) {}
+                std::istringstream steps(std::getline(is, line) ? line : std::string());
+                std::vector<int> v;
+                for (int x = 0; steps >> x;) { v.push_back(x); }
+                if (!steps.eof() || static_cast<int>(v.size()) <= finest
+                    || v[static_cast<std::size_t>(m_lev)] < 0) {
+                    got[1] = 4;
+                } else {
+                    got[0] = v[static_cast<std::size_t>(m_lev)];
+                }
+            }
+        }
+        amrex::ParallelDescriptor::Bcast(got.data(), got.size(),
+                                         amrex::ParallelDescriptor::IOProcessorNumber());
+        if (got[1] != 0) {
+            const std::string why[] = {
+                "", "cannot be opened",
+                "does not start with the line \"Checkpoint file for ERF\"",
+                "has no finest level of at least " + std::to_string(m_lev) + " on its second line",
+                "has no step of each of its " + std::to_string(got[2] + 1)
+                    + " level(s) on its seventh line"};
+            amrex::Abort("[FLOOD] flume: ERF's checkpoint header " + file + " "
+                         + why[got[1]] + ": FLUME reads the step of the restart from it");
+        }
+        return got[0];
+    }
+
     //! FLUME's checkpoint inside ERF's, on the flood grid's level.
     std::string checkpoint_dir (const std::string& checkpointname) const
     {
@@ -284,6 +364,7 @@ private:
     bool m_started = false;   //!< whether the first advance (or a restart) has happened
     bool m_finished = false;  //!< whether the end of the run has been written
     long long m_steps = 0;    //!< steps of the flood grid's level so far
+    int m_restart_step = 0;   //!< that count at the checkpoint ERF restarts from
     long long m_max_steps = -1;  //!< the last of them, from ERF's max_step, or -1
     double m_stop_time = -1.0;   //!< ERF's stop time, elapsed, s, or -1
     int m_steps_per_coarse_step = 1;  //!< steps of the flood grid's level in one of level 0

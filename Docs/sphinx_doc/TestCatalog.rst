@@ -613,6 +613,30 @@ ERF's flood engine (:ref:`sec:InsideERF`).
        on restart): the plotfiles and logs are those of the
        run without it, to the last bit, and so are they after ``erf.restart``
        from ``chk00037``. 4 ranks.
+   * - ``erf_flume_plane_ranks_restart``
+     - ``erf_flume_plane_substeps_restart``, but ``erf.restart`` from
+       ``chk00037`` on 3 ranks instead of 4 (the same 4 boxes, one rank
+       with two). The flood plotfiles and gauge files are those of
+       ``erf_flume_plane_step_2.0`` to the last bit. The sums of
+       ``water_balance.txt`` are taken over the ranks in another order
+       after the restart: the same steps and times, each value within
+       10\ :sup:`-14` of its column's largest, the residual within
+       10\ :sup:`-14` of the largest volume (measured 2.3 :math:`\times`
+       10\ :sup:`-16`). The restart's output must report 3 MPI processes.
+   * - ``erf_flume_start_without_flood``
+     - ERF runs 37 steps of 2 s with ``erf.flood.enable = false`` and
+       writes ``chk00037`` at 74 s, without FLUME state, then continues
+       from it with the flood on to ``max_step = 75``, FLUME starting from
+       a flat surface at 0.5 m. FLUME writes its summary at ERF's step 75;
+       the water balance and gauges start at 74 s, at step 0; and the 112
+       cells wet at the start (centres beyond x = 50 m on the bed falling
+       1 cm per metre from 1 m) have arrival time 74 s, no other cell an
+       earlier one. 4 ranks.
+   * - ``abort_erf_flume_checkpoint_title``
+     - FLUME reads the step of a restart from ERF's checkpoint ``Header``.
+       ERF skips its title line, so a copy of that ``chk00037`` with
+       another title (``erf_flume_retitle_checkpoint``) restarts in ERF,
+       and FLUME stops with the message that names the header.
    * - ``erf_flume_plane_stop_time``
      - ERF ends on ``stop_time = 52.2`` after 174 steps of 0.3 s, which sum
        to 1.4 :math:`\times` 10\ :sup:`-13` s less, with ``flume.max_dt``

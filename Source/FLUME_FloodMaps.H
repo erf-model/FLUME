@@ -38,6 +38,10 @@ public:
     FloodMaps (FloodMaps&&) = delete;
     FloodMaps& operator= (FloodMaps&&) = delete;
 
+    //! Start the maps from the state `state` at time `time`, s: the maxima
+    //! are its own, and only a cell wet above arrival_depth has an arrival
+    //! time (`time`).
+    void start (const amrex::MultiFab& state, double time);
     //! Take the state `state` at time `time`, s, into the maps.
     void update (const amrex::MultiFab& state, double time);
 

@@ -6,6 +6,7 @@ Usage (in the directory of the run, as the check of Tests/run_case.py):
     check_coupled.py <prefix> --dt <s> [--substeps]
     check_coupled.py <prefix> --dt <s> [--substeps] --reference <dir> --log <file>...
                      [--column-mean <ERF plotfile> <flood plotfile> <ratio>]
+                     [--restart-balance-rtol <r>] [--restart-ranks <n>]
                      [--restart <checkpoint> <command...>]
 
 ERF names a flood plotfile with its own step, and FLUME writes its own step
@@ -43,6 +44,15 @@ with 0 and print FLUME's "restarted from <checkpoint>/Level_0/FLUME at step
 k", where k is the step in <checkpoint>/Level_0/FLUME/Header: n, or with
 --substeps the number of FLUME's steps so far, more than n. Then the
 plotfiles and logs are checked against <dir> again.
+
+With --restart-balance-rtol r > 0, for a restart on another number of ranks,
+water_balance.txt after the restart need not be byte for byte that of <dir>:
+it must have the same steps and times, and each value within r times the
+largest magnitude of its column (the residual, the last column, within r
+times the largest volume), as the sums over the ranks are taken in another
+order. The plotfiles and gauge files must still be those of <dir> exactly.
+With --restart-ranks n, the restart's output must report AMReX's "MPI
+initialized with n MPI processes", so that it ran on the ranks it claims.
 """
 import filecmp
 import struct
@@ -84,7 +94,34 @@ def check_steps(prefix, dt, substeps=False):
     return names
 
 
-def check_reference(prefix, ref, logs):
+def data_rows(path):
+    return [line.split() for line in Path(path).read_text().splitlines()
+            if line.strip() and not line.startswith("#")]
+
+
+def check_balance_close(log, ref, rtol):
+    a, b = data_rows(log), data_rows(ref / log)
+    if not b or [r[:2] for r in a] != [r[:2] for r in b] or any(len(x) != len(y) for x, y in zip(a, b)):
+        fail(f"{log}: other steps, times or columns than in {ref / log}")
+    ncol = len(b[0])
+    if ncol < 4:
+        fail(f"{ref / log}: {ncol} columns, at least step, time, a volume and the residual expected")
+    volume = max(abs(float(r[c])) for r in b for c in range(2, ncol - 1))
+    worst = 0.0
+    for c in range(2, ncol):
+        scale = volume if c == ncol - 1 else max(abs(float(r[c])) for r in b)
+        for x, y in zip(a, b):
+            d = abs(float(x[c]) - float(y[c]))
+            if d > rtol * scale:
+                fail(f"{log} step {x[0]} column {c}: {x[c]} here, {y[c]} in {ref / log}, "
+                     f"allowed {rtol:g} of {scale!r}")
+            if scale > 0.0:
+                worst = max(worst, d / scale)
+    print(f"PASS: {log}: {len(a)} lines as in {ref / log}, largest difference {worst:.2e} of its "
+          f"column's scale (allowed {rtol:g})")
+
+
+def check_reference(prefix, ref, logs, rtol=0.0):
     r = subprocess.run([sys.executable, str(TESTS / "compare_plotfiles.py"), prefix, str(ref),
                         "--cells"])
     if r.returncode != 0:
@@ -92,9 +129,13 @@ def check_reference(prefix, ref, logs):
     for log in logs:
         if not Path(log).is_file() or not (ref / log).is_file():
             fail(f"{log}: missing here or in {ref}")
+        if rtol > 0.0 and log == "water_balance.txt":
+            check_balance_close(log, ref, rtol)
+            continue
         if not filecmp.cmp(log, ref / log, shallow=False):
             fail(f"{log} differs from {ref / log}")
-    print(f"PASS: the flood plotfiles and {', '.join(logs)} are those of {ref}")
+    exact = [log for log in logs if not (rtol > 0.0 and log == "water_balance.txt")]
+    print(f"PASS: the flood plotfiles and {', '.join(exact)} are those of {ref}")
 
 
 def read_layers(level_dir):
@@ -160,6 +201,30 @@ def main():
         i = args.index("--restart")
         restart = args[i + 1:]
         args = args[:i]
+    rtol = 0.0
+    if "--restart-balance-rtol" in restart:
+        fail("--restart-balance-rtol goes before --restart, not in the restart's command")
+    if "--restart-balance-rtol" in args:
+        i = args.index("--restart-balance-rtol")
+        try:
+            rtol = float(args[i + 1])
+        except (IndexError, ValueError):
+            fail("--restart-balance-rtol takes a number")
+        if not 0.0 < rtol < 1.0 or not restart:
+            fail("--restart-balance-rtol takes a number above 0 and below 1 and goes with --restart")
+        del args[i:i + 2]
+    ranks = None
+    if "--restart-ranks" in restart:
+        fail("--restart-ranks goes before --restart, not in the restart's command")
+    if "--restart-ranks" in args:
+        i = args.index("--restart-ranks")
+        try:
+            ranks = int(args[i + 1])
+        except (IndexError, ValueError):
+            fail("--restart-ranks takes a number")
+        if ranks < 1 or not restart:
+            fail("--restart-ranks takes a number above 0 and goes with --restart")
+        del args[i:i + 2]
     column = None
     if "--column-mean" in args:
         i = args.index("--column-mean")
@@ -183,7 +248,7 @@ def main():
         del args[i:i + 2]
     if len(args) != 3 or args[1] != "--dt" or bool(ref) != bool(logs) or (restart and not ref):
         fail("usage: check_coupled.py <prefix> --dt <s> [--substeps] [--reference <dir> --log <file>... "
-             "[--restart <checkpoint> <command...>]]")
+             "[--restart-balance-rtol <r>] [--restart-ranks <n>] [--restart <checkpoint> <command...>]]")
     prefix, dt = args[0], float(args[2])
 
     check_steps(prefix, dt, substeps)
@@ -226,8 +291,12 @@ def main():
     m = re.search(rf"restarted from {re.escape(chk)}/Level_0/FLUME at step (\d+)\b", run.stdout)
     if not m or int(m.group(1)) != k:
         fail(f"FLUME did not report continuing from {chk}/Level_0/FLUME at step {k}")
+    if ranks is not None:
+        if not re.search(rf"^MPI initialized with {ranks} MPI processes$", run.stdout, re.M):
+            fail(f"the restart did not report {ranks} MPI processes")
+        print(f"PASS: the restart ran on {ranks} MPI processes")
     check_steps(prefix, dt, substeps)
-    check_reference(prefix, ref, logs)
+    check_reference(prefix, ref, logs, rtol)
 
 
 if __name__ == "__main__":
