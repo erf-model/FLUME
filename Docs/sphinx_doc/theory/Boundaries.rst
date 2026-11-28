@@ -22,22 +22,62 @@ covers are walls.
        is exactly zero.
    * - ``outflow``
      - Take the boundary cell next to them, the bed included (zero
-       gradient). Nothing is prescribed.
+       gradient), where the discharge of that cell is zero or points out of
+       the domain; mirror the cells inside, as a wall, where it points in.
+       Water leaves and does not enter (:ref:`sec:Outflow`).
+   * - ``zero_gradient``
+     - Take the boundary cell next to them, the bed included, whatever the
+       direction of the flow. Water leaves or enters, and nothing bounds
+       what enters (:ref:`sec:ZeroGradient`).
    * - ``discharge``
      - Take the boundary cell next to them (zero gradient), as for
-       ``outflow``; the fluxes of the boundary faces are then replaced by
-       those of the inflow hydrograph (:ref:`sec:Inflow`).
+       ``zero_gradient``; the fluxes of the boundary faces are then replaced
+       by those of the inflow hydrograph (:ref:`sec:Inflow`).
    * - periodic
      - Take the cell they cover.
 
 ``stage`` is reserved for a prescribed water level.
 
+.. _sec:Outflow:
+
 Outflow
 -------
 
+An ``outflow`` segment lets water leave and lets none in. Let
+:math:`q_n` (m\ :sup:`2`/s) be the discharge of a boundary cell along the
+normal that points into the domain, :math:`h` its depth, :math:`q_t` its
+discharge along the side, and let the subscript :math:`m` mark the
+:math:`m`-th cell inside the side. Ghost layer :math:`m` of that boundary
+cell takes
+
+.. math::
+
+   (h, q_n, q_t)_{\text{ghost}} =
+   \begin{cases}
+   (h_1, \; q_{n,1}, \; q_{t,1}) & q_{n,1} \le 0 \quad \text{(zero gradient)} \\
+   (h_m, \; -q_{n,m}, \; q_{t,m}) & q_{n,1} > 0 \quad \text{(wall)}
+   \end{cases}
+
+and the bed of the boundary cell in both cases.
+
+**Why.** With the copy the two states of the boundary face are equal, so
+the face passes the discharge of the boundary cell, which points out of the
+domain or is zero. With the mirror the mass flux of the face is zero, as
+through a wall. So the mass flux of an outflow face never points into the
+domain, and the ``out_<segment>`` column of the water balance never falls
+(to the rounding of one product per step, as for a wall).
+
+**What it costs.** A cell whose flow turns towards the domain sees a wall
+until it turns back: a wave that reaches the side while the flow there
+points inward is reflected. The choice is made cell by cell and stage by
+stage from the state alone, so it needs no memory and a restart repeats it.
+Water from outside, such as a tide or a surge, cannot enter through an
+``outflow`` segment; a prescribed level (``stage``) is reserved and not
+implemented.
+
 Where the flow leaving is supercritical the side sets nothing the flow
 inside depends on. Where it is subcritical, zero gradient is an
-approximation, with two limitations:
+approximation, with these limitations:
 
 * A shock that leaves sends a weak wave back. In the dam-break test it
   changes the depth by 0.2 % and the velocity by 0.3 % at first order, and
@@ -45,9 +85,13 @@ approximation, with two limitations:
 * Still water next to an outflow side is not stable where the bed of the
   boundary cell is lower than that of the cell inside it: a disturbance
   grows from round-off over thousands of steps (up to 9 % per step over a
-  rough bed in a 1-D model of the scheme). Runs whose water comes to rest
-  against an outflow side over a bed that steps down to the side should not
-  stay long in that state.
+  rough bed in a 1-D model of the scheme). The disturbance can only drain
+  the water: the pond empties through the side (197.8 of 200.8
+  m\ :sup:`3` in an hour at first order, 197.5 at second, in the case of
+  ``Tests/Outflow/inputs_step``, whose water starts at 10\ :sup:`-4` m/s;
+  with no initial velocity the same pond loses less than
+  10\ :sup:`-9` m\ :sup:`3` in 8 h). Water that should stay ponded against a side needs a wall
+  there.
 
 * On a sloping bed, subcritical flow toward an outflow side backs up. The
   ghost cells copy the bed, so the boundary face passes the discharge of the
@@ -58,6 +102,51 @@ approximation, with two limitations:
   end at 1500 s is 1.28 m at first order and 1.83 m at second, and the
   backwater reaches 55 m and 86 m up the channel. In a steep (supercritical)
   channel only the last few cells are bent.
+
+.. _sec:ZeroGradient:
+
+Zero gradient
+-------------
+
+A ``zero_gradient`` segment copies the boundary cell into its ghost cells
+whatever the direction of the flow. It was the ``outflow`` type before the
+one above, and gives the same result wherever no boundary cell has a
+discharge that points into the domain. Where one has, water enters, and
+nothing bounds how much:
+
+* **A bed that falls into the domain.** The ghost cells hold the depth and
+  the discharge of the boundary cell, as if the slope went on outside. Rain
+  of 50 mm/h on a plane of 200 m by 200 m (cells of 2 m, :math:`n` = 0.015
+  s/m\ :sup:`1/3`, 0.05 m of bed noise) that falls by 1 cm per metre in
+  :math:`x` and 0.5 cm per metre in :math:`y`, open on four sides, draws
+  0.13 m\ :sup:`3`/s through its upper side in :math:`x` once the flow is
+  steady, 23 % of the 0.56 m\ :sup:`3`/s of rain.
+* **A bed that steps down to the side under ponded water.** Let the bed of
+  the boundary cell lie :math:`d` below that of the cell inside, under a
+  level surface, with the water moving into the domain at the speed
+  :math:`u`. The boundary face passes :math:`h u`, the discharge of the
+  whole depth. The face inside passes :math:`(h - d) u`: the hydrostatic
+  reconstruction gives it the depth above the higher bed. The boundary cell
+  gains :math:`d u` per unit width and time, and
+
+  .. math::
+
+     \Delta x \, \frac{\partial (h u)}{\partial t} = d \, u^2 > 0 ,
+
+  so its momentum is not opposed. Its depth rises, the ghost cells rise
+  with it, and the inflow grows: no level outside holds it back. Still
+  water 0.5 m deep over a step of 0.1 m, moving inward at
+  10\ :sup:`-4` m/s, grows from 200.8 m\ :sup:`3` to 8974 m\ :sup:`3` in
+  300 s (``Tests/Outflow/inputs_step``). Rain ponding against a wall
+  between two ``zero_gradient`` sides takes in water through one side and
+  passes it out of the other: after an hour the domain stores
+  1.1 :math:`\times` 10\ :sup:`7` m\ :sup:`3` from 1000 m\ :sup:`3` of
+  rain (``Tests/Outflow/inputs_pond``, run to 3600 s). The residual of the
+  water balance stays at round-off, since the water that enters is counted
+  as negative outflow; a falling ``out_<segment>`` column is the sign.
+
+Use ``zero_gradient`` where the flow is known to leave over the whole
+segment for the whole run, or to compare with ``outflow``.
 
 .. _sec:Inflow:
 

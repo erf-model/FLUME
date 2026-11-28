@@ -323,7 +323,8 @@ read_inputs (const amrex::Geometry* host_grid)
             const bool has_type = pp.contains(key + "type");
             if (!has_side || !has_type) {
                 defer(!has_side ? "flume." + key + "side is required: xlo, xhi, ylo or yhi"
-                                : "flume." + key + "type is required: wall, outflow or discharge");
+                                : "flume." + key + "type is required: wall, outflow,"
+                                  " zero_gradient or discharge");
                 for (const char* k : {"range", "file", "interpolation"}) {
                     static_cast<void>(pp.contains(key + k));
                 }
@@ -351,15 +352,17 @@ read_inputs (const amrex::Geometry* host_grid)
                 seg.type = BoundaryType::wall;
             } else if (type == "outflow") {
                 seg.type = BoundaryType::outflow;
+            } else if (type == "zero_gradient") {
+                seg.type = BoundaryType::zero_gradient;
             } else if (type == "discharge") {
                 seg.type = BoundaryType::discharge;
             } else if (type == "stage") {
                 amrex::Abort("flume." + key + "type = stage is reserved for a later version (a"
                              " prescribed water level from a time series) and is not available"
-                             " yet: use wall, outflow or discharge");
+                             " yet: use wall, outflow, zero_gradient or discharge");
             } else {
-                amrex::Abort("flume." + key + "type must be wall, outflow or discharge; it is "
-                             + type);
+                amrex::Abort("flume." + key + "type must be wall, outflow, zero_gradient or"
+                             " discharge; it is " + type);
             }
 
             // file and interpolation: the hydrograph of a discharge segment.

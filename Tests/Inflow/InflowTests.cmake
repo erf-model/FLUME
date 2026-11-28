@@ -19,7 +19,7 @@ set(check_bal ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/check_balance.py
 # without friction, fed with 1 m2/s: an exact steady state of the scheme. The
 # inflow face keeps it: every cell holds the initial state to round-off
 # after 300 s (3419 steps at first order), on 4 ranks in 4 boxes. A copy
-# (outflow) side would also keep this state; the test guards the rounding of
+# (zero_gradient) side would also keep this state; the test guards the rounding of
 # the face depth and the momentum flux, and the other tests the inflow. The
 # rounding of the face depth gathers over the steps: about 250 epsilons in
 # the depth and 1030 in the discharge at both orders; the bound is 4096.

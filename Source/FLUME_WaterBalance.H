@@ -47,10 +47,11 @@ inline void compensated_add (double& sum, double& carry, double x)
  * (Docs/sphinx_doc/Running.rst).
  *
  * The volume of water on the surface, V, changes only through the sources
- * (rain in, infiltration out) and through the faces of the outflow and
- * discharge segments. With V_0 the volume at the start, S_n the volume
- * source n has added since the start (below 0 for a sink), Q_m the volume
- * that has left through outflow segment m (below 0 for water that entered)
+ * (rain in, infiltration out) and through the faces of the outflow,
+ * zero_gradient and discharge segments. With V_0 the volume at the start,
+ * S_n the volume source n has added since the start (below 0 for a sink),
+ * Q_m the volume that has left through outflow or zero_gradient segment m
+ * (below 0 for water that entered, which only zero_gradient lets in)
  * and I_l the volume that has entered through discharge segment l, the
  * residual
  *

@@ -24,15 +24,26 @@ namespace flume {
  *   wall      the ghost cells mirror the cells inside (the second layer the
  *             second cell), with the discharge normal to the side negated:
  *             no water crosses it.
- *   outflow   every ghost layer takes the boundary cell next to it (zero
- *             gradient, also of the bed): water leaves, or enters, as the
- *             flow at the side carries it, and a wave leaves with little
- *             reflection. Still water over a boundary cell lower than the
- *             cell inside is weakly unstable (FLUME_Boundary.cpp). At second
- *             order the limited slope of the first ghost layer is zero
- *             (minmod of a zero difference), so what the second layer holds
- *             changes no result; it is a copy so that it is finite.
- *   discharge the ghost cells are filled as for outflow; the fluxes on the
+ *   outflow   water leaves and does not enter. Beside a boundary cell whose
+ *             discharge along the normal is zero or points out of the domain,
+ *             every ghost layer takes that cell (zero gradient, also of the
+ *             bed): water leaves as the flow at the side carries it, and a
+ *             wave leaves with little reflection. Beside a boundary cell
+ *             whose discharge points into the domain the ghost layers are
+ *             those of a wall, so the mass flux of the face is zero. Still
+ *             water over a boundary cell lower than the cell inside is
+ *             weakly unstable (FLUME_Boundary.cpp); here the disturbance can
+ *             only drain the water. At second order the limited slope of the
+ *             first ghost layer of a copy is zero (minmod of a zero
+ *             difference), so what the second layer holds changes no result;
+ *             it is a copy so that it is finite.
+ *   zero_gradient
+ *             every ghost layer takes the boundary cell, whatever the
+ *             direction of the flow: water leaves or enters. The ghost cells
+ *             rise with the boundary cell, so nothing bounds the water that
+ *             enters (Docs/sphinx_doc/theory/Boundaries.rst): for flow that
+ *             is known to leave, and for comparison with outflow.
+ *   discharge the ghost cells are filled as for zero_gradient; the fluxes on the
  *             faces of the side then come from the inflow hydrograph of the
  *             segment, not from the ghost cells (FLUME_Inflow.H).
  *
