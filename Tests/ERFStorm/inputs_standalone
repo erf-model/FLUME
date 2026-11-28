@@ -1,0 +1,16 @@
+# The stand-alone runs of the storm case on the flood grid ERF sets in the
+# coupled run: 256 x 128 cells of 250 m, periodic in x, in boxes of 64 x 64.
+# With FILE=flume_catchment and, on the command line, either the replay
+# (flume.rain.type=gridded flume.rain.file=<coupled run>/rain/storm.txt) or
+# the hyetograph (flume.rain.type=hyetograph flume.rain.file=hyetograph.txt
+# from make_hyetograph.py). Both run to 8 h: the coupled rain, then its
+# recession. A plotfile every 480 steps (40 min), at the steps the check
+# compares with the coupled run.
+flume.n_cell        = 256 128
+flume.prob_lo       = -32000 -16000
+flume.prob_hi       = 32000 16000
+flume.periodic      = 1 0
+flume.max_grid_size = 64
+flume.stop_time     = 28800
+flume.plot_file     = flood
+flume.plot_int      = 480
