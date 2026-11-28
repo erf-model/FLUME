@@ -68,8 +68,9 @@ street flooding observations, *Advances in Water Resources* 209, 105223,
 https://doi.org/10.1016/j.advwatres.2026.105223 (equation 3). The
 coefficient 0.226 of `drains_approach_coefficients` is the value Annis et
 al. calibrated for Brooklyn. We thank both groups of authors. Only the
-formula and these three numbers are used; no data or text of either paper
-is in the repository.
+formula, these three numbers and the two discharges Xia et al. print for
+their grate (0.1166 and 0.1570 m3/s, checked by `drains_approach_published`)
+are used; no data, figure or text of either paper is in the repository.
 
 ## How to run
 
@@ -116,6 +117,7 @@ python3 <repo>/Tests/Drains/check_drains.py plt --uniform 0.5 --approach 0.4 --v
 | `drains_approach_empty` | to 120 s in 145 steps, a plotfile at each: wet in every plotfile until the closed form reaches the dry depth, empty in every one after 87.05 s, 200 m3 drained, no depth below 0; largest difference 1.6 epsilons |
 | `drains_approach_empty_small_steps` | the same in 6492 steps: a step lands where the closed form is below the dry depth, the step takes that film and the cells end empty; largest difference 11.6 epsilons of 0.5 m |
 | `drains_approach_exponent_0` | alpha = 0, to 419.5 mm at 60 s; largest difference 0.6 epsilons of 0.5 m |
+| `drains_approach_published` | Xia et al. (2022) give 0.1166 and 0.1570 m3/s for their grate (0.3375 m2) in water 0.4 m deep at 0.1 and 0.5 m/s; the rate of the check script gives 0.1166 and 0.1567, and one step of FLUME with that grate follows its closed form |
 | `drains_approach_two_names` | after one step the western cells hold the depth of k = 0.302, alpha = -0.816 and the eastern cells that of k = 0.226, alpha = -0.5; largest difference 0.2 epsilons of 0.5 m |
 | `drains_approach_still` | still water, default exponent: nothing drains, every depth that of the start to the last bit |
 | `drains_approach_exponent_minus_1` | still water, alpha = -1: to 64.05 mm at 60 s; largest difference 0.7 epsilons of 0.5 m |

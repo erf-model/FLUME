@@ -393,17 +393,25 @@ on the step.
    \mathrm{Fr} = \frac{u}{\sqrt{g h}} ,
 
 with :math:`u = \sqrt{(hu)^2 + (hv)^2} / h` the speed of the water of the
-cell (m/s), :math:`h` its depth (m), :math:`A` the area of the inlet
-(m\ :sup:`2`), :math:`k` a coefficient and :math:`\alpha` the exponent of
-the Froude number. It is the law of Xia et al. (2022) in the form Annis et
-al. (2026, equation 3) give it; the defaults :math:`k = 0.302` and
-:math:`\alpha = -0.816` are the values they report from Xia et al. Annis et
-al. calibrated :math:`k = 0.226` for inlets of 0.4 m\ :sup:`2` in Brooklyn.
-:math:`\alpha` is between -1 and 0, so the capacity does not decrease with
-the speed (it goes as :math:`u^{1+\alpha}`) or with the depth (as
-:math:`h^{-\alpha/2}`): at :math:`\alpha = -1` it does not depend on the
-speed, and at :math:`\alpha = 0` not on the depth. :math:`k` and
-:math:`\alpha` have no unit.
+cell (m/s), :math:`h` its depth (m), :math:`A` the area of the grate of the
+inlet (m\ :sup:`2`; the whole grate, bars and openings, not its open
+area), :math:`k` a coefficient and :math:`\alpha` the exponent of the
+Froude number. :math:`k` and :math:`\alpha` have no unit.
+
+It is the unified formula of Xia et al. (2022, equation 8), who define a
+drainage velocity :math:`U = Q / A` and fit :math:`U / u = k \,
+\mathrm{Fr}^{\alpha}` to 78 laboratory runs with one grate (0.75 m by
+0.45 m at full size, at the centre of a flume, draining freely): the
+defaults :math:`k = 0.302` and :math:`\alpha = -0.816` are their values.
+Their runs cover depths of 2.8 to 18.3 cm and Froude numbers of 0.05 to
+0.89, with :math:`u` and :math:`h` measured 1 m upstream of the inlet.
+Annis et al. (2026, equation 3) use the formula for Brooklyn and calibrated
+:math:`k = 0.226` for inlets of 0.4 m\ :sup:`2`.
+
+FLUME takes :math:`\alpha` between -1 and 0, so the capacity does not
+decrease with the speed (it goes as :math:`u^{1+\alpha}`) or with the depth
+(as :math:`h^{-\alpha/2}`): at :math:`\alpha = -1` it does not depend on the
+speed, and at :math:`\alpha = 0` not on the depth.
 
 **Step of the approach-flow law.** The water an inlet takes leaves with its
 share of the discharge, so the speed of the cell does not change while it
@@ -464,7 +472,18 @@ coefficients :math:`a`, :math:`b` and :math:`c` are multiplied by
   opening); the ``approach_flow`` capacity is 0 in still water unless
   :math:`\alpha = -1`. The two are not combined in one cell.
 * The ``approach_flow`` law is empirical; its coefficient is site-specific
-  and is meant to be calibrated (Annis et al., 2026).
+  and is meant to be calibrated (Annis et al., 2026). Xia et al. (2022)
+  note that it depends on where the inlet stands and on where the speed
+  and the depth are taken.
+* The law is used outside the range of its fit. The fit covers Froude
+  numbers of 0.05 to 0.89; FLUME applies it at every speed. The capacity
+  falls slowly with the speed: with the default exponent, as
+  :math:`u^{0.184}`, so water at 1 mm/s drains at 28 % of the rate at 1 m/s.
+* Exponents below -1 are not allowed. Xia et al. (2022, figure 5) fit
+  other grates with exponents of -1.15 to -1.25 (data of other authors). With such an exponent the capacity grows without
+  limit as the speed goes to 0, so these fits cannot be given to FLUME as
+  they are.
+* The inlets of Xia et al. drain freely. A sewer under pressure takes less.
 * The ``approach_flow`` capacity does not depend on the width of the cell.
   On cells not much wider than the inlet it can be more than the discharge
   that crosses the cell; the cell then empties and the inlet takes what

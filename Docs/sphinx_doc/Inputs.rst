@@ -479,7 +479,9 @@ cell (``flume.buildings.file``) holds none: each aborts.
    * - ``flume.drains.<name>.area``
      - real
      - required
-     - Open area :math:`A` of one inlet, m\ :sup:`2`. Finite, above 0 and at
+     - Area :math:`A` of one inlet, m\ :sup:`2`: the open area of the grate
+       with ``weir_orifice``, the whole area of the grate (bars and
+       openings) with ``approach_flow``. Finite, above 0 and at
        most the area of a cell; so is the sum of the areas of the inlets of
        a list in one cell.
    * - ``flume.drains.<name>.perimeter``

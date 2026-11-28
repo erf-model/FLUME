@@ -496,7 +496,13 @@ from a list file, and with the inlet as two halves in one cell of a list
 file, gives the same plotfiles to the last bit.
 
 The approach-flow tests check the step against its own differential
-equation. They do not compare the law with measurements: Annis et al.
+equation. One published pair of numbers is checked: for their grate of
+0.3375 m\ :sup:`2` in water 0.4 m deep, Xia et al. (2022, section 3.4)
+give 0.1166 m\ :sup:`3`/s at 0.1 m/s and 0.1570 at 0.5 m/s; the rate of
+the check script gives 0.1166 and 0.1567 (:math:`g = 9.81` m/s\ :sup:`2`),
+and one step of FLUME with that grate at 0.5 m/s follows the closed form of
+that rate to 64 epsilons. Otherwise the tests do not compare the law with
+measurements: Annis et al.
 (2026) calibrated it against street sensors, and Xia et al. (2022) against
 laboratory runs.
 

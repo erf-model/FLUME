@@ -725,7 +725,9 @@ read_inputs (const amrex::Geometry* host_grid)
             }
             if (!query_finite(pp, key + "area", d.area)) {
                 defer("flume.drains.names lists " + name + ", which needs flume." + key
-                      + "area: the open area of the inlet, m2");
+                      + (d.type == DrainType::approach_flow
+                             ? "area: the area of the grate of the inlet, m2"
+                             : "area: the open area of the inlet, m2"));
                 complete = false;
             } else if (!(d.area > amrex::Real(0.0)
                          && static_cast<double>(d.area) <= area_cell)) {

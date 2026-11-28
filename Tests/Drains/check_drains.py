@@ -84,6 +84,13 @@ Modes:
     inverse, within --tol-eps epsilons of H0. Every cell must be in one
     group.
 
+--published
+    Before the plotfiles are read: the rate Q = k u A Fr^alpha of this
+    script, with k = 0.302 and alpha = -0.816, must give the two discharges
+    Xia et al. (2022, section 3.4) print for their grate at full size
+    (A = 0.3375 m2) in water 0.4 m deep: 0.1166 m3/s at 0.1 m/s and
+    0.1570 m3/s at 0.5 m/s, each to 0.5 %.
+
 --still
     No inlet takes water: drained_depth is 0 in every cell of every
     plotfile, and every depth and discharge is that of the first plotfile.
@@ -169,6 +176,7 @@ def main():
     p.add_argument("--approach", type=float, nargs="+", help="A [k alpha]")
     p.add_argument("--velocity", type=float, nargs=2, default=[0.0, 0.0], metavar=("UX", "UY"))
     p.add_argument("--still", action="store_true")
+    p.add_argument("--published", action="store_true")
     p.add_argument("--dry-depth", type=float, default=1.0e-6)
     p.add_argument("--approach-first-step", type=float, metavar="H0")
     p.add_argument("--group", type=float, nargs=5, action="append", default=[],
@@ -182,6 +190,13 @@ def main():
     p.add_argument("--tol-eps", type=float, default=16.0)
     p.add_argument("--n-plotfiles", type=int, default=2)
     a = p.parse_args()
+    if a.published:
+        for speed, q_paper in ((0.1, 0.1166), (0.5, 0.1570)):
+            q = approach_c(0.3375, 0.302, -0.816, speed, a.gravity, 1.0) * 0.4 ** 0.408
+            if abs(q - q_paper) > 0.005 * q_paper:
+                sys.exit(f"FAIL: Q = {q:.4f} m3/s at {speed} m/s; Xia et al. (2022) "
+                         f"give {q_paper}")
+            print(f"published: Q = {q:.4f} m3/s at {speed} m/s (Xia et al.: {q_paper})")
     if a.approach_first_step is not None:
         if a.grate is not None or a.approach is not None or not a.group:
             sys.exit("FAIL: --approach-first-step takes --group, not --grate or --approach")

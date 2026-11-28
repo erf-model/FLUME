@@ -85,7 +85,7 @@ struct DrainInlet
     amrex::Array<amrex::Real, 2> location{{amrex::Real(0.0), amrex::Real(0.0)}};  //!< x y, m
     std::string file;  //!< lines of x and y, m (flume.drains.<name>.file); empty: `location`
     amrex::Real perimeter = amrex::Real(0.0);  //!< weir length P, m (weir_orifice)
-    amrex::Real area = amrex::Real(0.0);       //!< open area A, m2 (both laws)
+    amrex::Real area = amrex::Real(0.0);       //!< A, m2: open area (weir_orifice), grate area (approach_flow)
     amrex::Real weir_coefficient = amrex::Real(1.66);    //!< C_w, m^(1/2)/s (weir_orifice)
     amrex::Real orifice_coefficient = amrex::Real(0.67); //!< C_o, no unit (weir_orifice)
     amrex::Real coefficient = amrex::Real(0.302);        //!< k, no unit (approach_flow)
@@ -188,7 +188,8 @@ struct Inputs
     //!   - type: weir_orifice (default) or approach_flow;
     //!   - location: x y, m (inside the domain, on its edge too), or
     //!   - file: lines of x and y, m, one inlet each (exactly one of the two);
-    //!   - area: open area A, m2 (required; finite, > 0 and <= the area of a cell);
+    //!   - area: A, m2, the open area of a weir_orifice inlet and the area of the
+    //!     grate of an approach_flow inlet (required; finite, > 0 and <= the area of a cell);
     //!   with weir_orifice only:
     //!   - perimeter: weir length P, m (required; finite, > 0);
     //!   - weir_coefficient: C_w, m^(1/2)/s (default 1.66; finite, > 0);

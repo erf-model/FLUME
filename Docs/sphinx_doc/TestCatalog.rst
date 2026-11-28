@@ -464,6 +464,10 @@ independently of the solver.
    * - ``drains_approach_exponent_0``
      - An exponent of 0, the upper end of its range, against the exact
        solution.
+   * - ``drains_approach_published``
+     - The two discharges Xia et al. (2022) print for their grate, from the
+       rate of the check script (0.5 %), and one step of FLUME with that
+       grate against the closed form of that rate.
    * - ``drains_approach_two_names``
      - Two lists with other coefficients and exponents in one run: after
        the first step each cell holds the closed-form depth of its own

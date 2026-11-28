@@ -238,6 +238,18 @@ flume_add_regtest(drains_approach_two_names NPROCS 2
          flume.drains.east.file=${dr_dir}/inlets_east.txt
     CHECK ${check_dr} plt --approach-first-step 0.5 --velocity 1.2 0.5 --all-inlets
           --group 0.4 0.302 -0.816 0 1 --group 0.4 0.226 -0.5 2 3 --n-plotfiles 2)
+# Published numbers: for the grate of their tests at full size (0.75 m by
+# 0.45 m, A = 0.3375 m2) in water 0.4 m deep, Xia et al. (2022, section
+# 3.4) give 0.1166 m3/s at 0.1 m/s and 0.1570 m3/s at 0.5 m/s. --published
+# checks that the rate of the check script gives both to 0.5 % (it gives
+# 0.1166 and 0.1567 with g = 9.81 m/s2), and the run checks one step of
+# FLUME with that grate at 0.5 m/s against the closed form of that rate.
+flume_add_regtest(drains_approach_published NPROCS 1
+    INPUTS ${dr_dir}/inputs_approach
+    ARGS ${ap_all} flume.init.surface_elevation=0.4 "flume.init.velocity=0.5 0.0"
+         flume.drains.street.area=0.3375 flume.max_step=1 flume.plot_int=1
+    CHECK ${check_dr} plt --approach-first-step 0.4 --velocity 0.5 0.0 --all-inlets
+          --group 0.3375 0.302 -0.816 0 3 --published --n-plotfiles 2)
 # Still water: with an exponent above -1 the law takes nothing, and the
 # depths stay those of the first plotfile to the last bit.
 flume_add_regtest(drains_approach_still NPROCS 2
@@ -422,7 +434,7 @@ flume_add_abort_test(abort_drains_neither_location_nor_file
     EXPECT "flume\\.drains\\.names lists g, which needs ${drk}\\.location: the x and y of the inlet, m \\(or ${drk}\\.file: lines of an x and a y in m, one inlet each\\)"
     ARGS ${rok} ${drf})
 flume_add_abort_test(abort_drains_approach_missing_area
-    EXPECT "flume\\.drains\\.names lists g, which needs ${drk}\\.area: the open area of the inlet, m2"
+    EXPECT "flume\\.drains\\.names lists g, which needs ${drk}\\.area: the area of the grate of the inlet, m2"
     ARGS ${rok} flume.drains.names=g flume.drains.g.type=approach_flow ${dr_loc})
 flume_add_abort_test(abort_drains_approach_area_cell
     EXPECT "${drk}\\.area must be > 0 and <= the area of a cell \\(25 m2\\); it is 25\\.5"
