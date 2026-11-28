@@ -8,7 +8,7 @@ Usage:
 The case is a square of 1 km in Gowanus, Brooklyn, New York, on cells of 2 m,
 in UTM zone 18N (EPSG:26918, metres): x from 585400 to 586400, y from 4502900
 to 4503900. It holds 4th Avenue from about 1st Street to Douglass Street, the
-Gowanus Canal in its north-west corner and the rise to Park Slope in the east.
+Gowanus Canal along its west side and the rise to Park Slope in the east.
 
 <data directory> holds the two downloaded files:
 
@@ -53,7 +53,7 @@ SIZE = 1000.0                  # m
 DX = 2.0                       # flood cells, m
 MARGIN = 20.0                  # of the bed raster around the square, m
 FOOT = 0.3048                  # m
-MIN_HEIGHT = 3.0               # of a footprint with no roof height, m
+MIN_HEIGHT = 3.0               # the least height of a footprint (also one with none), m
 GAP_CELLS = 25                 # open groups below this, shut in by buildings, are closed
 WATER = 0.0                    # bed below this is the canal (the lidar's water surface), m
 RAIN_RATE = 50.0               # mm/h
@@ -67,6 +67,7 @@ GAUGES = (("carroll_4th", -73.984089, 40.676281),
 
 DEM_URL = "https://elevation.nationalmap.gov/arcgis/rest/services/3DEPElevation/ImageServer/exportImage"
 BUILDINGS_URL = "https://data.cityofnewyork.us/resource/5zhs-2jue.geojson"
+LIMIT = 50000                  # footprints asked for; the square holds about 2000
 
 
 def fail(msg):
@@ -86,7 +87,7 @@ def download(data):
     west, east = min(c[0] for c in corners), max(c[0] for c in corners)
     south, north = min(c[1] for c in corners), max(c[1] for c in corners)
     bld = {"$where": f"within_box(the_geom, {north:.5f}, {west:.5f}, {south:.5f}, {east:.5f})",
-           "$limit": 50000}
+           "$limit": LIMIT}
     for url, query, name in ((DEM_URL, dem, "dem.tif"), (BUILDINGS_URL, bld, "buildings.geojson")):
         full = url + "?" + urllib.parse.urlencode(query)
         print(f"downloading {name} from {url}")
@@ -96,10 +97,19 @@ def download(data):
 
 def read_bed(path):
     """The bed on the cells of 2 m of the square and MARGIN around it, north first."""
-    im = Image.open(path)
-    scale, tie = im.tag_v2.get(33550), im.tag_v2.get(33922)
-    if scale is None or tie is None:
-        fail(f"{path}: not a GeoTIFF (no pixel scale or tie point)")
+    try:
+        im = Image.open(path)
+        tags = im.tag_v2
+    except (OSError, AttributeError) as e:
+        fail(f"{path}: not a TIFF image ({e}); download it again")
+    scale, tie, keys = tags.get(33550), tags.get(33922), tags.get(34735)
+    if scale is None or tie is None or keys is None:
+        fail(f"{path}: not a GeoTIFF (no pixel scale, tie point or keys)")
+    # GeoKey 1025 (raster type) must be 1: a pixel is an area, not a point.
+    kinds = [keys[k + 3] for k in range(4, len(keys) - 3, 4) if keys[k] == 1025]
+    if kinds != [1] or tuple(tie[:3]) != (0.0, 0.0, 0.0):
+        fail(f"{path}: raster type {kinds} tied at pixel {tuple(tie[:3])}, "
+             f"not pixel-is-area tied at its corner")
     n = int(SIZE + 2 * MARGIN)
     want = (X0 - MARGIN, Y0 + SIZE + MARGIN)
     if im.size != (n, n) or scale[:2] != (1.0, 1.0) or (tie[3], tie[4]) != want:
@@ -108,12 +118,19 @@ def read_bed(path):
     a = np.array(im, dtype=np.float64)
     if not np.isfinite(a).all() or a.min() < -50.0 or a.max() > 500.0:
         fail(f"{path}: elevations from {a.min():g} to {a.max():g} m; missing data?")
-    return a.reshape(n // 2, 2, n // 2, 2).mean(axis=(1, 3))
+    # Rounded as bed.asc is written, so the counts here are those of the run.
+    return np.round(a.reshape(n // 2, 2, n // 2, 2).mean(axis=(1, 3)), 3)
 
 
 def read_buildings(path):
     """Heights above the bed on the flood cells, [j, i] from the south-west, and the count."""
-    feats = json.loads(Path(path).read_text())["features"]
+    try:
+        feats = json.loads(Path(path).read_text())["features"]
+    except (ValueError, KeyError, TypeError) as e:
+        fail(f"{path}: not a GeoJSON feature collection ({e!r}); download it again")
+    if len(feats) >= LIMIT:
+        fail(f"{path}: {len(feats)} footprints, the limit of the query; some are missing")
+    # WGS 84 to NAD83 with no shift: about 1 m, below the cell.
     to_utm = Transformer.from_crs(4326, 26918, always_xy=True)
     n = int(SIZE / DX)
     height = np.zeros((n, n))
@@ -148,6 +165,8 @@ def read_buildings(path):
                 part = height[j0:j1, i0:i1]
                 part[inside] = np.maximum(part[inside], h)
         used += hit
+    if not used:
+        fail(f"{path}: no footprint of its {len(feats)} covers a cell of the square")
     return height, used
 
 
@@ -196,7 +215,7 @@ def write_asc(path, a_north_first, x0, y0, cell, fmt):
 
 def main():
     args = [a for a in sys.argv[1:] if a != "--download"]
-    if len(args) != 2:
+    if len(args) != 2 or any(a.startswith("--") for a in args):
         sys.exit("usage: prepare_gowanus.py <data directory> <case directory> [--download]")
     data, case = Path(args[0]).resolve(), Path(args[1]).resolve()
     if "--download" in sys.argv[1:]:
@@ -224,7 +243,7 @@ def main():
     gauges = []
     for name, lon, lat in GAUGES:
         gx, gy = to_utm.transform(lon, lat)
-        gi, gj = int((gx - X0) / DX), int((gy - Y0) / DX)
+        gi, gj = int(np.floor((gx - X0) / DX)), int(np.floor((gy - Y0) / DX))
         if not (0 <= gi < height.shape[1] and 0 <= gj < height.shape[0]):
             fail(f"the gauge {name} at ({gx:.1f}, {gy:.1f}) is outside the square")
         moved = 0.0
@@ -239,21 +258,20 @@ def main():
     common = (f"flume.prob_lo = {X0:.1f} {Y0:.1f}\n"
               f"flume.prob_hi = {X0 + SIZE:.1f} {Y0 + SIZE:.1f}\n"
               f"flume.stop_time = {STOP_TIME:g}\n"
-              f"flume.bed.file = {case / 'bed.asc'}\n"
-              f"flume.rain.file = {case / 'rain.txt'}\n"
+              f"flume.bed.file = \"{case / 'bed.asc'}\"\n"
+              f"flume.rain.file = \"{case / 'rain.txt'}\"\n"
               f"flume.gauges.names = {' '.join(g[0] for g in gauges)}\n"
               + "".join(f"flume.gauges.{g[0]}.location = {g[1]:.2f} {g[2]:.2f}\n"
                         for g in gauges))
     (case / "gowanus.inputs").write_text(
-        common + f"flume.buildings.file = {case / 'buildings.asc'}\n")
+        common + f"flume.buildings.file = \"{case / 'buildings.asc'}\"\n")
     (case / "gowanus_open.inputs").write_text(common)
 
-    inner = bed[int(MARGIN / DX):-int(MARGIN / DX), int(MARGIN / DX):-int(MARGIN / DX)]
     cells = int((height > 0).sum())
     rain_mm = RAIN_RATE * RAIN_TIME / 3600.0
     (case / "case.txt").write_text(
         f"x0 {X0:.1f}\ny0 {Y0:.1f}\nsize {SIZE:g}\ndx {DX:g}\n"
-        f"bed_min {inner.min():.3f}\nbed_max {inner.max():.3f}\n"
+        f"bed_min {south.min():.3f}\nbed_max {south.max():.3f}\n"
         f"footprints {used}\nbuilding_cells {cells}\ngap_cells_closed {closed}\n"
         f"water_below {WATER:g}\nwater_cells {int((south < WATER).sum())}\n"
         f"building_fraction {cells / height.size:.4f}\n"

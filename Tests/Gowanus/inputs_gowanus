@@ -1,6 +1,6 @@
 # Rain on the streets of Gowanus, Brooklyn: a square of 1 km on 500 x 500
 # cells of 2 m, in boxes of 250 x 250 for four ranks. The square, the bed, the
-# buildings, the rain and the gauge come from prepare_gowanus.py
+# buildings, the rain and the gauges come from prepare_gowanus.py
 # (FILE=gowanus.inputs, or FILE=gowanus_open.inputs without the buildings).
 flume.n_cell        = 500 500
 flume.max_grid_size = 250

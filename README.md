@@ -38,6 +38,10 @@ same storm as a hyetograph (see the docs, Coupled example).
 `Tests/ERFStormTown` takes that storm's rain to a town of 100 buildings:
 ERF's immersed forcing for the wind on 10 m cells, FLUME's flood on 2.5 m
 cells (see the docs, Town example).
+`Tests/Gowanus` runs FLUME alone on a real place: 1 km of Gowanus, Brooklyn,
+with lidar terrain and the city's building footprints, under a simplified
+rain (see the docs, Gowanus example). Its data are downloaded, so it has no
+CTest.
 
 It is verified against a lake at rest, the wet and dry dam-break solutions,
 Thacker's solutions in a bowl, a smooth wave (rate of convergence), uniform
