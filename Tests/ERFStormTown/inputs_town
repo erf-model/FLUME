@@ -1,0 +1,67 @@
+# The town case: ERF's large-eddy simulation of the air over a town of 100
+# buildings (immersed forcing) with FLUME as its flood engine, under the rain
+# of the storm case (see README.md).
+# Atmosphere: 1 x 1 km and 240 m high in 100 x 100 x 24 cells of 10 m, the
+# square and its place set by prepare_town.py (FILE=town.inputs). Periodic
+# in x, slip walls in y and at the top, the surface layer at the ground. A
+# neutral layer (300 K) in a westerly geostrophic wind of 5 m/s, the
+# Smagorinsky model, anelastic (at 10 m the compressible solver's step would
+# be held near 0.03 s by a third of the sound speed). Four boxes of
+# 50 x 50 x 24 for four ranks. ERF's step is fixed at 0.75 s: 1600 steps,
+# 1200 s, the window of rain.
+# The flood grid refines the columns by 4: 400 x 400 cells of 2.5 m. FLUME
+# takes the rain from the storm's grids (flume.rain.type = gridded), so the
+# coupling of this case is one way: the flood does not change the air and the
+# air does not change the flood.
+max_step  = 1600
+stop_time = 1.0e9
+erf.prob_name = "ABL"  # codespell:ignore
+erf.init_type           = "input_sounding"
+# erf.input_sounding_file is set on the command line (the CTest, the README):
+# the absolute path of Tests/ERFStormTown/sounding_town.
+
+geometry.is_periodic = 1 0 0
+amr.n_cell           = 100 100 24
+amr.max_grid_size    = 50 50 24
+amr.blocking_factor  = 2
+amr.max_level        = 0
+ylo.type = "SlipWall"
+yhi.type = "SlipWall"
+zlo.type = "surface_layer"
+zhi.type = "SlipWall"
+erf.most.z0           = 0.1
+erf.most.pot_surf_temp = 300.0
+
+erf.compressibility_type = Anelastic
+erf.use_gravity      = true
+erf.molec_diff_type  = "None"
+erf.les_type         = "Smagorinsky"
+erf.Cs               = 0.17
+erf.use_coriolis     = true
+erf.latitude         = 40.0
+erf.abl_driver_type  = "GeostrophicWind"
+erf.abl_geo_wind     = 5.0 0.0 0.0
+erf.fixed_dt         = 0.75
+prob.T_0_Pert_Mag    = 0.1
+erf.fix_random_seed  = true
+
+# The buildings: ERF's map from prepare_town.py (erf.buildings_file_name, in
+# town.inputs), the same footprints and heights as FLUME's buildings.asc.
+erf.buildings_type           = ImmersedForcing
+eb2.small_volfrac            = 0.005
+erf.if_use_most              = true
+erf.if_z0                    = 0.01
+erf.if_snap_partial_cells    = true
+
+erf.check_file  = chk
+erf.check_int   = -1
+erf.plot_file_1 = plt
+erf.plot_int_1  = 800
+erf.plot_vars_1 = density x_velocity y_velocity z_velocity terrain_IB_mask flood_depth
+erf.v = 0
+
+erf.flood.enable     = true
+erf.flood.engine     = flume
+erf.flood.grid_ratio = 4
+erf.flood.plot_file  = flood
+erf.flood.plot_int   = 800

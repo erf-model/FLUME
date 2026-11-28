@@ -55,6 +55,7 @@ where its rain can be the surface precipitation of ERF's microphysics
    Building
    Running
    CoupledExample
+   TownExample
    Inputs
    InputFiles
    Testing

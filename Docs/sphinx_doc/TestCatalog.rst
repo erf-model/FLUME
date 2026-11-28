@@ -558,7 +558,7 @@ ERF built with FLUME
 --------------------
 
 Registered only with ``FLUME_WITH_ERF=ON`` (``Tests/ERF``, ``Tests/ERFRain``,
-``Tests/ERFReplay``, ``Tests/ERFStorm``). FLUME runs as
+``Tests/ERFReplay``, ``Tests/ERFStorm``, ``Tests/ERFStormTown``). FLUME runs as
 ERF's flood engine (:ref:`sec:InsideERF`).
 
 .. list-table::
@@ -709,3 +709,17 @@ ERF's flood engine (:ref:`sec:InsideERF`).
        least 3 times the hyetograph run's and at least 1 h earlier (86.0
        against 16.4 m\ :sup:`3`/s, 2.9 h, in one run). The fixture writes
        the rasters.
+   * - ``erf_flume_town_setup``, ``erf_flume_town``
+     - The town example (``Tests/ERFStormTown``, :ref:`sec:TownExample`):
+       the storm's rain over the 1 km square and 1200 s of most rain in its
+       town, 100 buildings, ERF on 10 m cells with immersed forcing
+       (anelastic, 1600 steps of 0.75 s on 4 ranks), FLUME on 2.5 m cells,
+       three steps in each ERF step. The coupled rain is that of the storm's
+       grids over the square at every line, to 10\ :sup:`-12` of the total.
+       ERF's solid columns are FLUME's building columns, heights within
+       5 m (0.0035 m in one run); the speed in solid cells away from the air
+       is below 0.05 of the domain's largest speed. FLUME alone gives the
+       coupled flood to the bit; the run without buildings closes its
+       balance and floods differently. Water balances with factor 1024
+       (equal rain on 100 x 100 flood cells per storm cell). The setup
+       picks the square from ``erf_flume_storm``'s rain (a fixture).
