@@ -16,7 +16,7 @@ namespace flume {
 inline constexpr int n_cell_max = 1073741824;
 
 //! The type of a boundary segment (flume.bc.<name>.type).
-enum class BoundaryType : int { wall, outflow, discharge };
+enum class BoundaryType : int { wall, outflow, zero_gradient, discharge };
 
 //! Where the rain comes from (flume.rain.type).
 enum class RainType : int { none, constant, hyetograph, gridded, moving_cell, microphysics };

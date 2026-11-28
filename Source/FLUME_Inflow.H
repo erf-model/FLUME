@@ -81,8 +81,8 @@ inflow_depth (amrex::Real q, amrex::Real un, amrex::Real h, amrex::Real g) noexc
  * momentum flux along the normal is q u_b + g h_b^2 / 2, with h_b from the
  * cell inside the face (inflow_depth) and u_b = q / h_b; the flux of the
  * momentum along the side is zero (the water enters along the normal). The
- * ghost cells of the segment are filled as for an outflow segment (a copy of
- * the boundary cell), which the face fluxes then replace.
+ * ghost cells of the segment are filled as for a zero_gradient segment (a
+ * copy of the boundary cell), which the face fluxes then replace.
  *
  * Nothing changes from step to step but the time, so a checkpoint holds
  * nothing of its own; the water balance counts the inflow of each segment

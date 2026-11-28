@@ -28,8 +28,12 @@ using Pieces = amrex::Array<amrex::Array<std::vector<Boundary::Piece>, 2>, 2>;
  * Fill the ghost layers outside every side that is not periodic, piece by
  * piece. Layer m (1 is next to the side) of a wall piece takes the m-th cell
  * inside, times `sign[d][n]` for component n at a side whose normal is
- * direction d. Every layer of an outflow or a discharge piece takes the
- * boundary cell.
+ * direction d. Every layer of a zero_gradient or a discharge piece takes the
+ * boundary cell. So does an outflow piece, except, with `one_way` (the state),
+ * beside a boundary cell whose discharge along the normal points into the
+ * domain: there its layers are filled as those of a wall, so the face carries
+ * no water in. A discharge of exactly zero takes the copy, so still water
+ * sees what it saw with zero_gradient.
  *
  * The plain copy keeps still water still to round-off, but where the bed of
  * the boundary cell is lower than that of the cell inside, still water there
@@ -50,7 +54,7 @@ using Pieces = amrex::Array<amrex::Array<std::vector<Boundary::Piece>, 2>, 2>;
  */
 void
 fill_sides (amrex::MultiFab& mf, const amrex::Geometry& geom, const Pieces& pieces,
-            const WallSigns& sign)
+            const WallSigns& sign, bool one_way)
 {
     const amrex::Box& domain = geom.Domain();
     const int ncomp = mf.nComp();
@@ -88,6 +92,22 @@ fill_sides (amrex::MultiFab& mf, const amrex::Geometry& geom, const Pieces& piec
                                 {
                                     const amrex::IntVect m = amrex::IntVect(i, j, k) + to_mirror;
                                     a(i, j, k, n) = sgn[n] * a(m, n);
+                                });
+                        } else if (piece.type == BoundaryType::outflow && one_way) {
+                            // The discharge of the boundary cell along the
+                            // normal, times `into`, is above zero where it
+                            // points into the domain.
+                            const int normal = State::hu + d;
+                            const amrex::Real into = (side == 0) ? amrex::Real(1.0)
+                                                                 : amrex::Real(-1.0);
+                            amrex::ParallelFor(strip, ncomp,
+                                [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+                                {
+                                    const amrex::IntVect c(i, j, k);
+                                    const bool enters = into * a(c + to_face, normal)
+                                                        > amrex::Real(0.0);
+                                    a(i, j, k, n) = enters ? sgn[n] * a(c + to_mirror, n)
+                                                           : a(c + to_face, n);
                                 });
                         } else {
                             amrex::ParallelFor(strip, ncomp,
@@ -139,6 +159,7 @@ const char*
 type_name (BoundaryType t)
 {
     if (t == BoundaryType::outflow) { return "outflow"; }
+    if (t == BoundaryType::zero_gradient) { return "zero_gradient"; }
     if (t == BoundaryType::discharge) { return "discharge"; }
     return "wall";
 }
@@ -191,7 +212,7 @@ Boundary::fill_state (amrex::MultiFab& state) const
     const amrex::Real m = amrex::Real(-1.0);
     // Component order: h, hu, hv. A wall across x negates hu; across y, hv.
     const WallSigns sign{{{p, m, p}, {p, p, m}}};
-    fill_sides(state, m_geom, m_pieces, sign);
+    fill_sides(state, m_geom, m_pieces, sign, true);
 }
 
 void
@@ -205,7 +226,7 @@ Boundary::fill_bed (amrex::MultiFab& bed, const amrex::Array<amrex::Real, 2>& co
     }
     const amrex::Real p = amrex::Real(1.0);
     const WallSigns sign{{{p, p, p}, {p, p, p}}};
-    fill_sides(bed, m_geom, m_pieces, sign);
+    fill_sides(bed, m_geom, m_pieces, sign, false);
 }
 
 } // namespace flume

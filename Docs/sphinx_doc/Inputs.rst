@@ -128,7 +128,7 @@ Output
        and of the gauge files, from 0 to 2147483647; 0 writes no log. With
        a log, the first and the last step are always written
        (:ref:`sec:WaterBalanceLog`). Each line adds a reduction over the
-       ranks; with outflow or discharge segments, every stage adds one
+       ranks; with outflow, zero-gradient or discharge segments, every stage adds one
        reduction per segment; ``0`` adds none.
    * - ``flume.check_file``
      - string
@@ -197,8 +197,12 @@ gives it another type (:doc:`theory/Boundaries`).
    * - ``flume.bc.<name>.type``
      - string
      - required
-     - ``wall``, ``outflow`` or ``discharge`` (an inflow hydrograph,
-       :ref:`sec:Inflow`). ``stage`` is reserved and stops the run.
+     - ``wall``; ``outflow`` (water leaves and does not enter,
+       :ref:`sec:Outflow`); ``zero_gradient`` (water leaves or enters as
+       the flow at the side carries it, with no bound on what enters,
+       :ref:`sec:ZeroGradient`); or ``discharge`` (an inflow hydrograph,
+       :ref:`sec:Inflow`). Any other value stops the run; ``stage`` is
+       reserved.
    * - ``flume.bc.<name>.range``
      - 2 reals
      - whole side

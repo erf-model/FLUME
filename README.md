@@ -24,7 +24,7 @@ hydrostatic reconstruction), writing plotfiles.
 | Area       | Available                                                         |
 | ---------- | ----------------------------------------------------------------- |
 | Scheme     | First and second order; wetting and drying; absolute datum.       |
-| Sides      | Walls, outflow over a whole side or over segments, periodic.      |
+| Sides      | Walls, outflow or inflow over a side or over segments, periodic.  |
 | Bed        | Plane, bowl or raster; building footprints from a raster.         |
 | Friction   | Manning, one coefficient or a raster map.                         |
 | Rain       | Constant, hyetograph, gridded (ESRI ASCII series), moving cell;   |

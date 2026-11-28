@@ -2,8 +2,8 @@ Water balance
 =============
 
 The water on the surface changes only through the sources (rain in,
-infiltration and drain inlets out) and through the faces of the outflow and
-discharge segments. The
+infiltration and drain inlets out) and through the faces of the outflow,
+zero-gradient and discharge segments. The
 balance log (:ref:`sec:WaterBalanceLog`) counts each of these where it
 happens and checks that they add up.
 
@@ -13,7 +13,8 @@ Residual
 With :math:`V(t)` the volume on the surface at time :math:`t`,
 :math:`V_0 = V(0)`, :math:`S_n(t)` the volume source :math:`n` has added
 since the start (below 0 for a sink) and :math:`Q_m(t)` the volume that has
-left through outflow segment :math:`m` (below 0 where water has come in)
+left through outflow or zero-gradient segment :math:`m` (below 0 where
+water has come in through a zero-gradient segment)
 and :math:`P_l(t)` the volume that has entered through discharge segment
 :math:`l`, the residual is
 
@@ -101,12 +102,15 @@ precision, against final residuals of :math:`6 \times 10^{-16}` and
 so a larger ``flume.log_int`` detects less; the every-term test is also run
 with a line every 25 steps.
 
-Outflow sides that draw water in
---------------------------------
+Open sides that draw water in
+-----------------------------
 
-An outflow side takes zero-gradient ghost cells (:doc:`Boundaries`). Where
-the water against the side is still and the bed steps down to it, the flux
-through the side can point into the domain; the log then shows a negative
-:math:`Q_m`. On the sloped, walled domain of ``Tests/Infiltration`` with an
-outflow segment on the low-x side, 12.7 m\ :sup:`3` come in through it over
-the run. The residual stays at round-off: the water is counted.
+A ``zero_gradient`` side copies the boundary cell into its ghost cells
+whatever the direction of the flow (:ref:`sec:ZeroGradient`). Where the
+discharge of a boundary cell points into the domain, water enters; the log
+then shows a falling :math:`Q_m`. On the sloped, walled domain of
+``Tests/Infiltration/inputs_balance`` with a ``zero_gradient`` segment on
+the low-x side, 10.2 m\ :sup:`3` come in through it over the run. The
+residual stays at round-off: the water is counted. With an ``outflow``
+segment there, 2.75 m\ :sup:`3` leave and none enters: the column of an
+``outflow`` segment never falls (:ref:`sec:Outflow`).

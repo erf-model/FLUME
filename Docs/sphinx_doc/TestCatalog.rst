@@ -201,6 +201,47 @@ Boundaries
      - A centre on the first coordinate of a range is in the segment; a
        centre on the second is not.
 
+Outflow sides
+-------------
+
+Decks in ``Tests/Outflow``, checked by ``check_outflow.py`` from the
+``out_<segment>`` columns of the water-balance log. Each case runs with
+``outflow`` segments, which let no water in, and with ``zero_gradient``
+segments, which do.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 34 66
+
+   * - Tests
+     - What is checked
+   * - ``outflow_step_no_inflow_order1``, ``_order2``
+     - Still water over a bed that steps down by 0.1 m to an outflow side,
+       moving inward at 10\ :sup:`-4` m/s: no ``out`` column falls or goes
+       below zero (64 eps of the volume), and the domain stores no more
+       than it held. At least 100 m\ :sup:`3` leave by 300 s, which a wall
+       would not pass.
+   * - ``outflow_step_zero_gradient_takes_in``
+     - The same case with a ``zero_gradient`` segment takes water in: 200.8
+       m\ :sup:`3` become 8974 m\ :sup:`3` in 300 s (at least 10 times is
+       required).
+   * - ``outflow_valley_keeps_rain_order1``, ``_order2``
+     - Rain on a valley that falls away from two outflow sides, on 2 ranks:
+       the stored water is the rain, 10/3 m\ :sup:`3`, to
+       10\ :sup:`-12`, and nothing crosses either side.
+   * - ``outflow_valley_zero_gradient_takes_in``
+     - The same case with ``zero_gradient`` segments lets in
+       2.0 :math:`\times` 10\ :sup:`-3` m\ :sup:`3` through each side (at
+       least 1.001 times the rain stored is required).
+   * - ``outflow_pond_no_inflow_order1``, ``_order2``
+     - Rain on a rough plane ponds against a wall between two outflow
+       sides, on 3 ranks and 8 boxes: no water enters, and the domain
+       stores no more than the rain. At least 30 m\ :sup:`3` leave.
+   * - ``outflow_pond_zero_gradient_takes_in``
+     - The same case with ``zero_gradient`` segments stores 8069
+       m\ :sup:`3` from 333 m\ :sup:`3` of rain at 1200 s (at least 5
+       times the rain is required).
+
 Inflow hydrographs
 ------------------
 

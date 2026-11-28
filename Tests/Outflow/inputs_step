@@ -1,0 +1,21 @@
+# Still water over a bed that steps down to an outflow side: 50 x 2 cells of
+# 2 m, walls on every side but xlo. The bed (bed_step.asc, named by the
+# tests) is at 0 m in the boundary cells of xlo and at 0.1 m elsewhere; the
+# surface is at 0.6 m, so the water is 0.6 m deep at the side and 0.5 m
+# inside, 200.8 m3 in all. It moves at 1e-4 m/s into the domain at the start.
+# Still water here is weakly unstable (Docs/sphinx_doc/theory/Boundaries.rst)
+# and the velocity sets the direction in which the disturbance grows. The
+# tests give the type of segment w.
+flume.n_cell        = 50 2
+flume.prob_hi       = 100.0 4.0
+flume.plot_file     = step
+flume.plot_int      = 100000
+flume.log_int       = 100
+flume.stop_time     = 300.0
+
+flume.bc.segments = w
+flume.bc.w.side   = xlo
+
+flume.friction.manning       = 0.015
+flume.init.surface_elevation = 0.6
+flume.init.velocity          = 1.0e-4 0.0

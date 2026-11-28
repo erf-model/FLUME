@@ -180,7 +180,7 @@ overwritten (plotfiles are renamed instead), except on a restart
 (:ref:`sec:Restart`). At the end the run prints the
 last line as ``FLUME: water balance (m3): ...``. Each line holds, in m\ :sup:`3` and summed from the start of the run,
 the water on the surface, the water each source has added or removed, the
-water that has left through each outflow segment, the water that has
+water that has left through each outflow or zero-gradient segment, the water that has
 entered through each discharge segment, and the residual of the
 balance (:doc:`theory/WaterBalance`). The header names the columns:
 
@@ -216,8 +216,10 @@ balance (:doc:`theory/WaterBalance`). The header names the columns:
      - Water taken by the storm-drain inlets, as a positive number (with
        ``flume.drains.names``).
    * - ``out_<segment>``
-     - Water that has left through outflow segment ``<segment>``; below 0
-       where more has come in than gone out.
+     - Water that has left through ``outflow`` or ``zero_gradient``
+       segment ``<segment>``. That of an ``outflow`` segment never falls;
+       that of a ``zero_gradient`` segment falls while water enters, and is
+       below 0 where more has come in than gone out.
    * - ``in_<segment>``
      - Water that has entered through discharge segment ``<segment>``: the
        integral of its hydrograph from the start, to round-off.
@@ -228,7 +230,7 @@ balance (:doc:`theory/WaterBalance`). The header names the columns:
 The ``# added:``, ``# removed:``, ``# out:`` and ``# in:`` lines list the columns that
 enter the residual with each sign; ``# in:`` (and the ``- (in)`` of the
 residual line) appear only with a discharge segment. ``# epsilon`` is the machine epsilon of the build.
-A domain without outflow or discharge segments, rain, infiltration or drain inlets has only ``stored``
+A domain without outflow, zero-gradient or discharge segments, rain, infiltration or drain inlets has only ``stored``
 and ``residual``. ``Tests/check_balance.py`` checks a log against the bound
 of :doc:`theory/WaterBalance`; the regression tests run it on every log.
 
@@ -303,14 +305,15 @@ step, off the plot interval, stays. ``flume.check_file`` must differ from
 The run stops with a message naming ``flume.restart`` when the checkpoint
 does not match the inputs: another grid, domain or set of periodic sides,
 another list of sources, a bed that differs in any cell, other water-balance
-columns (rain, infiltration, drain inlets, outflow and discharge segments),
-outflow or discharge segments on other faces, gauges in other cells, drain inlets with another
+columns (rain, infiltration, drain inlets, outflow, zero-gradient and discharge segments),
+outflow, zero-gradient or discharge segments on other faces, gauges in other cells, drain inlets with another
 name, cell, perimeter, area or coefficient, a build of the other precision, a checkpoint
 written with ``flume.log_int = 0`` when the restart keeps a log, or one
 without maps when ``flume.flood_maps = 1``. It also stops on a checkpoint of
 another version, one with a key given twice, and a state that is not finite
 in some cell. Other inputs, such as the CFL number, the Manning coefficient,
-``flume.bed.continue_slope`` (which sets the bed outside the domain), or the
+``flume.bed.continue_slope`` (which sets the bed outside the domain), a
+segment changed from ``outflow`` to ``zero_gradient`` or back, or the
 hydrograph file and interpolation of a discharge segment, are not checked: a
 change there changes the result from the checkpoint on.
 
