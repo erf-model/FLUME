@@ -1,5 +1,6 @@
 #include "FLUME_Source.H"
 #include "FLUME_Drains.H"
+#include "FLUME_InflowSource.H"
 #include "FLUME_Friction.H"
 #include "FLUME_Infiltration.H"
 #include "FLUME_Rain.H"
@@ -22,6 +23,9 @@ make_sources (const Inputs& in, const amrex::Geometry& geom, const amrex::BoxArr
         auto r = std::make_unique<Rain>(ba, dm, geom, *forcing);
         rain = r.get();
         sources.push_back(std::move(r));
+    }
+    for (const auto& spec : in.inflows) {
+        sources.push_back(std::make_unique<InflowSource>(spec, geom, ba, dm, buildings));
     }
     if (in.infiltration_type == InfiltrationType::green_ampt) {
         sources.push_back(std::make_unique<GreenAmpt>(in, geom, ba, dm, buildings));

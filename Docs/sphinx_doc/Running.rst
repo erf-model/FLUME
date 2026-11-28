@@ -305,22 +305,29 @@ step, off the plot interval, stays. ``flume.check_file`` must differ from
 The run stops with a message naming ``flume.restart`` when the checkpoint
 does not match the inputs: another grid, domain or set of periodic sides,
 another list of sources, a bed that differs in any cell, other water-balance
-columns (rain, infiltration, drain inlets, outflow, zero-gradient and discharge segments),
+columns (rain, inflows, infiltration, drain inlets, outflow, zero-gradient
+and discharge segments),
 outflow, zero-gradient or discharge segments on other faces, gauges in other cells, drain inlets with another
-name, cell, perimeter, area or coefficient, a build of the other precision, a checkpoint
+name, cell, perimeter, area or coefficient, inflows inside the domain
+(``flume.inflows.*``) with a point in another cell or a line with other
+ends, a build of the other precision, a checkpoint
 written with ``flume.log_int = 0`` when the restart keeps a log, or one
 without maps when ``flume.flood_maps = 1``. It also stops on a checkpoint of
 another version, one with a key given twice, and a state that is not finite
 in some cell. Other inputs, such as the CFL number, the Manning coefficient,
 ``flume.bed.continue_slope`` (which sets the bed outside the domain), a
 segment changed from ``outflow`` to ``zero_gradient`` or back, or the
-hydrograph file and interpolation of a discharge segment, are not checked: a
-change there changes the result from the checkpoint on.
+hydrograph file and interpolation of a discharge segment or of an inflow
+inside the domain, are not checked: a change there changes the result from
+the checkpoint on.
 
 The restart may use another rank count and other boxes. The state, the
-infiltrated depth, the drained depth, the maps, the plotfiles and the gauge files are then
+infiltrated depth, the drained depth, the depth the rain and the inflows
+inside the domain still carry in their compensated sums, the maps, the
+plotfiles and the gauge files are then
 those of the run without a break, to the last bit. The water-balance totals
-of the outflow, the inflow and the rain are sums over the ranks: on another rank count
+of the outflow, the discharge segments, the inflows inside the domain and
+the rain are sums over the ranks: on another rank count
 they are continued from their sum over the ranks, and the log agrees with
 the run without a break to round-off (below :math:`10^{-14}` of the largest
 value of a column in the tests), not to the bit. On the same rank count and

@@ -81,6 +81,12 @@ public:
     //! for water removed. Called on every rank; the caller sums the ranks.
     [[nodiscard]] virtual double balance_volume () const { return 0.0; }
 
+    //! The fastest this source can raise the depth of one cell from time t0
+    //! to t1 (t1 may be infinite), m/s, for the time step (Flood::compute_dt
+    //! adds it to the largest rain rate); 0 by default, for a source that
+    //! adds no water.
+    [[nodiscard]] virtual double max_depth_rate (double /*t0*/, double /*t1*/) const { return 0.0; }
+
     //! The fields this source adds to the plotfiles, after the fields of the
     //! state, in this order (none by default).
     [[nodiscard]] virtual std::vector<PlotField> plot_fields () const { return {}; }
@@ -95,14 +101,16 @@ public:
 
 /**
  * The sources the inputs switch on, in the order they act: rain when
- * `forcing` is not null (flume.rain.type), then infiltration
- * (flume.infiltration.type), which so sees the rain of the step, then the
+ * `forcing` is not null (flume.rain.type), then one inflow inside the domain
+ * per name of flume.inflows.names, in that order, then infiltration
+ * (flume.infiltration.type), which so sees the rain and the inflows of the
+ * step, then the
  * storm-drain inlets (flume.drains.names), which take what the soil left,
  * then Manning friction (flume.friction.manning > 0 or
  * flume.friction.manning_file), which sees the depth after both.
  * `forcing` must outlive the sources. `buildings` (may be null) is the
  * building height of each cell (flume.buildings.file): building cells
- * infiltrate nothing and hold no inlet. Prints the names, or "none", at start-up.
+ * infiltrate nothing and hold no inlet and no inflow. Prints the names, or "none", at start-up.
  */
 std::vector<std::unique_ptr<Source>> make_sources (const Inputs& in, const amrex::Geometry& geom,
                                                    const amrex::BoxArray& ba,

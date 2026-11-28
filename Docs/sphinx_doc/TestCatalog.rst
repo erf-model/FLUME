@@ -450,6 +450,58 @@ independently of the solver.
      - A restart with the inlet in another cell, or with another weir
        coefficient, stops with a message naming the inlets.
 
+Inflows inside the domain
+-------------------------
+
+Decks in ``Tests/InflowSource``. ``check_inflow_source.py`` checks the first
+step from a dry domain against an exact clipping of the line to each cell
+and the closed-form step, independently of the solver.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 34 66
+
+   * - Tests
+     - What is checked
+   * - ``inflow_source_line_first_step``, ``_line_reversed``,
+       ``_line_edge_to_edge``, ``_point_first_step``
+     - One step of 0.5 m\ :sup:`3`/s into a dry domain of 2 x 1 m cells: the
+       step against the root of the rain-limited cubic with the inflow's
+       fastest rise of a depth, and each cell's depth against its part of
+       the line (or the point) times the volume of the step (1e-12), with no
+       discharge. A line across 16 cells and 4 boxes, the same line the
+       other way round, a line from edge to edge of the domain, and a point.
+   * - ``inflow_source_line_on_face``, ``_line_through_corners``
+     - A line along a cell face, where the position of the face rounds
+       down, goes to the 2 cells to its right; a diagonal through a corner
+       of the grid at every third cell has 60 cells, none it only touches.
+   * - ``inflow_source_point_with_rain``
+     - The point with rain of 0.1 m/s as well: the step against the root of
+       the cubic with the sum of the two rates, and each depth.
+   * - ``inflow_source_basin_volume_np4``, ``_swapped``, ``_late_start``,
+       ``_with_rain``
+     - A closed basin fed by a point and a line: the ``inflow_<name>``
+       columns hold the integrals of the hydrographs and the basin the
+       sum, to round-off, with both interpolations, a file that starts
+       after the run (and its note), and with rain on the basin as well.
+   * - ``inflow_source_deep_water``
+     - 1e-15 m\ :sup:`3`/s into one cell of water 1 m deep for 20000 steps:
+       each step's depth is below the rounding of the depth, and the cell
+       holds 1 m plus the inflow within 4 eps (the compensated sum).
+   * - ``inflow_source_basin_reference``, ``_boxes_4_np3``
+     - The basin on 2 ranks in 9 boxes (the reference, and the checkpoint
+       of the restarts), and on 3 ranks in 25 boxes: the plotfiles to the
+       last bit.
+   * - ``inflow_source_restart_np2``, ``_np2_np3``
+     - The basin continued from a checkpoint on 2 and on 3 ranks: the
+       plotfiles to the last bit, and the log byte for byte or to 1e-14.
+   * - ``inflow_source_normal_depth_order1``, ``_order2``
+     - A steep channel with Manning friction fed by a line across it: the
+       normal depth from 40 m on, within 1 % and 0.5 %.
+   * - ``abort_inflow_source_restart_moved``, ``_line``
+     - A restart with the point in another cell, or with the line moved,
+       stops with a message naming the inflow.
+
 Water balance, flood maps and gauges
 ------------------------------------
 
@@ -573,6 +625,13 @@ Input checks
      - Each drain key: names, missing keys, ranges, a location outside the
        domain, an unknown key, a key of a name not listed, two inlets in one
        cell and an inlet in a building cell.
+   * - ``abort_inflow_source_*``
+     - Each inflow key: names (also two that differ only in case), missing
+       keys, the count of values, a point and a line together,
+       values not finite or outside the domain, a line of one point, the
+       interpolation, the file, an unknown key, a key of a name not listed,
+       a point or a line in a building cell, and a dry domain fed by an
+       inflow of no discharge with no stop time.
    * - ``abort_log_*``, ``abort_flood_maps_*``, ``abort_arrival_depth_*``,
        ``abort_gauge_*``, ``abort_gauges_*``
      - Each check of the log, map and gauge keys: ranges, a non-finite

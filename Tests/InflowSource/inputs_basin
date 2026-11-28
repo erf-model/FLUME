@@ -1,0 +1,26 @@
+# A closed basin fed by two inflows inside it (Tests/InflowSource/README.md):
+# 40 x 40 m, 20 x 20 cells of 2 m in 9 boxes, flat bed at 0, still water
+# 0.5 m deep at the start (400 x 0.5 = 800 m3), walls on every side. Inflow
+# "a" is a point at (11, 21) m, in cell (5, 10); inflow "b" a line from
+# (3.3, 5.1) to (25.7, 31.9) m across 25 cells and 4 boxes. No water
+# leaves, so the stored volume is 800 m3 plus the integrals of the two
+# hydrographs.
+flume.n_cell        = 20 20
+flume.prob_hi       = 40.0 40.0
+flume.max_grid_size = 8
+flume.plot_file     = basin
+flume.plot_int      = 100
+flume.stop_time     = 300.0
+flume.cfl           = 0.5
+flume.order         = 2
+flume.log_int       = 10
+
+flume.bed.elevation          = 0.0
+flume.init.surface_elevation = 0.5
+
+flume.inflows.names           = a b
+flume.inflows.a.location      = 11 21
+flume.inflows.a.file          = hydrograph_triangle.txt
+flume.inflows.b.line          = 3.3 5.1 25.7 31.9
+flume.inflows.b.file          = hydrograph_steps.txt
+flume.inflows.b.interpolation = step

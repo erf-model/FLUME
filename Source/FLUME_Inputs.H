@@ -84,6 +84,26 @@ struct DrainInlet
 };
 
 /**
+ * An inflow inside the domain (flume.inflows.<name>.*): the discharge of a
+ * hydrograph file added to the cell that holds a point, or spread over the
+ * cells a line crosses by the length of the line in each
+ * (FLUME_InflowSource.H).
+ */
+struct InflowSpec
+{
+    std::string name;
+    bool line = false;  //!< a line (flume.inflows.<name>.line), else a point (.location)
+    //! The point x y, or the ends x0 y0 x1 y1 of the line, m (the point uses 0 and 1)
+    amrex::Array<amrex::Real, 4> coords{{amrex::Real(0.0), amrex::Real(0.0), amrex::Real(0.0),
+                                         amrex::Real(0.0)}};
+    //! Lines of a time in s and a discharge in m3/s (flume.inflows.<name>.file)
+    std::string file;
+    //! How the discharge runs between the entries of the file
+    //! (flume.inflows.<name>.interpolation; default linear; step or linear)
+    RainInterpolation interpolation = RainInterpolation::linear;
+};
+
+/**
  * The run's inputs, all in the "flume" namespace of the inputs file.
  *
  * Every key has a range check that aborts with a message naming the key. A key
@@ -164,6 +184,17 @@ struct Inputs
     //! Each inlet has a cell of its own, not a building cell (checked when
     //! the inlets are placed, FLUME_Drains.H).
     std::vector<DrainInlet> drains;
+
+    //! Inflows inside the domain (flume.inflows.names and
+    //! flume.inflows.<name>.*; default none), in the order listed:
+    //!   - location: x y of a point, m, or
+    //!   - line: x0 y0 x1 y1 of the ends of a line, m (exactly one of the
+    //!     two; inside the domain, on its edge too; a line longer than 0);
+    //!   - file: lines of a time in s and a discharge in m3/s (required; not empty);
+    //!   - interpolation: step or linear (default linear).
+    //! No cell of an inflow is a building cell (checked when the inflows
+    //! are placed, FLUME_InflowSource.H).
+    std::vector<InflowSpec> inflows;
 
     //! Time at which the run stops, s (flume.stop_time; no default; finite, >= 0).
     //! In double precision in every build, as the time is.
