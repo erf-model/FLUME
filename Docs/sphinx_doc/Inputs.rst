@@ -471,6 +471,58 @@ areas), and a building cell (``flume.buildings.file``) none: either aborts.
 The keys of an inlet are required, or allowed, for each name in
 ``flume.drains.names``; a key for a name not listed is unknown.
 
+Inflows inside the domain
+-------------------------
+
+The model is in :ref:`sec:InflowSource`. Each inflow is a point or a line
+inside the domain (on its edge too) with a hydrograph file read as that of
+a discharge segment (``flume.bc.<name>.file``). No cell of an inflow may be
+a building cell (``flume.buildings.file``): the run stops. Two inflows may
+share a cell.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 26 12 12 50
+
+   * - Key
+     - Type
+     - Default
+     - Meaning and allowed values
+   * - ``flume.inflows.names``
+     - strings
+     - none
+     - Names of the inflows, each of letters, digits and ``_``, none twice
+       and no two that differ only in case.
+       The water-balance column of each is ``inflow_<name>``.
+   * - ``flume.inflows.<name>.location``
+     - 2 reals
+     - one of ``location`` and ``line``
+     - x and y of a point, m, finite, inside the domain or on its edge. The
+       cell is chosen as for a gauge (:ref:`sec:Gauges`). Not with
+       ``line``.
+   * - ``flume.inflows.<name>.line``
+     - 4 reals
+     - one of ``location`` and ``line``
+     - x0 y0 x1 y1 of a line, m, finite, both ends inside the domain or on
+       its edge, the two ends not the same point. Each cell takes the part of
+       the line's length inside it. Not with ``location``.
+   * - ``flume.inflows.<name>.file``
+     - string
+     - required
+     - Hydrograph file: lines of a time in s and a discharge in m\ :sup:`3`/s
+       (finite, at least 0), the times strictly increasing; ``#`` starts a
+       comment (:ref:`sec:HydrographFiles`).
+       Before the first time the discharge is the first one (the run prints
+       a note when that is above 0), after the last time the last one.
+   * - ``flume.inflows.<name>.interpolation``
+     - string
+     - ``linear``
+     - ``linear`` interpolates the discharge in time between the entries;
+       ``step`` holds each discharge to the next time.
+
+The keys of an inflow are required, or allowed, for each name in
+``flume.inflows.names``; a key for a name not listed is unknown.
+
 Initial state
 -------------
 

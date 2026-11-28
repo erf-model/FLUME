@@ -1851,6 +1851,7 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/Restart/RestartTests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/Inflow/InflowTests.cmake)
 # After the restart tests, whose function it uses.
 include(${CMAKE_CURRENT_SOURCE_DIR}/Drains/DrainsTests.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/InflowSource/InflowSourceTests.cmake)
 
 # --- flume.max_dt: the longest step, s (finite, > 0) ------------------------
 # max_dt_plane: rain of 50 mm/h on a sloping plane of 64 x 8 cells of 1 m,

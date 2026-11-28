@@ -27,7 +27,8 @@ require_count (const amrex::ParmParse& pp, const std::string& key, int want)
     if (have != want) {
         std::string msg = "flume.";
         msg += key;
-        msg += (want == 2) ? " needs exactly 2 values (x and y); it has "
+        msg += (want == 4) ? " needs exactly 4 values (x0 y0 x1 y1); it has "
+             : (want == 2) ? " needs exactly 2 values (x and y); it has "
                            : " needs exactly 1 value; it has ";
         msg += std::to_string(have);
         amrex::Abort(msg);
@@ -722,6 +723,112 @@ read_inputs (const amrex::Geometry* host_grid)
                              + all_digits(d.orifice_coefficient));
             }
             if (complete) { in.drains.push_back(d); }
+        }
+    }
+
+    // inflows.names and inflows.<name>.*: points or lines inside the domain
+    // (on its edge too), each with a name of letters, digits and _, and a
+    // hydrograph file.
+    if (pp.contains("inflows.names")) {
+        std::vector<std::string> names;
+        pp.getarr("inflows.names", names);
+        for (const auto& name : names) {
+            const bool ok_name = !name.empty()
+                && std::all_of(name.begin(), name.end(), [] (char c) {
+                       return std::isalnum(static_cast<unsigned char>(c)) != 0 || c == '_';
+                   });
+            if (!ok_name) {
+                amrex::Abort("flume.inflows.names: a name may hold only letters, digits and _; "
+                             "it is \"" + name + "\"");
+            }
+            const auto lower = [] (std::string s) {
+                for (auto& c : s) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+                return s;
+            };
+            for (const auto& f : in.inflows) {
+                if (f.name == name) { amrex::Abort("flume.inflows.names lists " + name + " twice"); }
+                if (lower(f.name) == lower(name)) {
+                    amrex::Abort("flume.inflows.names lists " + f.name + " and " + name
+                                 + ", which differ only in case: their checkpoint files"
+                                   " inflow_<name>_carry are one file on a case-insensitive"
+                                   " file system");
+                }
+            }
+            InflowSpec f;
+            f.name = name;
+            const std::string key = "inflows." + name + ".";
+            bool complete = true;
+            const bool point = pp.contains(key + "location");
+            const bool line = pp.contains(key + "line");
+            if (point && line) {
+                amrex::Abort("flume." + key + "location and flume." + key + "line cannot both be"
+                             " given: an inflow is a point or a line");
+            }
+            // Each coordinate inside the domain, in x (even index) or y.
+            const auto inside = [&] (const std::string& k, int n) {
+                for (int c = 0; c < n; ++c) {
+                    const int dd = c % 2;
+                    if (!(f.coords[c] >= in.prob_lo[dd] && f.coords[c] <= in.prob_hi[dd])) {
+                        std::string msg = "flume." + k + " must be inside the domain: from ";
+                        msg += all_digits(in.prob_lo[dd]);
+                        msg += " to ";
+                        msg += all_digits(in.prob_hi[dd]);
+                        msg += " in ";
+                        msg += dir_name[dd];
+                        msg += " (flume.prob_lo and flume.prob_hi); it is ";
+                        msg += all_digits(f.coords[c]);
+                        amrex::Abort(msg);
+                    }
+                }
+            };
+            if (point) {
+                amrex::Array<amrex::Real, 2> xy{{amrex::Real(0.0), amrex::Real(0.0)}};
+                query_finite_pair(pp, key + "location", xy);
+                f.coords[0] = xy[0];
+                f.coords[1] = xy[1];
+                inside(key + "location", 2);
+            } else if (line) {
+                require_count(pp, key + "line", 4);
+                amrex::Vector<amrex::Real> v;
+                pp.getarr(key + "line", v);
+                for (int c = 0; c < 4; ++c) {
+                    if (!std::isfinite(v[c])) {
+                        amrex::Abort("flume." + key + "line must be finite: x0 y0 x1 y1, m");
+                    }
+                    f.coords[c] = v[c];
+                }
+                inside(key + "line", 4);
+                if (f.coords[0] == f.coords[2] && f.coords[1] == f.coords[3]) {
+                    amrex::Abort("flume." + key + "line has both ends at the same point: use"
+                                 " flume." + key + "location for a point");
+                }
+                f.line = true;
+            } else {
+                defer("flume.inflows.names lists " + name + ", which needs flume." + key
+                      + "location (x y of a point, m) or flume." + key
+                      + "line (x0 y0 x1 y1 of a line, m)");
+                complete = false;
+            }
+            if (!query_file(pp, key + "file", f.file,
+                            "a hydrograph file (a time in s and a discharge in m3/s per line)")) {
+                defer("flume.inflows.names lists " + name + ", which needs flume." + key
+                      + "file: lines of a time in s and a discharge in m3/s");
+                complete = false;
+            }
+            if (pp.contains(key + "interpolation")) {
+                require_count(pp, key + "interpolation", 1);
+                std::string v;
+                pp.get(key + "interpolation", v);
+                if (v == "step") {
+                    f.interpolation = RainInterpolation::step;
+                } else if (v == "linear") {
+                    f.interpolation = RainInterpolation::linear;
+                } else {
+                    amrex::Abort("flume." + key + "interpolation must be step or linear; it is "
+                                 + v);
+                }
+            }
+            if (complete) { in.inflows.push_back(f); }
         }
     }
 

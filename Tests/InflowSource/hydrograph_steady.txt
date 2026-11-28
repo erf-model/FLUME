@@ -1,0 +1,2 @@
+# 4 m3/s from t = 0 on (1 m2/s over the 4 m width of inputs_channel)
+0 4

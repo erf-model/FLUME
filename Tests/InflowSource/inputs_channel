@@ -1,0 +1,27 @@
+# A straight channel fed by a line inflow across it (Tests/InflowSource/README.md):
+# 200 m long and 4 m wide, 200 x 2 cells of 1 m in 4 boxes, periodic across.
+# Side xlo is a wall; the line runs across the channel through the middle
+# of the first column of cells, x = 0.5 m, and takes the file's discharge
+# (4 m3/s, 1 m2/s). The water leaves through side xhi (segment "out", zero
+# gradient). Bed slope 0.02 down along x, Manning 0.03, dry at the start.
+flume.n_cell        = 200 2
+flume.prob_hi       = 200.0 4.0
+flume.periodic      = 0 1
+flume.max_grid_size = 50
+flume.plot_file     = chan
+flume.cfl           = 0.5
+flume.order         = 2
+flume.log_int       = 100
+flume.stop_time     = 600
+
+flume.bed.elevation     = 10.0
+flume.bed.slope         = -0.02 0
+flume.friction.manning  = 0.03
+
+flume.bc.segments = out
+flume.bc.out.side = xhi
+flume.bc.out.type = outflow
+
+flume.inflows.names  = up
+flume.inflows.up.line = 0.5 0 0.5 4
+flume.inflows.up.file = hydrograph_steady.txt

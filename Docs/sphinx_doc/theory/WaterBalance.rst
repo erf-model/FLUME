@@ -1,8 +1,8 @@
 Water balance
 =============
 
-The water on the surface changes only through the sources (rain in,
-infiltration and drain inlets out) and through the faces of the outflow and
+The water on the surface changes only through the sources (rain and
+inflows inside the domain in, infiltration and drain inlets out) and through the faces of the outflow and
 discharge segments. The
 balance log (:ref:`sec:WaterBalanceLog`) counts each of these where it
 happens and checks that they add up.
@@ -30,7 +30,9 @@ which is zero in exact arithmetic.
   sum still holds back from the state (at most the rounding of a depth); the
   infiltration from the depth each cell has lost to the soil, with the part
   its compensated sum carries (:ref:`sec:Infiltration`); the drain inlets
-  likewise (:ref:`sec:Drains`).
+  likewise (:ref:`sec:Drains`); each inflow inside the domain, column
+  ``inflow_<name>``, as the rain, from the depth it gives its cells less the
+  part its compensated sum holds back (:ref:`sec:InflowSource`).
 * :math:`Q_m = \sum_k \sum_{f \in m} \sigma_f \, F_f \, \ell_f \, w_k
   \Delta t_k`, with :math:`F_f` the mass flux (m\ :sup:`2`/s) the update
   uses on boundary face :math:`f` of the segment, after the outflow limit,

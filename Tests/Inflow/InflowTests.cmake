@@ -241,7 +241,7 @@ endforeach()
 # A dry domain, no stop time, and no discharge from now on: nothing sets the
 # step.
 flume_add_abort_test(abort_inflow_zero_dry_without_stop_time
-    EXPECT "and no rain falls and no water enters through a discharge segment from this time on, so nothing sets the time step: set flume\\.stop_time"
+    EXPECT "and no rain falls and no water enters through a discharge segment or an inflow [(]flume\\.inflows\\.names[)] from this time on, so nothing sets the time step: set flume\\.stop_time"
     ARGS ${ok} ${in_seg} flume.bc.a.type=discharge flume.bc.a.file=${in_dir}/hydrograph_zero.txt
          flume.max_step=1)
 # A restart whose segment b covers more faces than in the run that wrote

@@ -1,0 +1,3 @@
+# 2 m3/s from 50 s on: the first time is after the start of the run, so
+# 2 m3/s enters from t = 0 (600 m3 by 300 s).
+50 2
