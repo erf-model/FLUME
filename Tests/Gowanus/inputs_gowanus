@@ -1,0 +1,21 @@
+# Rain on the streets of Gowanus, Brooklyn: a square of 1 km on 500 x 500
+# cells of 2 m, in boxes of 250 x 250 for four ranks. The square, the bed, the
+# buildings, the rain and the gauges come from prepare_gowanus.py
+# (FILE=gowanus.inputs, or FILE=gowanus_open.inputs without the buildings).
+flume.n_cell        = 500 500
+flume.max_grid_size = 250
+flume.plot_file     = flood
+flume.plot_int      = 0
+flume.log_int       = 50
+flume.flood_maps    = 1
+flume.flood_maps.arrival_depth = 0.05
+
+# One rate over the square, held from each entry to the next.
+flume.rain.type = hyetograph
+
+# Paved streets. The buildings are blocks of raised bed, so this is the
+# coefficient of the streets, yards and roofs alike.
+flume.friction.manning = 0.015
+
+# Every side is a wall (the default): the square keeps its rain. Outflow sides
+# on this bed let water in where a street falls into the square (README).
