@@ -100,6 +100,21 @@ foreach(np 1 2 4)
         CHECK ${check_plotfile} skel --steps 0 --times 0 ${skel_grid} --n-files ${np})
 endforeach()
 
+# amrex.parmparse.verbose, in its two spellings, is a key AMReX reads late:
+# main() reads it at the start, so that it is not counted as unused when the
+# run ends. The run must exit with 0 and report no unused key. The first runs
+# on 1 rank, so that a build without MPI has it too.
+foreach(case verbose=1:1 verbose=0:2 v=1:2)
+    string(REGEX REPLACE ":.*" "" key ${case})
+    string(REGEX REPLACE ".*:" "" np ${case})
+    string(REPLACE "=" "_" tag ${key})
+    flume_add_regtest(skeleton_parmparse_${tag} NPROCS ${np}
+        INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/Skeleton/inputs
+        ARGS amrex.parmparse.${key}
+        NO_OUTPUT "[Uu]nused"
+        CHECK ${check_plotfile} skel --steps 0 --times 0 ${skel_grid} --n-files ${np})
+endforeach()
+
 # Defaults: prob_lo = 0 0, max_grid_size = 64 (128 x 65 cells: 4 boxes; any
 # other default gives another number), plot_file = plt, bed at 0, dry.
 flume_add_regtest(skeleton_defaults NPROCS 1
@@ -1339,13 +1354,17 @@ flume_add_abort_test(abort_plot_file_two    EXPECT "flume\\.plot_file needs exac
     ARGS ${ok} flume.plot_file=a\ b)
 flume_add_abort_test(abort_unknown_key      EXPECT "Unknown key\\(s\\) in the flume namespace:[^a-z]*flume\\.n_cel "
     ARGS ${ok} flume.n_cel=8\ 8)
-# A key outside the flume namespace that nothing reads: reported when the run
-# ends (amrex.abort_on_unused_inputs, which main() turns on). The list of keys
-# goes to stdout and the abort message to stderr, which reach the pipe in
-# either order, so the pattern asks for both in any order.
+# A key outside the flume namespace that nothing reads: main() stops the run
+# when it ends and names the key (amrex.abort_on_unused_inputs, which main()
+# turns on).
 flume_add_abort_test(abort_unused_key_other_namespace
-    EXPECT "^(?=[\\s\\S]*flum\\.n_cell)[\\s\\S]*unused ParmParse variables"
+    EXPECT "Unused key\\(s\\):.*\\s+flum\\.n_cell = 8 8"
     ARGS ${ok} flum.n_cell=8\ 8)
+# The same with amrex.verbose = 0, where AMReX's own stop prints no key names,
+# and with an AMReX key that FLUME does not use.
+flume_add_abort_test(abort_unused_key_quiet
+    EXPECT "Unused key\\(s\\):.*\\s+geometry\\.prob_lo = 0 0 0"
+    ARGS ${ok} amrex.verbose=0 geometry.prob_lo=0\ 0\ 0)
 
 # --- Time loop, bed and initial state ------------------------------------------
 flume_add_abort_test(abort_plot_int_negative EXPECT "flume\\.plot_int must be >= 0 and <= 2147483647. it is -1"

@@ -18,6 +18,10 @@ Grid, output and time loop
      - Plotfile headers and every cell against a closed form: names, step,
        time, domain, cell size, box coverage, one data file per rank. The
        defaults of the grid and output keys.
+   * - ``skeleton_parmparse_*``
+     - A run given ``amrex.parmparse.verbose`` (``= 1``, ``= 0``) or
+       ``amrex.parmparse.v`` ends with exit code 0 and reports no unused
+       key.
    * - ``uniform_np*``, ``uniform_channel_x``, ``_y``
      - A uniform flow in a periodic domain, or along a channel between
        walls, is unchanged in every plotfile; step count and times as
