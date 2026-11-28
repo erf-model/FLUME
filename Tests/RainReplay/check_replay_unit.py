@@ -4,7 +4,12 @@
 Usage (in the directory where `replay_unit run` ran, as the check of
 Tests/run_case.py):
 
-    check_replay_unit.py <command that runs replay_unit, without its mode...>
+    check_replay_unit.py [--single] <command that runs replay_unit, without its mode...>
+
+--single: replay_unit was built in single precision (FLUME_PRECISION=SINGLE).
+The depths and what a cell holds back are then floats: the check rounds each
+depth and each sum to the nearest float, as the writer does, and multiplies
+by 3.6e6 / (t1 - t0) in double, so the grids still match to the bit.
 
 run: the index rain/replay.txt must be, to the byte,
 
@@ -45,6 +50,7 @@ with rain".
 import filecmp
 import re
 import shutil
+import struct
 import subprocess
 import sys
 from pathlib import Path
@@ -60,6 +66,14 @@ INDEX = ("0 replay_000001.asc\n0.5 replay_zero.asc\n1 replay_000002.asc\n"
          "1.5 replay_000003.asc\n2 replay_zero.asc\n")
 
 
+ROUND = lambda x: x  # noqa: E731  (float32 rounding with --single)
+
+
+def to_float32(x):
+    """x rounded to the nearest float, as a Python float."""
+    return struct.unpack("f", struct.pack("f", x))[0]
+
+
 def fail(msg):
     sys.exit(f"FAIL: {msg}")
 
@@ -71,7 +85,9 @@ def expected_grids():
     for d, (t0, t1) in zip(DEPTHS, TIMES):
         w = [0.0] * 8
         for c in range(8):
-            x = d[c] + held[c]
+            # The sum of two floats is exact in double, so rounding it once
+            # gives the float sum.
+            x = ROUND(ROUND(d[c]) + held[c])
             w[c] = max(x, 0.0)
             held[c] = min(x, 0.0)
         if max(w) > 0.0:
@@ -119,7 +135,11 @@ def fresh(where, chk, rain):
 
 
 def main():
+    global ROUND
     driver = sys.argv[1:]
+    if driver and driver[0] == "--single":
+        ROUND = to_float32
+        driver = driver[1:]
     if not driver:
         fail("usage: check_replay_unit.py <command that runs replay_unit...>")
     here = Path(".").resolve()

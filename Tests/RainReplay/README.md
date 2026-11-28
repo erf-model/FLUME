@@ -79,8 +79,10 @@ Each check fails against these one-line changes to
 | The restart does not accept the line of the next grid where the checkpoint had its closing line | Restart from `chk3` stops |
 | The restart cuts the index to its size without writing the closing line again | Restart from `chk3` without a step |
 
-The checks are for double precision. In a single-precision build the rates
-of the check, computed in double, differ.
+In a single-precision build (`FLUME_PRECISION=SINGLE`) the depths and what
+a cell holds back are floats. CTest then passes `--single` to the check,
+which rounds each depth and each sum to the nearest float, as the writer
+does, so the grids still match to the bit.
 
 ## CTest
 
