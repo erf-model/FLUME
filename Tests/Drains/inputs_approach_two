@@ -1,0 +1,26 @@
+# Two lists of approach-flow inlets with other parameters in one run: the
+# 4 x 4 periodic cells of Tests/Drains/inputs_approach, water 0.5 m deep at
+# (1.2, 0.5) m/s, one step. The western 8 cells hold the inlets of `west`
+# (the default coefficient and exponent), the eastern 8 those of `east`
+# (0.226 and -0.5); the tests give the two files. The water starts level,
+# so in the first step no cell gains or loses water to another, and each
+# cell must hold the closed-form depth of its own inlet.
+flume.n_cell        = 4 4
+flume.prob_hi       = 20.0 20.0
+flume.max_grid_size = 2
+flume.periodic      = 1 1
+flume.plot_file     = plt
+flume.plot_int      = 1
+flume.max_step      = 1
+flume.stop_time     = 60.0
+
+flume.init.surface_elevation = 0.5
+flume.init.velocity          = 1.2 0.5
+
+flume.drains.names                = west east
+flume.drains.west.type            = approach_flow
+flume.drains.west.area            = 0.4
+flume.drains.east.type            = approach_flow
+flume.drains.east.area            = 0.4
+flume.drains.east.coefficient     = 0.226
+flume.drains.east.froude_exponent = -0.5

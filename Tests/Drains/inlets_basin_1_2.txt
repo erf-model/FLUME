@@ -1,0 +1,4 @@
+# One inlet in cell (8, 8) and two in cell (3, 3).
+8.5 8.5
+3.5 3.5
+3.6 3.5

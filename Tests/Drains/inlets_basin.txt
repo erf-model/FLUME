@@ -1,0 +1,2 @@
+# The inlet of Tests/Drains/inputs_basin as a list file: an x and a y in m.
+8.5 8.5

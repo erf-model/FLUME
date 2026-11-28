@@ -1,0 +1,24 @@
+# Inlets in water that flows over them: 4 x 4 cells of 5 m in boxes of 2
+# (4 boxes), periodic in x and y, flat bed at 0, no friction, no rain. The
+# water starts 0.5 m deep and moves at (1.2, 0.5) m/s, a speed of 1.3 m/s.
+# Every cell holds an inlet of the approach-flow law with the default
+# coefficient (0.302) and Froude exponent (-0.816) and an area of 0.4 m2;
+# the tests give their locations with flume.drains.street.file
+# (Tests/Drains/inlets_all.txt). Every cell is the same, so the water stays
+# level and keeps its velocity (the water an inlet takes leaves with its
+# share of the discharge), and each cell drains as the closed form of
+# Source/FLUME_Drains.H: to 0.0694 m at 60 s, empty at 87.05 s.
+flume.n_cell        = 4 4
+flume.prob_hi       = 20.0 20.0
+flume.max_grid_size = 2
+flume.periodic      = 1 1
+flume.plot_file     = plt
+flume.plot_int      = 20
+flume.stop_time     = 60.0
+
+flume.init.surface_elevation = 0.5
+flume.init.velocity          = 1.2 0.5
+
+flume.drains.names           = street
+flume.drains.street.type     = approach_flow
+flume.drains.street.area     = 0.4

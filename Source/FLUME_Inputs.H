@@ -26,6 +26,9 @@ enum class RainType : int { none, constant, hyetograph, gridded, moving_cell, mi
 //! (flume.bc.<name>.interpolation).
 enum class RainInterpolation : int { step, linear };
 
+//! The capacity law of a storm-drain inlet (flume.drains.<name>.type).
+enum class DrainType : int { weir_orifice, approach_flow };
+
 //! The infiltration loss model (flume.infiltration.type).
 enum class InfiltrationType : int { none, green_ampt, curve_number };
 
@@ -70,17 +73,23 @@ struct GaugePoint
 };
 
 /**
- * A storm-drain inlet (flume.drains.<name>.*): a grate in the cell that
- * holds `location`, with the weir and orifice capacity of FLUME_Drains.H.
+ * A storm-drain inlet, or the inlets of a list file, with one capacity law
+ * and one set of parameters (flume.drains.<name>.*, FLUME_Drains.H). With
+ * `file` empty it is one inlet in the cell that holds `location`; else one
+ * inlet at each point of the file.
  */
 struct DrainInlet
 {
     std::string name;
+    DrainType type = DrainType::weir_orifice;  //!< the capacity law
     amrex::Array<amrex::Real, 2> location{{amrex::Real(0.0), amrex::Real(0.0)}};  //!< x y, m
-    amrex::Real perimeter = amrex::Real(0.0);  //!< weir length P, m
-    amrex::Real area = amrex::Real(0.0);       //!< open area A, m2
-    amrex::Real weir_coefficient = amrex::Real(1.66);    //!< C_w, m^(1/2)/s
-    amrex::Real orifice_coefficient = amrex::Real(0.67); //!< C_o, no unit
+    std::string file;  //!< lines of x and y, m (flume.drains.<name>.file); empty: `location`
+    amrex::Real perimeter = amrex::Real(0.0);  //!< weir length P, m (weir_orifice)
+    amrex::Real area = amrex::Real(0.0);       //!< A, m2: open area (weir_orifice), grate area (approach_flow)
+    amrex::Real weir_coefficient = amrex::Real(1.66);    //!< C_w, m^(1/2)/s (weir_orifice)
+    amrex::Real orifice_coefficient = amrex::Real(0.67); //!< C_o, no unit (weir_orifice)
+    amrex::Real coefficient = amrex::Real(0.302);        //!< k, no unit (approach_flow)
+    amrex::Real froude_exponent = amrex::Real(-0.816);   //!< alpha, no unit (approach_flow)
 };
 
 /**
@@ -176,13 +185,21 @@ struct Inputs
 
     //! Storm-drain inlets (flume.drains.names and flume.drains.<name>.*;
     //! default none), in the order listed:
-    //!   - location: x y, m (required; inside the domain, on its edge too);
+    //!   - type: weir_orifice (default) or approach_flow;
+    //!   - location: x y, m (inside the domain, on its edge too), or
+    //!   - file: lines of x and y, m, one inlet each (exactly one of the two);
+    //!   - area: A, m2, the open area of a weir_orifice inlet and the area of the
+    //!     grate of an approach_flow inlet (required; finite, > 0 and <= the area of a cell);
+    //!   with weir_orifice only:
     //!   - perimeter: weir length P, m (required; finite, > 0);
-    //!   - area: open area A, m2 (required; finite, > 0 and <= the area of a cell);
     //!   - weir_coefficient: C_w, m^(1/2)/s (default 1.66; finite, > 0);
-    //!   - orifice_coefficient: C_o (default 0.67; finite, > 0 and <= 1).
-    //! Each inlet has a cell of its own, not a building cell (checked when
-    //! the inlets are placed, FLUME_Drains.H).
+    //!   - orifice_coefficient: C_o (default 0.67; finite, > 0 and <= 1);
+    //!   with approach_flow only:
+    //!   - coefficient: k (default 0.302; finite, > 0);
+    //!   - froude_exponent: alpha (default -0.816; finite, >= -1 and <= 0).
+    //! An inlet of `location` has a cell of its own; the inlets of one file
+    //! may share cells. None sits in a building cell (checked when the
+    //! inlets are placed, FLUME_Drains.H).
     std::vector<DrainInlet> drains;
 
     //! Inflows inside the domain (flume.inflows.names and

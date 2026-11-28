@@ -1,0 +1,3 @@
+# The inlet of Tests/Drains/inputs_basin as two halves in cell (8, 8).
+8.25 8.5
+8.75 8.5   # the second half

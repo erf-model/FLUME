@@ -52,7 +52,8 @@ flow with friction and the kinematic wave of rain on a plane.
 - Full shallow-water equations, finite volume, HLLC flux with hydrostatic
   reconstruction; wetting and drying; first and second order.
 - Bed and free surface on an absolute vertical datum.
-- Manning friction, infiltration (Green-Ampt, curve number), storm-drain inlets.
+- Manning friction, infiltration (Green-Ampt, curve number), storm-drain inlets
+  (weir and orifice, or approach flow; one by one or from a list file).
 - Rain as a constant, a hyetograph, a gridded time-varying field, or the surface
   precipitation of ERF's microphysics.
 - Terrain, roughness and building footprints from rasters.
