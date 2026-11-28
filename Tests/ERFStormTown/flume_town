@@ -1,0 +1,21 @@
+# FLUME's half of the town case, read by the coupled run (inputs_town) and
+# the stand-alone runs (inputs_standalone). The rain and the buildings are
+# set by prepare_town.py (town.inputs, town_flume.inputs). The bed is a
+# plane that rises 1 % to the north; the ground and the roofs do not
+# infiltrate; the water leaves through the south side. FLUME's step is held
+# at 0.25 s, below its CFL limit (about 0.46 s at the peak of the flow): three
+# FLUME steps in each ERF step of 0.75 s, the steps of the stand-alone runs,
+# so the stand-alone run with the buildings gives the coupled flood to
+# the bit.
+flume.max_dt     = 0.25
+flume.log_int    = 1
+flume.flood_maps = 1
+flume.rain.type  = gridded
+
+flume.bed.elevation = 0.0
+flume.bed.slope     = 0.0 0.01
+flume.friction.manning = 0.015
+
+flume.bc.segments    = south
+flume.bc.south.side  = ylo
+flume.bc.south.type  = outflow

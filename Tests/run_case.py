@@ -2,7 +2,7 @@
 """Run one test case in its own directory, then check it.
 
     run_case.py --dir <dir> [--expect-output <regex>] [--reject-output <regex>]
-                --run <command...> --check <command...>
+                [--balance-factor <f>] --run <command...> --check <command...>
     run_case.py --dir <dir> --expect-abort <regex> --run <command...>
 
 The directory is removed and made again, so a test never reads the output of an
@@ -11,8 +11,10 @@ in the same directory, must exit with 0. With --expect-abort, the run must exit
 with a non-zero code and its output must match the regular expression. With
 --expect-output, the output of a run that is checked must also match that
 regular expression; with --reject-output it must not match that one. A run that is checked and leaves water_balance.txt must
-also close its water balance to round-off (Tests/check_balance.py).
+also close its water balance to round-off (Tests/check_balance.py, with the
+factor 64, or <f> with --balance-factor).
 """
+import math
 import re
 import shutil
 import subprocess
@@ -24,10 +26,10 @@ import check_balance  # noqa: E402
 
 
 def split_args(argv):
-    """Split argv at the --dir, --expect-abort, --expect-output, --reject-output, --run and
-    --check markers."""
+    """Split argv at the --dir, --expect-abort, --expect-output, --reject-output,
+    --balance-factor, --run and --check markers."""
     out = {"--dir": [], "--expect-abort": [], "--expect-output": [], "--reject-output": [],
-           "--run": [], "--check": []}
+           "--balance-factor": [], "--run": [], "--check": []}
     key = None
     for a in argv:
         if a in out and not (key == "--check" and a != "--run"):
@@ -59,6 +61,17 @@ def main():
     reject = args["--reject-output"]
     if len(reject) > 1 or (reject and (expect or not reject[0].strip())):
         sys.exit("run_case.py: --reject-output takes one expression that is not empty, and goes with --check")
+    factor = args["--balance-factor"]
+    if factor:
+        try:
+            ok = (len(factor) == 1 and math.isfinite(float(factor[0]))
+                  and float(factor[0]) >= 64 and not expect)
+        except ValueError:
+            ok = False
+        if not ok:
+            sys.exit("run_case.py: --balance-factor takes one finite number of at least 64, "
+                     "and goes with --check")
+    factor = float(factor[0]) if factor else None
 
     run_dir = Path(args["--dir"][0])
     if run_dir.exists():
@@ -93,7 +106,10 @@ def main():
     # must close it to round-off at every line (Tests/check_balance.py).
     log = run_dir / "water_balance.txt"
     if log.exists():
-        ok, msg, _ = check_balance.check(log)
+        if factor is None:
+            ok, msg, _ = check_balance.check(log)
+        else:
+            ok, msg, _ = check_balance.check(log, factor)
         print(f"balance: {msg}", flush=True)
         if not ok:
             sys.exit(f"FAIL: water balance: {msg}")

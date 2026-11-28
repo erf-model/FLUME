@@ -36,5 +36,7 @@ erf_flume_add_regtest(erf_flume_storm NPROCS 4
           --hyetograph ${launcher_np4} $<TARGET_FILE:flume> ${erf_storm_dir}/inputs_standalone
                        ${erf_storm_flume} flume.rain.type=hyetograph ${FLUME_TEST_ARGS})
 if(TEST erf_flume_storm)
-    set_tests_properties(erf_flume_storm PROPERTIES FIXTURES_REQUIRED erf_flume_storm_catchment)
+    # Its rain/storm.txt is the rain of the town case (ERFStormTown).
+    set_tests_properties(erf_flume_storm PROPERTIES FIXTURES_REQUIRED erf_flume_storm_catchment
+                         FIXTURES_SETUP erf_flume_storm_rain)
 endif()

@@ -1,0 +1,11 @@
+# The stand-alone runs of the town case on the flood grid ERF sets in the
+# coupled run: 400 x 400 cells of 2.5 m, periodic in x, in boxes of 200 x 200
+# for four ranks, to 1200 s, a plotfile every 2400 steps (600 s), the times
+# of the coupled run's. With FILE=flume_town and FILE=town_flume.inputs (the square,
+# the buildings and the rain, from prepare_town.py).
+flume.n_cell        = 400 400
+flume.periodic      = 1 0
+flume.max_grid_size = 200
+flume.stop_time     = 1200
+flume.plot_file     = flood
+flume.plot_int      = 2400

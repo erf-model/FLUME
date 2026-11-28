@@ -539,7 +539,13 @@ The coupling as it stands, with the example of
 - **No snowpack.** Frozen precipitation becomes water on the flood grid in
   the step it falls.
 - **FLUME's bed.** The bed is FLUME's own (``flume.bed.*``), not ERF's
-  terrain.
+  terrain. FLUME's buildings (``flume.buildings.file``) are its own too, not
+  ERF's (``erf.buildings_file_name``); :ref:`sec:TownExample` writes both
+  from one description.
+- **One way between runs.** A finer run under a coarser storm, as in
+  :ref:`sec:TownExample`, takes the storm's rain through the files of
+  ``flume.rain.replay_file``: piecewise constant in time and on the storm's
+  cells, with no feedback from the town to the storm.
 - **Replay size.** ``flume.rain.replay_file`` writes ESRI ASCII text, about
   20 bytes per flood cell with rain and 2 bytes per dry cell, per ERF step
   with rain: 190 MB for the 854 steps with rain of the example on 256 x 128

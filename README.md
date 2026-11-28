@@ -35,6 +35,9 @@ hydrostatic reconstruction), writing plotfiles.
 `Tests/ERFStorm` is a coupled example: a convective cell from ERF's
 microphysics over an urban catchment, with the replay of its rain and the
 same storm as a hyetograph (see the docs, Coupled example).
+`Tests/ERFStormTown` takes that storm's rain to a town of 100 buildings:
+ERF's immersed forcing for the wind on 10 m cells, FLUME's flood on 2.5 m
+cells (see the docs, Town example).
 
 It is verified against a lake at rest, the wet and dry dam-break solutions,
 Thacker's solutions in a bowl, a smooth wave (rate of convergence), uniform

@@ -14,12 +14,13 @@ set(erf_logs water_balance.txt gauge_mid.txt gauge_outlet.txt)
 flume_launcher(launcher_np2 2)
 
 # erf_flume_add_regtest(<name> NPROCS <n> INPUTS <file> [ARGS <key=value>...]
-#                       [EXPECT_OUTPUT <regular expression>]
+#                       [EXPECT_OUTPUT <regular expression>] [BALANCE_FACTOR <f>]
 #                       CHECK <command and arguments, run in the test directory>)
 # flume_add_regtest with erf_exec in place of flume; with EXPECT_OUTPUT, the
-# output of the run must match the expression.
+# output of the run must match the expression; with BALANCE_FACTOR, the water
+# balance is checked with the factor <f> (at least 64) in place of 64.
 function(erf_flume_add_regtest name)
-    cmake_parse_arguments(T "" "NPROCS;INPUTS;EXPECT_OUTPUT" "ARGS;CHECK" ${ARGN})
+    cmake_parse_arguments(T "" "NPROCS;INPUTS;EXPECT_OUTPUT;BALANCE_FACTOR" "ARGS;CHECK" ${ARGN})
     if(NOT FLUME_MPI AND NOT T_NPROCS EQUAL 1)
         return()
     endif()
@@ -27,6 +28,9 @@ function(erf_flume_add_regtest name)
     set(expect)
     if(T_EXPECT_OUTPUT)
         set(expect --expect-output ${T_EXPECT_OUTPUT})
+    endif()
+    if(T_BALANCE_FACTOR)
+        list(APPEND expect --balance-factor ${T_BALANCE_FACTOR})
     endif()
     add_test(NAME ${name}
         COMMAND ${Python3_EXECUTABLE} ${FLUME_RUN_CASE}
